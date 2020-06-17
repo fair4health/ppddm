@@ -1,17 +1,11 @@
 package ppddm.manager
 
-import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.Logger
-import org.mongodb.scala.bson.collection.immutable.Document
 import ppddm.core.ai.DataMiningEngine
 import ppddm.core.db.{EmbeddedMongo, MongoDB}
 import ppddm.manager.config.ManagerConfig
 import ppddm.manager.gateway.ManagerHttpServer
-
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 /**
  * The starter object for PPDDM Manager
@@ -55,13 +49,6 @@ object Manager {
     dataMiningEngine = DataMiningEngine(ManagerConfig.appName, ManagerConfig.sparkMaster)
 
     ManagerHttpServer.start(ManagerConfig.serverHost, ManagerConfig.serverPort, ManagerConfig.baseUri)
-
-    val doc: Document = Document("name" -> "MongoDB", "type" -> "database",
-      "count" -> 1, "info" -> Document("x" -> 203, "y" -> 102))
-    import scala.concurrent.ExecutionContext.Implicits.global
-    val f = mongoDB.getCollection("test").insertOne(doc).head().map(r => println("ID:L" + r.getInsertedId))
-    Await.result(f, Duration(10, TimeUnit.SECONDS))
-
   }
 
 }
