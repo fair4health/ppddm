@@ -43,6 +43,8 @@
         <akka.version>2.6.3</akka.version>
         <akka.http.version>10.1.11</akka.http.version>
         <json4s.jackson.version>3.7.0-M2</json4s.jackson.version>
+        <mongo.driver.version>4.0.4</mongo.driver.version>
+        <mongo.embedded.version>2.2.0</mongo.embedded.version>
     </properties>
 
     <build>
@@ -154,7 +156,21 @@
                 <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
                 <version>${json4s.jackson.version}</version>
             </dependency>
-            
+
+            <!-- Mongo Scala Driver -->
+            <dependency>
+                <groupId>org.mongodb.scala</groupId>
+                <artifactId>mongo-scala-driver_${scala.binary.version}</artifactId>
+                <version>${mongo.driver.version}</version>
+            </dependency>
+
+            <!-- Embedded MongoDB -->
+            <dependency>
+                <groupId>de.flapdoodle.embed</groupId>
+                <artifactId>de.flapdoodle.embed.mongo</artifactId>
+                <version>${mongo.embedded.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 

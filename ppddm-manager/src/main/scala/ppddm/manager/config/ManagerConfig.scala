@@ -14,6 +14,9 @@ object ManagerConfig extends AppConfig {
     /** Base URI for mantIQ Services to be served from */
     override lazy val baseUri: String = Try(config.getString("server.base-uri")).getOrElse("manager")
 
+    /** MogoDB Configuration */
+    override lazy val mongoDbName: String = Try(config.getString("mongodb.db")).getOrElse("ppddm-manager")
+
   }
 
 }

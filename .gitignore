@@ -127,3 +127,6 @@ buildNumber.properties
 .mvn/timing.properties
 
 .toDelete
+
+### PPDDM ###
+*.emb.mongo
