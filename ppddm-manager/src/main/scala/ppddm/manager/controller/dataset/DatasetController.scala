@@ -1,13 +1,12 @@
 package ppddm.manager.controller.dataset
 
-import java.util.UUID
-
 import com.typesafe.scalalogging.Logger
 import ppddm.manager.Manager
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.model.Updates.{combine, set}
-import ppddm.core.exception.{DBException, NotFoundException}
-import ppddm.core.rest.model.{DataSource, DataSourceStatus, Dataset}
+import ppddm.core.exception.DBException
+import ppddm.core.rest.model.{DataSourceStatus, Dataset}
+import ppddm.manager.controller.query.FederatedQueryManager
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -33,32 +32,26 @@ object DatasetController {
    * @return The created Dataset with a unique dataset_id in it
    */
   def createDataset(dataset: Dataset): Future[Dataset] = {
-    // TODO 1. Fetch data sources from Service Registry
+    // Create a new Dataset object with a unique identifier in QUERYING status
+    val datasetWithId = dataset.withUniqueDatasetId
+                               .withStatus(DataSourceStatus.QUERYING)
 
-    // 2. Create DataSource object for each data source in QUERYING status.
-    val dataSources = Seq[DataSource](
-      DataSource(Some(UUID.randomUUID().toString), "SAS", DataSourceStatus.QUERYING, "/", None, None),
-      DataSource(Some(UUID.randomUUID().toString), "UNIGE", DataSourceStatus.QUERYING, "/", None, None),
-      DataSource(Some(UUID.randomUUID().toString), "IACS", DataSourceStatus.QUERYING, "/", None, None),
-      DataSource(Some(UUID.randomUUID().toString), "UCSC", DataSourceStatus.QUERYING, "/", None, None),
-      DataSource(Some(UUID.randomUUID().toString), "UP", DataSourceStatus.QUERYING, "/", None, None)
-    ) // TODO to be deleted
+    // Invoke agents to start data extraction process
+    val dataSources = FederatedQueryManager.invokeAgents(datasetWithId)
 
-    // 3. Save dataset to Platform Repository in QUERYING status.
-    val datasetWithId = dataset.withUniqueDatasetId // Create a new Dataset object with a unique identifier
-      .withStatus(DataSourceStatus.QUERYING) // in QUERYING status
-      .withDataSources(dataSources) // with data sources
-    db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithId).toFuture() // insert into the database
+    // Create a new Dataset object with data sources
+    val datasetWithDataSources = datasetWithId.withDataSources(dataSources)
+
+    db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database
       .map { result =>
         val _id = result.getInsertedId.asObjectId().getValue.toString
-        logger.debug("Inserted document _id:{} and datasetId:{}", _id, datasetWithId.dataset_id.get)
-        // TODO invoke agents to start data extraction process
-        datasetWithId
+        logger.debug("Inserted document _id:{} and datasetId:{}", _id, datasetWithDataSources.dataset_id.get)
+        datasetWithDataSources
       }
       .recoverWith {
         case e: Exception =>
-          val msg = s"Error while inserting a Dataset with dataset_id:${datasetWithId.dataset_id.get} into the database."
-          logger.error(msg, datasetWithId.dataset_id.get, e)
+          val msg = s"Error while inserting a Dataset with dataset_id:${datasetWithDataSources.dataset_id.get} into the database."
+          logger.error(msg, datasetWithDataSources.dataset_id.get, e)
           throw DBException(msg, e)
       }
   }
@@ -79,7 +72,23 @@ object DatasetController {
    * @return The list of all Datasets in the Platform Repository, empty list if there are no Datasets.
    */
   def getAllDatasets(): Future[Seq[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).find().toFuture()
+    db.getCollection[Dataset](COLLECTION_NAME).find().toFuture() map { datasets => {
+      // TODO define a future list to send all requests to agents in parallel
+
+      datasets map { dataset =>
+        if (dataset.data_sources isDefined) {
+          dataset.data_sources.get map { dataSource =>
+            if (dataSource.status == DataSourceStatus.QUERYING) {
+              // TODO ask agent about the status of data extraction
+              // TODO if agent returns the result, update data source
+              // TODO update status of dataset if all the agents responded
+            }
+          }
+        }
+      }
+
+      datasets
+    }}
   }
 
   /**
