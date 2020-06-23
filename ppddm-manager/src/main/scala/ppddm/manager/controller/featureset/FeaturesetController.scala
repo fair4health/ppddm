@@ -6,7 +6,6 @@ import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.model.Updates.{combine, set}
 import ppddm.core.exception.{DBException, NotFoundException}
 import ppddm.core.rest.model.Featureset
-import ppddm.manager.controller.project.ProjectController.logger
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
