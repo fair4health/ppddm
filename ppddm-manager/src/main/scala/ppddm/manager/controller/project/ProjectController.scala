@@ -20,8 +20,14 @@ object ProjectController {
   private val logger: Logger = Logger(this.getClass)
   private val db = Manager.mongoDB.getDatabase
 
+  /**
+   * Creates a new Project on the Platform Repository
+   *
+   * @param project The project to be created
+   * @return The created Project object with a unique project_id in it
+   */
   def createProject(project: Project): Future[Project] = {
-    val projectWithId = project.withUniqueProjectId // Create a new Project object with a unique identifier
+    val projectWithId = project.withUniqueProjectId // Create a new, timestamped, Project object with a unique identifier
     db.getCollection[Project](COLLECTION_NAME).insertOne(projectWithId).toFuture() // insert into the database
       .map { result =>
         val _id = result.getInsertedId.asObjectId().getValue.toString
@@ -36,29 +42,46 @@ object ProjectController {
       }
   }
 
+  /**
+   * Retrieves the Project from the Platform Repository.
+   *
+   * @param project_id The unique identifier of the Project
+   * @return The Project if project_id is valid, None otherwise.
+   */
   def getProject(project_id: String): Future[Option[Project]] = {
     db.getCollection[Project](COLLECTION_NAME).find(equal("project_id", project_id)).first().headOption()
   }
 
+  /**
+   * Retrieves all Projects from the Platform Repository.
+   *
+   * @return The list of all Projects in the Platform Repository, empty list if there are no Projects.
+   */
   def getAllProjects: Future[Seq[Project]] = {
     db.getCollection[Project](COLLECTION_NAME).find().toFuture()
   }
 
-  def updateProject(project: Project): Future[Project] = {
+  /**
+   * Updates the Project. Only name and description fields of a Project can be updated.
+   *
+   * @param project The Project object to be updated.
+   * @return The updated Project object if operation is successful, None otherwise.
+   */
+  def updateProject(project: Project): Future[Option[Project]] = {
     db.getCollection[Project](COLLECTION_NAME).findOneAndUpdate(
       equal("project_id", project.project_id.get),
       combine(set("name", project.name), set("description", project.description))
-    ).toFuture()
+    ).headOption()
   }
 
-  def deleteProject(project_id: String): Future[Long] = {
-    db.getCollection[Project](COLLECTION_NAME).deleteOne(equal("project_id", project_id)).toFuture() map { result =>
-      val count = result.getDeletedCount
-      if (count == 0) {
-        throw NotFoundException(s"The Project with id:${project_id} not found")
-      }
-      count
-    }
+  /**
+   * Deletes Project from the Platform Repository.
+   *
+   * @param project_id The unique identifier of the Project to be deleted.
+   * @return The deleted Project object if operation is successful, None otherwise.
+   */
+  def deleteProject(project_id: String): Future[Option[Project]] = {
+    db.getCollection[Project](COLLECTION_NAME).findOneAndDelete(equal("project_id", project_id)).headOption()
   }
 
 }

@@ -25,7 +25,7 @@ class MongoDB(mongoClientSettings: MongoClientSettings, dbName: String) {
   import MongoDB.logger
 
   /**
-   * The Codec registry so that case classes inheriting from #ModelClass can be converted to BSON automatically
+   * The Codec registry so that case classes inheriting from #ModelClass of the RestModel can be converted to BSON automatically
    */
   private val codecRegistry = fromRegistries(fromProviders(classOf[ModelClass]), DEFAULT_CODEC_REGISTRY)
 
