@@ -10,10 +10,12 @@ trait ManagerEndpoint extends CorsHandler with ManagerExceptionHandler with Proj
   def mainRoute(baseUri: String) =
     handleCORS { // CORS handling
       handleRejections(RejectionHandler.default) { // Default rejection handling
-        handleExceptions(ppddmExceptionHandler) { // Exception Handling specific to PPDDM Agent
-          pathPrefix(baseUri) { // Catch the baseUri at this point and do not use the baseUri in the paths of the inner routes
-            authenticateOAuth2(realm = baseUri, AuthenticationController.accessTokenAuthenticator) { implicit accessToken =>
-              projectRoute ~ featuresetRoute ~ queryRoute ~ dataMiningRoute
+        rejectEmptyResponse { // Reject the empty responses
+          handleExceptions(ppddmExceptionHandler) { // Exception Handling specific to PPDDM Agent
+            pathPrefix(baseUri) { // Catch the baseUri at this point and do not use the baseUri in the paths of the inner routes
+              authenticateOAuth2(realm = baseUri, AuthenticationController.accessTokenAuthenticator) { implicit accessToken =>
+                projectRoute ~ featuresetRoute ~ queryRoute ~ dataMiningRoute
+              }
             }
           }
         }
