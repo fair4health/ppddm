@@ -13,7 +13,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 /**
- * Controller object for the Datasets. Dataset extracted data from FHIR based on the specifications defined in Featureset and eligibility criteria.
+ * Controller object for the Datasets.
+ * A Dataset mainly contains a Featureset, an eligibility query and a set of DataSources such that:
+ *  - The eligibility query is executed on each Datasource (on the FHIR Repositories)
+ *  - The results are extracted/converted according to the given Featureset. The values of each variable within the Featureset is extracted.
+ *  - This query execution and data execution is performed on each Datasource asynchronously.
  */
 object DatasetController {
 
@@ -23,9 +27,10 @@ object DatasetController {
   private val db = Manager.mongoDB.getDatabase
 
   /**
-   * Saves the data set object containing only name, description and eligibility criteria to the Platform Repository and invokes agents to start data extraction process.
-   * @param dataset The data set object containing only name, description and eligibility criteria.
-   * @return The data set object with a unique identifier and created data sources if operation is successful, error otherwise.
+   * Creates a new Dataset on the Platform Repository and invokes the agents to start their data extraction processes.
+   *
+   * @param dataset The Dataset to be created
+   * @return The created Dataset with a unique dataset_id in it
    */
   def createDataset(dataset: Dataset): Future[Dataset] = {
     // TODO 1. Fetch data sources from Service Registry
@@ -41,8 +46,8 @@ object DatasetController {
 
     // 3. Save dataset to Platform Repository in QUERYING status.
     val datasetWithId = dataset.withUniqueDatasetId // Create a new Dataset object with a unique identifier
-                               .withStatus(DataSourceStatus.QUERYING) // in QUERYING status
-                               .withDataSources(dataSources)  // with data sources
+      .withStatus(DataSourceStatus.QUERYING) // in QUERYING status
+      .withDataSources(dataSources) // with data sources
     db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithId).toFuture() // insert into the database
       .map { result =>
         val _id = result.getInsertedId.asObjectId().getValue.toString
@@ -59,47 +64,45 @@ object DatasetController {
   }
 
   /**
-   * Retrieves all the feature sets from the Platform Repository.
-   * @return empty list if there is no feature set in the repository, the list of datasets otherwise.
-   */
-  def getAllDatasets(): Future[Seq[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).find().toFuture()
-  }
-
-  /**
-   * Retrieves the feature set with specific unique identifier from the Platform Repository.
-   * @param dataset_id The unique identifier of the feature set to be returned
-   * @return null if dataset_id is not valid, the Dataset object otherwise.
+   * Retrieves the Dataset from the Platform Repository.
+   *
+   * @param dataset_id The unique identifier of the Dataset
+   * @return The Dataset if dataset_id is valid, None otherwise.
    */
   def getDataset(dataset_id: String): Future[Option[Dataset]] = {
     db.getCollection[Dataset](COLLECTION_NAME).find(equal("dataset_id", dataset_id)).first().headOption()
   }
 
   /**
-   * Updates the feature set.
-   * @param dataset The Dataset object to be updated.
-   * @return the updated Dataset object if operation is successful, error otherwise.
+   * Retrieves all Datasets from the Platform Repository.
+   *
+   * @return The list of all Datasets in the Platform Repository, empty list if there are no Datasets.
    */
-  def updateDataset(dataset: Dataset): Future[Dataset] = { // TODO to be updated
-    db.getCollection[Dataset](COLLECTION_NAME).findOneAndUpdate(
-      equal("dataset_id", dataset.dataset_id.get),
-      combine(set("name", dataset.name), set("description", dataset.description))
-    ).toFuture()
+  def getAllDatasets(): Future[Seq[Dataset]] = {
+    db.getCollection[Dataset](COLLECTION_NAME).find().toFuture()
   }
 
   /**
-   * Deletes dataset from the Platform Repository.
-   * @param dataset_id The unique identifier of the dataset to be deleted.
-   * @return the number of deleted records if operation is successful, error otherwise.
+   * Updates the Dataset. Only name and description fields of a Dataset can be updated.
+   *
+   * @param dataset The Dataset object to be updated.
+   * @return The updated Dataset object if operation is successful, None otherwise.
    */
-  def deleteDataset(dataset_id: String): Future[Long] = {
-    db.getCollection[Dataset](COLLECTION_NAME).deleteOne(equal("dataset_id", dataset_id)).toFuture() map { result =>
-      val count = result.getDeletedCount
-      if (count == 0) {
-        throw NotFoundException(s"The Dataset with id:${dataset_id} not found")
-      }
-      count
-    }
+  def updateDataset(dataset: Dataset): Future[Option[Dataset]] = {
+    db.getCollection[Dataset](COLLECTION_NAME).findOneAndUpdate(
+      equal("dataset_id", dataset.dataset_id.get),
+      combine(set("name", dataset.name), set("description", dataset.description))
+    ).headOption()
+  }
+
+  /**
+   * Deletes Dataset from the Platform Repository.
+   *
+   * @param dataset_id The unique identifier of the Dataset to be deleted.
+   * @return The deleted Dataset object if operation is successful, None otherwise.
+   */
+  def deleteDataset(dataset_id: String): Future[Option[Dataset]] = {
+    db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id)).headOption()
   }
 }
 
