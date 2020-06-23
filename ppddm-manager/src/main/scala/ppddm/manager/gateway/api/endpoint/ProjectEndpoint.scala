@@ -13,7 +13,14 @@ trait ProjectEndpoint {
       pathEndOrSingleSlash {
         post {
           entity(as[Project]) { project =>
-            complete(ProjectController.createProject(project))
+            complete {
+              ProjectController.createProject(project)
+            }
+          }
+        } ~
+        get {
+          complete {
+            ProjectController.getAllProjects
           }
         }
       }
@@ -23,6 +30,18 @@ trait ProjectEndpoint {
         get {
           complete {
             ProjectController.getProject(project_id)
+          }
+        } ~
+        put {
+          entity(as[Project]) { project =>
+            complete {
+              ProjectController.updateProject(project)
+            }
+          }
+        } ~
+        delete {
+          complete {
+            ProjectController.deleteProject(project_id)
           }
         }
       }

@@ -11,12 +11,12 @@ case class Project(project_id: Option[String],
                    name: String,
                    description: String,
                    project_type: ProjectType,
-                   created_by: String,
+                   created_by: String, // The user ID who creates this Project
                    created_on: Option[LocalDateTime],
                    updated_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueProjectId: Project = {
-    this.copy(project_id = Some(UUID.randomUUID().toString))
+    this.copy(project_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
   }
 }
 
