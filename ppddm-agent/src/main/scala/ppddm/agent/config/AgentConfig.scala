@@ -12,7 +12,7 @@ object AgentConfig extends AppConfig {
   /** Base URI for mantIQ Services to be served from */
   override lazy val baseUri: String = Try(config.getString("server.base-uri")).getOrElse("agent")
 
-  /** MogoDB Configuration */
-  override lazy val mongoDbName: String = Try(config.getString("mongodb.db")).getOrElse("ppddm-agent")
+  /** FHIR endpoint */
+  lazy val fhirEndpoint: String = Try(config.getString("fhir.endpoint")).getOrElse("http://localhost/fhir")
 
 }

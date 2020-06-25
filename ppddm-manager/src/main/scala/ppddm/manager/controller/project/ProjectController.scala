@@ -1,11 +1,11 @@
 package ppddm.manager.controller.project
 
 import com.typesafe.scalalogging.Logger
+import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
+import ppddm.core.exception.DBException
 import ppddm.core.rest.model.Project
 import ppddm.manager.Manager
-import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.{combine, set}
-import ppddm.core.exception.{DBException, NotFoundException}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -62,16 +62,17 @@ object ProjectController {
   }
 
   /**
-   * Updates the Project. Only name and description fields of a Project can be updated.
+   * Updates the Project by doing a replacement.
    *
    * @param project The Project object to be updated.
    * @return The updated Project object if operation is successful, None otherwise.
    */
   def updateProject(project: Project): Future[Option[Project]] = {
-    db.getCollection[Project](COLLECTION_NAME).findOneAndUpdate(
+    // TODO: Add some integrity checks before document replacement
+    db.getCollection[Project](COLLECTION_NAME).findOneAndReplace(
       equal("project_id", project.project_id.get),
-      combine(set("name", project.name), set("description", project.description))
-    ).headOption()
+      project,
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
   /**

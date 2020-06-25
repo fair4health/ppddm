@@ -1,11 +1,11 @@
 package ppddm.manager.controller.featureset
 
 import com.typesafe.scalalogging.Logger
-import ppddm.manager.Manager
 import org.mongodb.scala.model.Filters._
-import org.mongodb.scala.model.Updates.{combine, set}
-import ppddm.core.exception.{DBException, NotFoundException}
+import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
+import ppddm.core.exception.DBException
 import ppddm.core.rest.model.Featureset
+import ppddm.manager.Manager
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -57,21 +57,22 @@ object FeaturesetController {
    *
    * @return The list of all Featuresets in the Platform Repository, empty list if there are no Featuresets.
    */
-  def getAllFeaturesets(): Future[Seq[Featureset]] = {
+  def getAllFeaturesets: Future[Seq[Featureset]] = {
     db.getCollection[Featureset](COLLECTION_NAME).find().toFuture()
   }
 
   /**
-   * Updates the Featureset. Only name and description fields of a Featureset can be updated.
+   * Updates the Featureset by doing a replacement.
    *
    * @param featureset The Featureset object to be updated.
    * @return The updated Featureset object if operation is successful, None otherwise.
    */
   def updateFeatureset(featureset: Featureset): Future[Option[Featureset]] = {
-    db.getCollection[Featureset](COLLECTION_NAME).findOneAndUpdate(
+    // TODO: Add some integrity checks before document replacement
+    db.getCollection[Featureset](COLLECTION_NAME).findOneAndReplace(
       equal("featureset_id", featureset.featureset_id.get),
-      combine(set("name", featureset.name), set("description", featureset.description))
-    ).headOption()
+      featureset,
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
   /**

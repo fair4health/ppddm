@@ -1,11 +1,11 @@
 package ppddm.manager.controller.dataset
 
 import com.typesafe.scalalogging.Logger
-import ppddm.manager.Manager
 import org.mongodb.scala.model.Filters._
-import org.mongodb.scala.model.Updates.{combine, set}
+import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{DataSourceStatus, Dataset}
+import ppddm.core.rest.model.Dataset
+import ppddm.manager.Manager
 import ppddm.manager.controller.query.FederatedQueryManager
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -32,15 +32,14 @@ object DatasetController {
    * @return The created Dataset with a unique dataset_id in it
    */
   def createDataset(dataset: Dataset): Future[Dataset] = {
-    // Create a new Dataset object with a unique identifier in QUERYING status
+    // Create a new Dataset object with a unique identifier
     val datasetWithId = dataset.withUniqueDatasetId
-                               .withStatus(DataSourceStatus.QUERYING)
 
     // Invoke agents to start data extraction process
-    val dataSources = FederatedQueryManager.invokeAgents(datasetWithId)
+    val datasetSources = FederatedQueryManager.invokeAgents(datasetWithId)
 
     // Create a new Dataset object with data sources
-    val datasetWithDataSources = datasetWithId.withDataSources(dataSources)
+    val datasetWithDataSources = datasetWithId.withDataSources(datasetSources)
 
     db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database
       .map { result =>
@@ -71,14 +70,14 @@ object DatasetController {
    *
    * @return The list of all Datasets in the Platform Repository, empty list if there are no Datasets.
    */
-  def getAllDatasets(): Future[Seq[Dataset]] = {
+  def getAllDatasets: Future[Seq[Dataset]] = {
     db.getCollection[Dataset](COLLECTION_NAME).find().toFuture() map { datasets => {
       // TODO define a future list to send all requests to agents in parallel
 
-      datasets map { dataset =>
-        if (dataset.data_sources isDefined) {
-          dataset.data_sources.get map { dataSource =>
-            if (dataSource.status == DataSourceStatus.QUERYING) {
+      datasets foreach { dataset =>
+        if (dataset.dataset_sources.isDefined) {
+          dataset.dataset_sources.get foreach { datasetSource =>
+            if (datasetSource.dataSourceStatistics.isEmpty) {
               // TODO ask agent about the status of data extraction
               // TODO if agent returns the result, update data source
               // TODO update status of dataset if all the agents responded
@@ -92,16 +91,17 @@ object DatasetController {
   }
 
   /**
-   * Updates the Dataset. Only name and description fields of a Dataset can be updated.
+   * Updates the Dataset by doing a replacement.
    *
    * @param dataset The Dataset object to be updated.
    * @return The updated Dataset object if operation is successful, None otherwise.
    */
   def updateDataset(dataset: Dataset): Future[Option[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).findOneAndUpdate(
+    // TODO: Add some integrity checks before document replacement
+    db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
       equal("dataset_id", dataset.dataset_id.get),
-      combine(set("name", dataset.name), set("description", dataset.description))
-    ).headOption()
+      dataset,
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
   /**

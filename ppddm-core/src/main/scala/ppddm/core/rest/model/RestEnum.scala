@@ -18,17 +18,14 @@ object VariableType extends Enumeration {
   val DEPENDENT = "dependent"
 }
 
-object DatasetStatus extends Enumeration {
-  type DatasetStatus = String
-  val QUERYING = "querying"
-  val QUERIED_ALL = "queried_all"
-  val FINAL = "final"
+object DataSourceSelectionStatus extends Enumeration {
+  type DataSourceSelectionStatus = String
+  val SELECTED = "selected"
+  val DISCARDED = "discarded"
 }
 
-object DataSourceStatus extends Enumeration {
-  type DataSourceStatus = String
-  val QUERYING = "querying"
-  val STATISTICS_READY = "statistics_ready"
-  val DISCARDED = "discarded"
-  val SELECTED = "selected"
+object ExecutionState extends Enumeration {
+  type ExecutionState = String
+  val IN_PROGRESS = "in_progress"
+  val FINAL = "final"
 }

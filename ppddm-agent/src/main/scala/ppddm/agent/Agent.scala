@@ -13,12 +13,14 @@ object Agent {
 
   private val logger: Logger = Logger(this.getClass)
 
-  val dataMiningEngine: DataMiningEngine = DataMiningEngine(AgentConfig.appName, AgentConfig.sparkMaster)
+  var dataMiningEngine: DataMiningEngine = _
 
   def start(): Unit = {
     logger.info("PPDDM Agent is starting up...")
 
     implicit val system: ActorSystem = ActorSystem("ppddm-agent")
+
+    dataMiningEngine = DataMiningEngine(AgentConfig.appName, AgentConfig.sparkMaster)
 
     AgentHttpServer.start(AgentConfig.serverHost, AgentConfig.serverPort, AgentConfig.baseUri)
   }
