@@ -11,11 +11,11 @@ object FederatedQueryManager {
 
     // 2. Create DataSource object for each data source in IN_PROGRESS status.
     val datasetSources = Seq[DatasetSource](
-      DatasetSource(DataSource(UUID.randomUUID().toString, "SAS", "sas.com/agent"), None, DataSourceSelectionStatus.DISCARDED, ExecutionState.IN_PROGRESS),
-      DatasetSource(DataSource(UUID.randomUUID().toString, "UNIGE", "unige.com/agent"), None, DataSourceSelectionStatus.DISCARDED, ExecutionState.IN_PROGRESS),
-      DatasetSource(DataSource(UUID.randomUUID().toString, "IACS", "iacs.com/agent"), None, DataSourceSelectionStatus.DISCARDED, ExecutionState.IN_PROGRESS),
-      DatasetSource(DataSource(UUID.randomUUID().toString, "UCSC", "ucsc.com/agent"), None, DataSourceSelectionStatus.DISCARDED, ExecutionState.IN_PROGRESS),
-      DatasetSource(DataSource(UUID.randomUUID().toString, "UP", "up.com/agent"), None, DataSourceSelectionStatus.DISCARDED, ExecutionState.IN_PROGRESS)
+      DatasetSource(DataSource(UUID.randomUUID().toString, "SAS", "sas.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+      DatasetSource(DataSource(UUID.randomUUID().toString, "UNIGE", "unige.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+      DatasetSource(DataSource(UUID.randomUUID().toString, "IACS", "iacs.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+      DatasetSource(DataSource(UUID.randomUUID().toString, "UCSC", "ucsc.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+      DatasetSource(DataSource(UUID.randomUUID().toString, "UP", "up.com/agent"), None, None, Some(ExecutionState.QUERYING))
     ) // TODO to be deleted
 
     // TODO 3. Invoke agents to start data extraction process

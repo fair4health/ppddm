@@ -50,7 +50,7 @@ final case class Dataset(dataset_id: Option[String],
                          description: String,
                          eligibility_criteria: Seq[EligibilityCriteria],
                          dataset_sources: Option[Seq[DatasetSource]],
-                         executionState: ExecutionState,
+                         execution_state: Option[ExecutionState],
                          created_by: String,
                          created_on: Option[LocalDateTime]) extends ModelClass {
 
@@ -62,15 +62,19 @@ final case class Dataset(dataset_id: Option[String],
     this.copy(dataset_sources = Some(dataset_sources))
   }
 
+  def withExecutionState(execution_state: ExecutionState): Dataset = {
+    this.copy(execution_state = Some(execution_state))
+  }
+
 }
 
 final case class EligibilityCriteria(fhir_query: String,
                                      fhir_path: Option[String]) extends ModelClass
 
-final case class DatasetSource(dataSource: DataSource,
-                               dataSourceStatistics: Option[DataSourceStatistics],
-                               selectionStatus: DataSourceSelectionStatus,
-                               executionState: ExecutionState) extends ModelClass
+final case class DatasetSource(data_source: DataSource,
+                               data_source_statistics: Option[DataSourceStatistics],
+                               selection_status: Option[DataSourceSelectionStatus],
+                               execution_state: Option[ExecutionState]) extends ModelClass
 
 final case class DataSource(datasource_id: String,
                             name: String,

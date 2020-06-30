@@ -18,9 +18,11 @@ trait DatasetEndpoint {
             }
           }
         } ~
-          get { // get all data sets
-            complete {
-              DatasetController.getAllDatasets
+          get { // get all data sets of project
+            parameters('project_id) { project_id =>
+              complete {
+                DatasetController.getAllDatasets(project_id)
+              }
             }
           }
       }

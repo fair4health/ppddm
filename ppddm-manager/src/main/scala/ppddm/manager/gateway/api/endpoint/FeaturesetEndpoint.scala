@@ -18,9 +18,11 @@ trait FeaturesetEndpoint {
             }
           }
         } ~
-        get { // get all feature sets
-          complete {
-            FeaturesetController.getAllFeaturesets
+        get { // get all feature sets of project
+          parameters('project_id) { project_id =>
+            complete {
+              FeaturesetController.getAllFeaturesets(project_id)
+            }
           }
         }
       }

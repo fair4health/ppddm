@@ -26,6 +26,7 @@ object DataSourceSelectionStatus extends Enumeration {
 
 object ExecutionState extends Enumeration {
   type ExecutionState = String
+  val QUERYING = "querying"
   val IN_PROGRESS = "in_progress"
   val FINAL = "final"
 }

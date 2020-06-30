@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.Dataset
+import ppddm.core.rest.model.{Dataset, ExecutionState}
 import ppddm.manager.Manager
 import ppddm.manager.controller.query.FederatedQueryManager
 
@@ -38,8 +38,8 @@ object DatasetController {
     // Invoke agents to start data extraction process
     val datasetSources = FederatedQueryManager.invokeAgents(datasetWithId)
 
-    // Create a new Dataset object with data sources
-    val datasetWithDataSources = datasetWithId.withDataSources(datasetSources)
+    // Create a new Dataset object with data sources and execution state "querying"
+    val datasetWithDataSources = datasetWithId.withDataSources(datasetSources).withExecutionState(ExecutionState.QUERYING)
 
     db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database
       .map { result =>
@@ -68,16 +68,17 @@ object DatasetController {
   /**
    * Retrieves all Datasets from the Platform Repository.
    *
+   * @param project_id The project ID whose data sets are to be retrieved.
    * @return The list of all Datasets in the Platform Repository, empty list if there are no Datasets.
    */
-  def getAllDatasets: Future[Seq[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).find().toFuture() map { datasets => {
+  def getAllDatasets(project_id: String): Future[Seq[Dataset]] = {
+    db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() map { datasets => {
       // TODO define a future list to send all requests to agents in parallel
 
       datasets foreach { dataset =>
         if (dataset.dataset_sources.isDefined) {
           dataset.dataset_sources.get foreach { datasetSource =>
-            if (datasetSource.dataSourceStatistics.isEmpty) {
+            if (datasetSource.data_source_statistics.isEmpty) {
               // TODO ask agent about the status of data extraction
               // TODO if agent returns the result, update data source
               // TODO update status of dataset if all the agents responded
@@ -98,9 +99,12 @@ object DatasetController {
    */
   def updateDataset(dataset: Dataset): Future[Option[Dataset]] = {
     // TODO: Add some integrity checks before document replacement
+    // Update the execution state of the dataset to "final"
+    val datasetWithNewExecutionState = dataset.withExecutionState(ExecutionState.FINAL)
+
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
-      equal("dataset_id", dataset.dataset_id.get),
-      dataset,
+      equal("dataset_id", datasetWithNewExecutionState.dataset_id.get),
+      datasetWithNewExecutionState,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
