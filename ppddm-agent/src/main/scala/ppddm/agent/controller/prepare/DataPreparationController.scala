@@ -1,6 +1,8 @@
 package ppddm.agent.controller.prepare
 
+import akka.actor.ActorSystem
 import com.typesafe.scalalogging.Logger
+import ppddm.core.fhir.r4.service.FHIRClient
 import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -15,6 +17,8 @@ import scala.concurrent.Future
 object DataPreparationController {
 
   private val logger: Logger = Logger(this.getClass)
+
+  implicit val system = ActorSystem()
 
   /**
    * Start the data preparation (data extraction process) with the given DataPreparationRequest.
@@ -36,6 +40,17 @@ object DataPreparationController {
     // TODO: 4. Create the DataPreparationResult for the given dataset_id and create a DataFrame containing this information.
     //  Cache this DataFrame and also persist (save as another parquet file). While the Agent is starting up, it will read these kind of
     //  DataFrames and cache.
+
+    val fhirClient = FHIRClient()
+
+    val tyy = fhirClient.query("Condition?code=I10")
+
+
+    logger.info("Here")
+
+
+
+    // println(JsonFormatter.convertToJson(dataPreparationRequest).toPrettyJson)
     Future {}
   }
 

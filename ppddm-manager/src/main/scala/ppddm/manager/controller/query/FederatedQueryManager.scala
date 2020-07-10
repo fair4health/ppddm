@@ -2,7 +2,8 @@ package ppddm.manager.controller.query
 
 import java.util.UUID
 
-import ppddm.core.rest.model.{DataSource, DataSourceSelectionStatus, Dataset, DatasetSource, ExecutionState}
+import ppddm.core.rest.model.{DataPreparationRequest, DataSource, Dataset, DatasetSource, ExecutionState}
+import ppddm.core.util.JsonFormatter
 
 object FederatedQueryManager {
 
@@ -19,6 +20,8 @@ object FederatedQueryManager {
     ) // TODO to be deleted
 
     // TODO 3. Invoke agents to start data extraction process
+    val dataPreperationRequest = DataPreparationRequest(dataset.dataset_id.get, dataset.featureset, dataset.eligibility_criteria, "1903") // TODO submitted by
+    println(JsonFormatter.convertToJson(dataPreperationRequest).toPrettyJson)
 
     datasetSources
   }
