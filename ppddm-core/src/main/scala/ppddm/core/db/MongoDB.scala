@@ -3,8 +3,12 @@ package ppddm.core.db
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.scalalogging.Logger
+import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
+import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
+import org.mongodb.scala.bson.codecs.Macros._
 import org.mongodb.scala.connection.ConnectionPoolSettings
-import org.mongodb.scala.{Document, MongoClient, MongoClientSettings, MongoCollection, MongoCredential, MongoDatabase, ServerAddress}
+import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCredential, MongoDatabase, ServerAddress}
+import ppddm.core.rest.model.ModelClass
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Await
@@ -14,20 +18,31 @@ import scala.concurrent.duration.Duration
  * MongoDB client
  *
  * @param mongoClientSettings Settings object specific to the MongoDB to be connected
- * @param dbName Name of the database to be connected
+ * @param dbName              Name of the database to be connected
  */
 class MongoDB(mongoClientSettings: MongoClientSettings, dbName: String) {
 
   import MongoDB.logger
 
+  /**
+   * The Codec registry so that case classes inheriting from #ModelClass of the RestModel can be converted to BSON automatically
+   */
+  private val codecRegistry = fromRegistries(fromProviders(classOf[ModelClass]), DEFAULT_CODEC_REGISTRY)
+
   private val mongoClient: MongoClient = MongoClient(mongoClientSettings)
+  private var mongoDatabase: MongoDatabase = _getDatabase()
+
+  private def _getDatabase(): MongoDatabase = {
+    mongoClient.getDatabase(dbName).withCodecRegistry(codecRegistry)
+  }
 
   /**
    * Get the Mongo database
+   *
    * @return A MongoDatabase
    */
   def getDatabase: MongoDatabase = {
-    mongoClient.getDatabase(dbName)
+    mongoDatabase
   }
 
   /**
@@ -43,14 +58,8 @@ class MongoDB(mongoClientSettings: MongoClientSettings, dbName: String) {
     } finally {
       logger.info("Mongo database:{} is dropped.", dbName)
     }
+    mongoDatabase = _getDatabase() // After dropping it, get the database again from the connection
   }
-
-  /**
-   * Get a specific collection from the Mongo database
-   * @param name Name of the collection
-   * @return
-   */
-  def getCollection(name: String): MongoCollection[Document] = getDatabase.getCollection(name)
 
 }
 
@@ -64,16 +73,16 @@ object MongoDB {
   /**
    * Class constructor for a MongoDB class through this companion object
    *
-   * @param appName Name of the application using this MongoDB client
-   * @param host Hostname of the MongoDB to be connected
-   * @param port Port number of the MongoDB to be connected
-   * @param dbName Name of the database to tbe connected
-   * @param user username for authentication. If provided together with password and authDbName, a secure connection will be established
-   * @param password password for authentication. If provided together with user and authDbName, a secure connection will be established
-   * @param authDbName database name to be used for authentication. If provided together with user and password, a secure connection will be established
-   * @param poolMinSize minimum number of the connections in the connection pool. If provided, a connection pool is created
-   * @param poolMaxSize maximum number of the connections in the connection pool. If provided, a connection pool is created
-   * @param poolMaxWaitTime maximum waiting time of a connection in the connection pool. If provided, a connection pool is created
+   * @param appName                   Name of the application using this MongoDB client
+   * @param host                      Hostname of the MongoDB to be connected
+   * @param port                      Port number of the MongoDB to be connected
+   * @param dbName                    Name of the database to tbe connected
+   * @param user                      username for authentication. If provided together with password and authDbName, a secure connection will be established
+   * @param password                  password for authentication. If provided together with user and authDbName, a secure connection will be established
+   * @param authDbName                database name to be used for authentication. If provided together with user and password, a secure connection will be established
+   * @param poolMinSize               minimum number of the connections in the connection pool. If provided, a connection pool is created
+   * @param poolMaxSize               maximum number of the connections in the connection pool. If provided, a connection pool is created
+   * @param poolMaxWaitTime           maximum waiting time of a connection in the connection pool. If provided, a connection pool is created
    * @param poolMaxConnectionLifeTime maximum lifetime duration of a connection in the connection pool. If provided, a connection pool is created
    * @return A MongoDB client instance
    */

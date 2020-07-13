@@ -8,6 +8,7 @@ import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import org.json4s.jackson.Serialization
 import org.json4s.{Formats, MappingException, NoTypeHints, Serialization, jackson}
+import ppddm.core.util.JavaDateTimeSerializers
 
 /**
  * Automatic to and from JSON marshalling/unmarshalling using an in-scope *Json4s* protocol.
@@ -16,7 +17,7 @@ import org.json4s.{Formats, MappingException, NoTypeHints, Serialization, jackso
  */
 object Json4sSupport extends Json4sSupport {
 
-  implicit lazy val formats:Formats = Serialization.formats(NoTypeHints)
+  implicit lazy val formats: Formats = Serialization.formats(NoTypeHints) + JavaDateTimeSerializers.LocalDateTimeSerializer
   implicit lazy val serialization: Serialization = jackson.Serialization
 
   sealed abstract class ShouldWritePretty
@@ -56,10 +57,7 @@ trait Json4sSupport {
    * @tparam A type to decode
    * @return unmarshaller for `A`
    */
-  implicit def unmarshaller[A: Manifest](
-                                          implicit serialization: Serialization,
-                                          formats: Formats
-                                        ): FromEntityUnmarshaller[A] =
+  implicit def unmarshaller[A: Manifest](implicit serialization: Serialization, formats: Formats): FromEntityUnmarshaller[A] =
     jsonStringUnmarshaller
       .map(s => serialization.read(s))
       .recover { _ =>
@@ -74,11 +72,8 @@ trait Json4sSupport {
    * @tparam A type to encode, must be upper bounded by `AnyRef`
    * @return marshaller for any `A` value
    */
-  implicit def marshaller[A <: AnyRef](
-                                        implicit serialization: Serialization,
-                                        formats: Formats,
-                                        shouldWritePretty: ShouldWritePretty = ShouldWritePretty.False
-                                      ): ToEntityMarshaller[A] =
+  implicit def marshaller[A <: AnyRef](implicit serialization: Serialization, formats: Formats,
+                                       shouldWritePretty: ShouldWritePretty = ShouldWritePretty.False): ToEntityMarshaller[A] =
     shouldWritePretty match {
       case ShouldWritePretty.False =>
         jsonStringMarshaller.compose(serialization.write[A])
