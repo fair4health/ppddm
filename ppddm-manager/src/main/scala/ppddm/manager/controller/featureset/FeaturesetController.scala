@@ -53,10 +53,10 @@ object FeaturesetController {
   }
 
   /**
-   * Retrieves all Featuresets from the Platform Repository.
+   * Retrieves all Featuresets of a project from the Platform Repository.
    *
-   * @param project_id The project ID whose feature sets are to be retrieved.
-   * @return The list of all Featuresets in the Platform Repository, empty list if there are no Featuresets.
+   * @param project_id The project ID whose Featuresets are to be retrieved.
+   * @return The list of all Featuresets for the given project, empty list if there are no Featuresets.
    */
   def getAllFeaturesets(project_id: String): Future[Seq[Featureset]] = {
     db.getCollection[Featureset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()

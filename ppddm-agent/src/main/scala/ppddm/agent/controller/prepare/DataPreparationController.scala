@@ -1,7 +1,8 @@
 package ppddm.agent.controller.prepare
 
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult}
+import org.apache.spark.sql.DataFrame
+import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult, Featureset}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -37,6 +38,21 @@ object DataPreparationController {
     //  Cache this DataFrame and also persist (save as another parquet file). While the Agent is starting up, it will read these kind of
     //  DataFrames and cache.
     Future {}
+  }
+
+  /**
+   * Creates a DataFrame out of the given patient identifiers and then applies a series of transformations to
+   * end up with a DataFrame that corresponds to the tabular data in which columns are the variables of the Featureset and
+   * rows are values extracted from the FHIR Repository corresponding those variables for each patient.
+   *
+   * @param featureset
+   * @param patientIds
+   * @return
+   */
+  private def prepareFeaturesetValues(featureset: Featureset, patientIds: Seq[String]): Future[DataFrame] = {
+    // For implicit conversions from RDDs to DataFrames
+    //import spark.implicits._
+    null
   }
 
   def getDataSourceStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {

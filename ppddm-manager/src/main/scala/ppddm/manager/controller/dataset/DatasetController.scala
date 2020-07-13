@@ -66,10 +66,10 @@ object DatasetController {
   }
 
   /**
-   * Retrieves all Datasets from the Platform Repository.
+   * Retrieves all Datasets of a project from the Platform Repository.
    *
-   * @param project_id The project ID whose data sets are to be retrieved.
-   * @return The list of all Datasets in the Platform Repository, empty list if there are no Datasets.
+   * @param project_id The project ID whose Datasets are to be retrieved.
+   * @return The list of all Datasets for the given project, empty list if there are no Datasets.
    */
   def getAllDatasets(project_id: String): Future[Seq[Dataset]] = {
     db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() map { datasets => {

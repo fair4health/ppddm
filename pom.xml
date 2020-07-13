@@ -30,14 +30,15 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <java.version>11</java.version>
+    <maven.compiler.source>${java.version}</maven.compiler.source>
+    <maven.compiler.target>${java.version}</maven.compiler.target>
 
     <!-- dependency versions -->
     <ppddm.version>1.0</ppddm.version>
     <scala.binary.version>2.12</scala.binary.version>
     <scala.version>2.12.10</scala.version>
-    <spark.version>2.4.5</spark.version>
+    <spark.version>3.0.0</spark.version>
     <scala-logging.version>3.9.2</scala-logging.version>
     <typesafe.config.version>1.4.0</typesafe.config.version>
     <akka.version>2.6.3</akka.version>
