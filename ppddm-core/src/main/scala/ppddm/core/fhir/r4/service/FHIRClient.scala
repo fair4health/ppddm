@@ -62,7 +62,7 @@ class FHIRClient(host: String,
       }))(Keep.left)
       .run()
 
-  def query(query: String): Bundle[Condition] = {
+  def query[T <: Resource](query: String)(implicit m: Manifest[T]): Bundle[T] = {
     logger.info("Querying...")
 
     // Prepare http request
@@ -84,20 +84,20 @@ class FHIRClient(host: String,
     // Execute token response and set the client access token parameter
     val searchResultFuture = responseFuture.flatMap {
       case resp if resp.status == StatusCodes.OK =>
-        Unmarshal(resp.entity).to[Bundle[Condition]]
+        Unmarshal(resp.entity).to[Bundle[T]]
       case err if err.entity.contentType == ContentTypes.`application/json` =>
         Unmarshal(err.entity).to[FHIRClientException] map { entity =>
-          throw FHIRClientException("some-code", entity.error, entity.errorDesc)
-        } recover { case _ => throw FHIRClientException("some-other-code") }
+          throw FHIRClientException(entity.error, entity.errorDesc)
+        } recover { case _ => throw FHIRClientException() }
       case errUnk =>
         errUnk.entity.toStrict(FiniteDuration(1000, MILLISECONDS)).map {
           _.data
         }.map(_.utf8String) map { entity =>
-          throw FHIRClientException("error-unknown", None, Some(s"Request failed. Response status is ${errUnk.status} and entity is $entity"))
+          throw FHIRClientException(None, Some(s"Request failed. Response status is ${errUnk.status} and entity is $entity"))
         }
     }
 
-    try { // Wait for the result because we need it for every other transaction with onAuth
+    try { // Wait for the result because we need it for every other transaction
       Await.result(searchResultFuture, Duration(10, TimeUnit.SECONDS))
     } catch {
       case e: java.util.concurrent.TimeoutException =>

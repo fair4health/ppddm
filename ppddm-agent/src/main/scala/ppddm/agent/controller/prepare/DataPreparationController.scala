@@ -2,7 +2,6 @@ package ppddm.agent.controller.prepare
 
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.Logger
-import ppddm.core.fhir.r4.service.FHIRClient
 import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -36,21 +35,10 @@ object DataPreparationController {
     // TODO: 1. Execute the eligibility query on FHIR Repository to retrieve the final set of resources to be used for data extraction
     // TODO: 2. Create a DataFrame from the results of step 1.
     // TODO: 3. Apply a set of transformations on the DataFrame of step 2 to come up with the final DataFrame which
-    //  will corespond to the extracted/prepared data
+    //  will correspond to the extracted/prepared data
     // TODO: 4. Create the DataPreparationResult for the given dataset_id and create a DataFrame containing this information.
     //  Cache this DataFrame and also persist (save as another parquet file). While the Agent is starting up, it will read these kind of
     //  DataFrames and cache.
-
-    val fhirClient = FHIRClient()
-
-    val tyy = fhirClient.query("Condition?code=I10")
-
-
-    logger.info("Here")
-
-
-
-    // println(JsonFormatter.convertToJson(dataPreparationRequest).toPrettyJson)
     Future {}
   }
 
