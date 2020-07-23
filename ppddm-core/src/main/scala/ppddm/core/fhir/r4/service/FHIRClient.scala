@@ -67,7 +67,7 @@ class FHIRClient(host: String,
 
     // Prepare http request
     val request = HttpRequest(
-      uri = Uri(s"$serverPath/$query"),
+      uri = Uri(s"$serverPath$query"),
       method = HttpMethods.GET,
       headers = defaultHeaders
     ).withEntity(ContentTypes.`application/json`, "{}")
