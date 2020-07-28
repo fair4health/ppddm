@@ -125,7 +125,7 @@ object MongoDB {
     }
 
     val mongo = new MongoDB(clientSettingsBuilder.build(), dbName)
-    logger.info("MongoDB is up and running!")
+    logger.info("MongoDB connection has been established successfully.")
     mongo
   }
 

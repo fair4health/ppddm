@@ -25,6 +25,11 @@ object EmbeddedMongo {
       .net(new Net(host, port, Network.localhostIsIPv6()))
       .build()
 
+    // TODO: Redirect the Mongod runtime logs to the logger using the IRuntimeConfig
+    // TODO: Look at how they implemented IStreamProcessor for Slf4j Logger
+    // http://flapdoodle-oss.github.io/de.flapdoodle.embed.mongo/
+    // https://www.programcreek.com/java-api-examples/?api=de.flapdoodle.embed.mongo.Command
+
     mongodExecutable = MongodStarter.getDefaultInstance.prepare(conf)
 
     mongodExecutable.start()

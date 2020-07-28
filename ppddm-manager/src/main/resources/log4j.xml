@@ -39,6 +39,9 @@
     <logger name="breeze.optimize">
         <level value="ERROR" />
     </logger>
+    <logger name="org.mongodb">
+        <level value="ERROR" />
+    </logger>
 
     <root>
         <priority value="INFO" />
