@@ -18,8 +18,6 @@ object DataPreparationController {
 
   private val logger: Logger = Logger(this.getClass)
 
-  implicit val system = ActorSystem()
-
   /**
    * Start the data preparation (data extraction process) with the given DataPreparationRequest.
    * This function successfully returns if the preparation request is started.

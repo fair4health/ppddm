@@ -1,9 +1,8 @@
 package ppddm.agent.controller.prepare
 
-import akka.actor.ActorSystem
 import com.typesafe.scalalogging.Logger
-import ppddm.core.fhir.r4.resources.{Bundle, Condition, Observation, Patient}
-import ppddm.core.fhir.r4.service.FHIRClient
+import ppddm.agent.Agent
+import ppddm.core.fhir.r4.resources.{Bundle, Condition, Observation, Patient, Resource}
 import ppddm.core.rest.model.EligibilityCriteria
 
 import scala.collection.mutable.ListBuffer
@@ -17,67 +16,43 @@ object QueryHandler {
 
   private val logger: Logger = Logger(this.getClass)
 
-  implicit val system = ActorSystem()
-
   /**
-   * Retrieves the eligible patients from the FHIR Repository
+   * Retrieves the identifiers of the eligible patients from the FHIR Repository
    *
    * @param eligibilityCriteria
    */
   def executeEligibilityQuery(eligibilityCriteria: Seq[EligibilityCriteria]): Future[Seq[String]] = {
-    print(eligibilityCriteria)
+    logger.debug("Will execute the eligibility query: {}", eligibilityCriteria)
 
-    var patientIds = List[String]()
-
-    for (ec <- eligibilityCriteria) {
-      ec match {
-        case conditionEC if conditionEC.fhir_query.startsWith("/Condition") => { patientIds = patientIds ++ findEligiblePatientsInCondition(conditionEC) }
-        case observationEC if observationEC.fhir_query.startsWith("/Observation") => { patientIds = patientIds ++ findEligiblePatientsInObservation(observationEC) }
-      }
+    val queryFutures = eligibilityCriteria.map {
+      case patientEC if patientEC.fhir_query.startsWith("/Patient") => findEligiblePatients[Patient](patientEC)
+      case conditionEC if conditionEC.fhir_query.startsWith("/Condition") => findEligiblePatients[Condition](conditionEC)
+      case observationEC if observationEC.fhir_query.startsWith("/Observation") => findEligiblePatients[Observation](observationEC)
     }
 
-    Future {patientIds.distinct.toSeq}
+    Future.sequence(queryFutures) // Join the parallel Futures
+      .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
+      .map(res => {
+        logger.debug(s"${res.size} number of eligible patients are found.") // Log the result
+        res
+      })
   }
 
-  private def findEligiblePatientsInCondition(eligibilityCriteria: EligibilityCriteria): Seq[String] = {
-    val fhirClient = FHIRClient()
-
-    val patientIds = ListBuffer[String]()
-
-    val bundle: Bundle[Condition] = fhirClient.query[Condition](eligibilityCriteria.fhir_query)
-
-    if (bundle.entry.isDefined) {
-      bundle.entry.get map { bundleEntry =>
-        if (bundleEntry.resource.isDefined) {
-          patientIds += bundleEntry.resource.get.subject.reference.getOrElse(null)
-        }
-      }
-    }
-
-    // TODO fhir_path
-
-    patientIds.toList
-  }
-
-  private def findEligiblePatientsInObservation(eligibilityCriteria: EligibilityCriteria): Seq[String] = {
-    val fhirClient = FHIRClient()
-
-    val patientIds = ListBuffer[String]()
-
-    val bundle: Bundle[Observation] = fhirClient.query[Observation](eligibilityCriteria.fhir_query)
-
-    if (bundle.entry.isDefined) {
-      bundle.entry.get map { bundleEntry =>
-        if (bundleEntry.resource.isDefined) {
-          if (bundleEntry.resource.get.subject.isDefined) {
-            patientIds += bundleEntry.resource.get.subject.get.reference.getOrElse(null)
+  private def findEligiblePatients[T <: Resource](eligibilityCriteria: EligibilityCriteria)(implicit m: Manifest[T]): Future[Seq[String]] = {
+    Agent.fhirClient.query[T](eligibilityCriteria.fhir_query) map { bundle =>
+      val patientIds = ListBuffer.empty[String]
+      if (bundle.entry.isDefined) {
+        bundle.entry.get foreach { entry =>
+          if (entry.resource.isDefined) {
+            entry.resource.get match {
+              case patient: Patient => patient.id.map(pid => patientIds += pid)
+              case condition: Condition => condition.subject.reference.map(pid => patientIds += pid)
+              case observation: Observation => observation.subject.map(_.reference.map(pid => patientIds += pid))
+            }
           }
         }
       }
+      patientIds.toList
     }
-
-    // TODO fhir_path
-
-    patientIds.toList
   }
 }

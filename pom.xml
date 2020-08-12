@@ -177,7 +177,25 @@
         <version>${mongo.embedded.version}</version>
       </dependency>
 
+      <!-- onFHIR.io -->
+      <dependency>
+        <groupId>onfhir</groupId>
+        <artifactId>onfhir-path</artifactId>
+        <version>3.0-SNAPSHOT</version>
+      </dependency>
+
     </dependencies>
   </dependencyManagement>
+
+  <repositories>
+    <repository>
+      <id>maven-releases</id>
+      <url>http://nexus.srdc.com.tr/repository/maven-releases/</url>
+    </repository>
+    <repository>
+      <id>maven-snapshots</id>
+      <url>http://nexus.srdc.com.tr/repository/maven-snapshots/</url>
+    </repository>
+  </repositories>
 
 </project>
