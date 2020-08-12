@@ -13,6 +13,9 @@ object AgentConfig extends AppConfig {
   override lazy val baseUri: String = Try(config.getString("server.base-uri")).getOrElse("agent")
 
   /** FHIR endpoint */
-  lazy val fhirEndpoint: String = Try(config.getString("fhir.endpoint")).getOrElse("http://localhost/fhir")
+  lazy val fhirProtocol: String = Try(config.getString("fhir.protocol")).getOrElse("http")
+  lazy val fhirHost: String = Try(config.getString("fhir.host")).getOrElse("localhost")
+  lazy val fhirPort: Int = Try(config.getInt("fhir.port")).getOrElse(80)
+  lazy val fhirPath: String = Try(config.getString("fhir.path")).getOrElse("/")
 
 }

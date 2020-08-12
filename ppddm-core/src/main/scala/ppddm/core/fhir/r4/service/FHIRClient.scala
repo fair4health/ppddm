@@ -21,12 +21,12 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 
 /**
- * Client instance for communicating with onFHIR.io
+ * Client for communicating with a FHIR Repository
  *
- * @param host                onFHIR.io server host address i.e. http://localhost
- * @param port                onFHIR.io server port address i.e. 8282
- * @param path                onFHIR.io server path i.e. fhir
- * @param https_enabled       onFHIR.io server https enabled
+ * @param host                FHIR Repository server host address i.e. http://localhost
+ * @param port                FHIR Repository server port address i.e. 8282
+ * @param path                FHIR Repository server path i.e. fhir
+ * @param protocol            The communication protocol: http or https
  * @param poolSize            Size of the request pool in number of requests
  * @param requestWaitDuration Wait duration of each request in the pool
  * @param overflowStrategy    Overflow strategy to be used on the pool
@@ -34,7 +34,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class FHIRClient(host: String,
                  port: Int,
                  path: String,
-                 https_enabled: Boolean,
+                 protocol: String,
                  poolSize: Int,
                  requestWaitDuration: Int,
                  overflowStrategy: OverflowStrategy)(implicit system: ActorSystem) {
@@ -42,14 +42,14 @@ class FHIRClient(host: String,
   private val logger: Logger = Logger(this.getClass)
 
   // onFHIR.io server path
-  private val serverPath = s"http://$host:$port/$path"
+  private val serverPath = if(path.startsWith("/")) s"$host:$port$path" else s"$host:$port/$path"
 
   // Default headers
   private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
 
   // Connection pool and queue for handling Http Requests
   private val poolClientFlow: Flow[(HttpRequest, Promise[HttpResponse]), (Try[HttpResponse], Promise[HttpResponse]), HostConnectionPool] =
-    if (https_enabled) Http().cachedHostConnectionPoolHttps[Promise[HttpResponse]](host, port)
+    if (protocol == "https") Http().cachedHostConnectionPoolHttps[Promise[HttpResponse]](host, port)
     else Http().cachedHostConnectionPool[Promise[HttpResponse]](host, port)
 
   // Http request to response queue
@@ -62,12 +62,12 @@ class FHIRClient(host: String,
       }))(Keep.left)
       .run()
 
-  def query[T <: Resource](query: String)(implicit m: Manifest[T]): Bundle[T] = {
-    logger.info("Querying...")
+  def query[T <: Resource](query: String)(implicit m: Manifest[T]): Future[Bundle[T]] = {
+    logger.debug("Querying FHIR with {}", query)
 
     // Prepare http request
     val request = HttpRequest(
-      uri = Uri(s"$serverPath/$query"),
+      uri = Uri(s"$protocol://$serverPath$query"),
       method = HttpMethods.GET,
       headers = defaultHeaders
     ).withEntity(ContentTypes.`application/json`, "{}")
@@ -82,7 +82,7 @@ class FHIRClient(host: String,
     }
 
     // Execute token response and set the client access token parameter
-    val searchResultFuture = responseFuture.flatMap {
+    responseFuture.flatMap {
       case resp if resp.status == StatusCodes.OK =>
         Unmarshal(resp.entity).to[Bundle[T]]
       case err if err.entity.contentType == ContentTypes.`application/json` =>
@@ -97,25 +97,19 @@ class FHIRClient(host: String,
         }
     }
 
-    try { // Wait for the result because we need it for every other transaction
-      Await.result(searchResultFuture, Duration(10, TimeUnit.SECONDS))
-    } catch {
-      case e: java.util.concurrent.TimeoutException =>
-        throw e
-    }
   }
 }
 
 object FHIRClient {
 
-  def apply(host: String = "localhost",
-            port: Int = 8282,
-            path: String = "fhir",
-            https_enabled: Boolean = false,
+  def apply(host: String,
+            port: Int,
+            path: String,
+            protocol: String = "http",
             poolSize: Int = 64,
             requestWaitDuration: Int = 10,
             overflowStrategy: OverflowStrategy = OverflowStrategy.backpressure)(implicit system: ActorSystem): FHIRClient = {
-    new FHIRClient(host, port, path, https_enabled, poolSize, requestWaitDuration, overflowStrategy)
+    new FHIRClient(host, port, path, protocol, poolSize, requestWaitDuration, overflowStrategy)
   }
 
 }
