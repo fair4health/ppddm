@@ -184,22 +184,22 @@
         <groupId>onfhir</groupId>
         <artifactId>onfhir-path</artifactId>
         <version>3.0-SNAPSHOT</version>
+        <exclusions>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
 
       <!-- HAPI FHIR libraries for FHIR transformation-->
       <dependency>
         <groupId>ca.uhn.hapi.fhir</groupId>
         <artifactId>hapi-fhir-base</artifactId>
-        <version>${hapi.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>ca.uhn.hapi.fhir</groupId>
-        <artifactId>hapi-fhir-structures-dstu2</artifactId>
-        <version>${hapi.dstu2-version}</version>
-      </dependency>
-      <dependency>
-        <groupId>ca.uhn.hapi.fhir</groupId>
-        <artifactId>hapi-fhir-structures-dstu3</artifactId>
         <version>${hapi.version}</version>
       </dependency>
       <dependency>

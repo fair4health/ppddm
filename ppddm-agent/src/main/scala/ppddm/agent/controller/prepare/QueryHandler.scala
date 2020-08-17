@@ -2,15 +2,18 @@ package ppddm.agent.controller.prepare
 
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SparkSession
+import org.hl7.fhir.r4.model.{Condition, DomainResource, Observation, Patient, Resource}
 import ppddm.agent.Agent
-import ppddm.core.fhir.FhirQuery
-import ppddm.core.fhir.r4.resources.{Bundle, Condition, Observation, Patient, Resource}
+import ppddm.agent.config.AgentConfig
+import ppddm.core.fhir.{FHIRClient, FHIRQuery, FHIRQueryWithParams, FHIRQueryWithQueryString}
 import ppddm.core.rest.model.EligibilityCriteria
 
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.reflect.classTag
+import scala.concurrent.Future
+import scala.reflect.ClassTag
+import scala.util.Try
 
 /**
  * Handles the Queries on the HL7 FHIR Repository
@@ -18,6 +21,10 @@ import scala.reflect.classTag
 object QueryHandler {
 
   private val logger: Logger = Logger(this.getClass)
+
+  private val batchSize: Int = AgentConfig.agentBatchSize
+  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
+  private val fhirClient: FHIRClient = Agent.fhirClient
 
   /**
    * Retrieves the identifiers of the eligible patients from the FHIR Repository
@@ -27,21 +34,109 @@ object QueryHandler {
   def executeEligibilityQuery(eligibilityCriteria: Seq[EligibilityCriteria]): Future[Seq[String]] = {
     logger.debug("Will execute the eligibility query: {}", eligibilityCriteria)
 
-    val queryFutures = eligibilityCriteria.map {
-      case patientEC if patientEC.fhir_query.startsWith("/Patient") => findEligiblePatients[Patient](patientEC)
-      case conditionEC if conditionEC.fhir_query.startsWith("/Condition") => findEligiblePatients[Condition](conditionEC)
-      case observationEC if observationEC.fhir_query.startsWith("/Observation") => findEligiblePatients[Observation](observationEC)
+    // Start with the Patients
+    // TODO: What if there are multiple Patient queries in the eligibilityCriteria
+    val patientEC = eligibilityCriteria.find(_.fhir_query.startsWith("/Patient"))
+    val patientQuery = if (patientEC.isDefined) {
+      FHIRQueryWithQueryString(patientEC.get.fhir_query)
+    } else {
+      FHIRQueryWithQueryString("/Patient")
     }
 
-    Future.sequence(queryFutures) // Join the parallel Futures
-      .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
-      .map(res => {
-        logger.debug(s"${res.size} number of eligible patients are found.") // Log the result
-        res
+    val numOfResults: Int = patientQuery.getCount(fhirClient.getClient()) //Count the resulting resources
+    if (numOfResults > 0) {
+      //Number of pages to get all the results according to batch size
+      val numOfReturnPagesForQuery = numOfResults / batchSize + 1
+      //Parallelize the execution and get pages in parallel
+      sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+        val resources = partitionIterator.map { pageIndex =>
+          // Fetch the Patient resources from the FHIR Repository and collect their IDs
+          val patientIDs: Seq[String] = Try(patientQuery.getResources[Patient](fhirClient.getClient(), batchSize, pageIndex)).recover {
+            case t: Throwable =>
+              logger.error("Problem in FHIR query while retrieving patients", t)
+              Nil
+          }.get
+            .map(patient => patient.getId)
+
+          // Fetch the remaining resources (in parallel) indicated within the eligibilityCriteria
+          val queryFutures = eligibilityCriteria.filterNot(_.fhir_query.startsWith("/Patient")).map {
+            case conditionEC if conditionEC.fhir_query.startsWith("/Condition") => findEligiblePatients[Condition](patientIDs, conditionEC)
+            case observationEC if observationEC.fhir_query.startsWith("/Observation") => findEligiblePatients[Observation](patientIDs, observationEC)
+          }
+
+          Future.sequence(queryFutures) // Join the parallel Futures
+            .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
+            .map(res => {
+              logger.debug(s"${res.size} number of eligible patients are found.") // Log the result
+              res
+            })
+
+        }
+        resources
       })
+    } else {
+      sparkSession.sparkContext.parallelize(Nil)
+    }
+
+    //Agent.fhirClient.runDistributedFHIRQuery[Patient](Agent.dataMiningEngine.sparkSession, fhirQuery).mapPartitions[Patient]()
+    null
+
   }
 
-  private def findEligiblePatients[T <: Resource](eligibilityCriteria: EligibilityCriteria)(implicit m: Manifest[T]): Future[Seq[String]] = {
+  /**
+   * Fetch the resources according to the eligibilityCriteria for the given list of patients.
+   *
+   * @param patientIDs
+   * @param eligibilityCriteria
+   * @return
+   */
+  private def findEligiblePatients[T <: DomainResource](patientIDs: Seq[String], eligibilityCriteria: EligibilityCriteria)(implicit m: Manifest[T]): Future[Seq[String]] = {
+    Future {
+      val patientURIs = patientIDs.map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+
+      val queryString: String = // Create the queryString for FHIR Query
+        if (eligibilityCriteria.fhir_query.contains("?"))
+          s"${eligibilityCriteria.fhir_query}&subject=${patientURIs.mkString(",")}"
+        else s"?subject=${patientURIs.mkString(",")}"
+
+      val fhirQuery = FHIRQueryWithQueryString(queryString)
+
+      val resources: Seq[T] = Try(fhirQuery.getResources[T](fhirClient.getClient())).recover {
+        case t: Throwable =>
+          logger.error("Problem in FHIR query while retrieving resources", t)
+          Nil
+      }.get
+
+      resources.map {
+        case condition: Condition => condition.getSubject.getReference
+        case observation: Observation => observation.getSubject.getReference
+      }
+    }
+
+  }
+
+  //  private def findEligiblePatients[T <: Resource](eligibilityCriteria: EligibilityCriteria)(implicit m: Manifest[T]): Future[Seq[String]] = {
+  //    val fhirClient = Agent.fhirClient.getClient() // Get a HAPI FHIR Client
+  //    val numOfResults: Int = query.getCount(fhirClient) //Count the resulting resources
+  //    if (numOfResults > 0) {
+  //      //Number of pages to get all the results according to batch size
+  //      val numOfReturnPagesForQuery = numOfResults / batchSize + 1
+  //      //Parallelize the execution and get pages in parallel
+  //      sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions[T](partitionPages => {
+  //        val fhirClient = getClient()
+  //        val resources = partitionPages.flatMap { pageIndex =>
+  //          Try(query.getResources[T](fhirClient, batchSize, pageIndex)).recover {
+  //            case t: Throwable =>
+  //              logger.error("Problem in FHIR query: getResources", t)
+  //              Nil
+  //          }.get
+  //        }
+  //        resources
+  //      })
+  //    } else sparkSession.sparkContext.parallelize(Nil)
+  //  }
+
+  /*private def findEligiblePatients[T <: Resource](eligibilityCriteria: EligibilityCriteria)(implicit m: Manifest[T]): Future[Seq[String]] = {
     Agent.fhirClient.query[T](eligibilityCriteria.fhir_query) map { bundle =>
       val patientIds = ListBuffer.empty[String]
       if (bundle.entry.isDefined) {
@@ -64,5 +159,5 @@ object QueryHandler {
       Agent.fhirRestSource.runDistributedFhirQuery[org.hl7.fhir.r4.model.Patient](Agent.dataMiningEngine.sparkSession, query)(classTag[org.hl7.fhir.r4.model.Patient])
     */
 
-  }
+  }*/
 }
