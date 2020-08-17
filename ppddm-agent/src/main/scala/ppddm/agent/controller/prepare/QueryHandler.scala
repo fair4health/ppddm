@@ -1,13 +1,16 @@
 package ppddm.agent.controller.prepare
 
 import com.typesafe.scalalogging.Logger
+import org.apache.spark.rdd.RDD
 import ppddm.agent.Agent
+import ppddm.core.fhir.FhirQuery
 import ppddm.core.fhir.r4.resources.{Bundle, Condition, Observation, Patient, Resource}
 import ppddm.core.rest.model.EligibilityCriteria
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.reflect.classTag
 
 /**
  * Handles the Queries on the HL7 FHIR Repository
@@ -54,5 +57,12 @@ object QueryHandler {
       }
       patientIds.toList
     }
+
+    /*
+    val query = FhirQuery("Patient", Nil)
+    val patients:RDD[org.hl7.fhir.r4.model.Patient] =
+      Agent.fhirRestSource.runDistributedFhirQuery[org.hl7.fhir.r4.model.Patient](Agent.dataMiningEngine.sparkSession, query)(classTag[org.hl7.fhir.r4.model.Patient])
+    */
+
   }
 }
