@@ -43,6 +43,7 @@ object QueryHandler {
       FHIRQueryWithQueryString("/Patient")
     }
     val numOfResults: Int = patientQuery.getCount(fhirClient.getClient()) //Count the resulting resources
+    logger.debug(s"Number of patients: ${numOfResults}")
     if (numOfResults > 0) {
       //Number of pages to get all the results according to batch size
       val numOfReturnPagesForQuery = numOfResults / batchSize + 1
@@ -66,13 +67,20 @@ object QueryHandler {
             case observationEC if observationEC.fhir_query.startsWith("/Observation") => findEligiblePatients[Observation](patientIDs, observationEC)
           }
 
-          Future.sequence(queryFutures) // Join the parallel Futures
-            .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
-            .map(res => {
-              logger.debug(s"${res.size} eligible patients are found at page index ${pageIndex}.") // Log the result
-              res
-            })
-
+          if (queryFutures.isEmpty) { // It means there is eligibility criteria other than the one(s) related to Patient
+            Future { patientIDs }
+              .map(res => {
+                logger.debug(s"${res.size} eligible patients are found at page index ${pageIndex}.") // Log the result
+                res
+              })
+          } else { // There are other eligibility criteria(s)
+            Future.sequence(queryFutures) // Join the parallel Futures
+              .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
+              .map(res => {
+                logger.debug(s"${res.size} eligible patients are found at page index ${pageIndex}.") // Log the result
+                res
+              })
+          }
         }
         resources
       })
