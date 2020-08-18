@@ -32,7 +32,7 @@ object QueryHandler {
    * @param eligibilityCriteria
    */
   def executeEligibilityQuery(eligibilityCriteria: Seq[EligibilityCriteria]): Future[Seq[String]] = {
-    logger.debug("Will execute the eligibility query: {}", eligibilityCriteria)
+    logger.debug(s"Will execute the eligibility query: ${eligibilityCriteria}")
 
     // Start with the Patients
     // TODO: What if there are multiple Patient queries in the eligibilityCriteria
@@ -42,13 +42,13 @@ object QueryHandler {
     } else {
       FHIRQueryWithQueryString("/Patient")
     }
-
     val numOfResults: Int = patientQuery.getCount(fhirClient.getClient()) //Count the resulting resources
     if (numOfResults > 0) {
       //Number of pages to get all the results according to batch size
       val numOfReturnPagesForQuery = numOfResults / batchSize + 1
+      logger.debug(s"Number of workers to be run in parallel: ${numOfReturnPagesForQuery}")
       //Parallelize the execution and get pages in parallel
-      sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+      val rdd = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
         val resources = partitionIterator.map { pageIndex =>
           // Fetch the Patient resources from the FHIR Repository and collect their IDs
           val patientIDs: Seq[String] = Try(patientQuery.getResources[Patient](fhirClient.getClient(), batchSize, pageIndex)).recover {
@@ -56,7 +56,9 @@ object QueryHandler {
               logger.error("Problem in FHIR query while retrieving patients", t)
               Nil
           }.get
-            .map(patient => patient.getId)
+            .map(patient => patient.getIdElement.getIdPart)
+
+          logger.debug(s"Finding eligible patients at page index ${pageIndex}")
 
           // Fetch the remaining resources (in parallel) indicated within the eligibilityCriteria
           val queryFutures = eligibilityCriteria.filterNot(_.fhir_query.startsWith("/Patient")).map {
@@ -67,13 +69,18 @@ object QueryHandler {
           Future.sequence(queryFutures) // Join the parallel Futures
             .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
             .map(res => {
-              logger.debug(s"${res.size} number of eligible patients are found.") // Log the result
+              logger.debug(s"${res.size} eligible patients are found at page index ${pageIndex}.") // Log the result
               res
             })
 
         }
         resources
       })
+
+      rdd.collect() // RDDs are lazy evaluated. In order to materialize the above statement, call an action rdd such as foreach, collect, count etc.
+      // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
+      // TODO When you are done, call rdd.unpersist() to remove it from cache.
+
     } else {
       sparkSession.sparkContext.parallelize(Nil)
     }
@@ -97,7 +104,7 @@ object QueryHandler {
       val queryString: String = // Create the queryString for FHIR Query
         if (eligibilityCriteria.fhir_query.contains("?"))
           s"${eligibilityCriteria.fhir_query}&subject=${patientURIs.mkString(",")}"
-        else s"?subject=${patientURIs.mkString(",")}"
+        else s"${eligibilityCriteria.fhir_query}?subject=${patientURIs.mkString(",")}"
 
       val fhirQuery = FHIRQueryWithQueryString(queryString)
 

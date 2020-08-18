@@ -8,8 +8,8 @@ package ppddm.core.fhir
  */
 case class FHIRQueryWithParams(resourceType: String, params: Seq[(String, String)]) extends FHIRQuery {
 
-  override def constructQueryString(): String = {
-    var query = s"${resourceType}"
+  override def constructQueryString(fhirServerBaseUri: String): String = {
+    var query = s"${fhirServerBaseUri}/${resourceType}"
 
     if (params.nonEmpty)
       query = query + "?" + params.map(p => s"${p._1}=${p._2}").mkString("&")

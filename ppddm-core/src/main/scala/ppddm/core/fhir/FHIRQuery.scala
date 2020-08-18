@@ -7,7 +7,7 @@ import collection.JavaConverters._
 
 trait FHIRQuery extends Serializable {
 
-  protected def constructQueryString(): String
+  protected def constructQueryString(fhirServerBaseUri: String): String
 
   def getCountQuery(): FHIRQuery
 
@@ -44,7 +44,7 @@ trait FHIRQuery extends Serializable {
   }
 
   def execute(client: IGenericClient): Bundle = {
-    client.search().byUrl(constructQueryString()).execute()
+    client.search().byUrl(constructQueryString(client.getServerBase)).execute()
   }
 
 }
