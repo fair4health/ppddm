@@ -1,59 +1,89 @@
 package ppddm.core.fhir
 
-import ca.uhn.fhir.context.{FhirContext, FhirVersionEnum}
-import ca.uhn.fhir.rest.client.api.{IGenericClient, IRestfulClientFactory, ServerValidationModeEnum}
-import org.apache.log4j.LogManager
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.Http.HostConnectionPool
+import akka.http.scaladsl.model.headers.Accept
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source, SourceQueueWithComplete}
+import akka.stream.{OverflowStrategy, QueueOfferResult}
+import com.typesafe.scalalogging.Logger
+import org.json4s.JObject
+import ppddm.core.exception.FHIRClientException
+import ppddm.core.rest.model.Json4sSupport._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success, Try}
 
 class FHIRClient(host: String,
                  port: Int,
                  path: String,
                  protocol: String,
-                 batchSize: Int) extends Serializable {
+                 poolSize: Int,
+                 overflowStrategy: OverflowStrategy)(implicit system: ActorSystem) {
 
-  @transient lazy val logger = LogManager.getLogger("transformerLogger")
-
-  @transient
-  var fhirContext: FhirContext = FhirContext.forR4()
-
-  /**
-   * Client factory to create HAPI Fhir client
-   */
-  @transient
-  lazy val clientFactory: IRestfulClientFactory = getClientFactory()
+  private val logger: Logger = Logger(this.getClass)
 
   // onFHIR.io server path
   private val fhirServerBaseURI = if (path.startsWith("/")) s"$protocol://$host:$port$path" else s"$protocol://$host:$port/$path"
 
-  /**
-   * Generate the HAPI Client factory
-   *
-   * @return
-   */
-  private def getClientFactory(): IRestfulClientFactory = {
-    val factory = fhirContext.getRestfulClientFactory
-    factory.setServerValidationMode(ServerValidationModeEnum.NEVER)
-    factory.setConnectTimeout(300000)
-    factory.setSocketTimeout(300000)
-    factory
-  }
+  // Default headers
+  private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
 
-  /**
-   * Generate the HAPI Client
-   *
-   * @return
-   */
-  def getClient(): IGenericClient = {
-    clientFactory.newGenericClient(fhirServerBaseURI)
-  }
+  // Connection pool and queue for handling Http Requests
+  private val poolClientFlow: Flow[(HttpRequest, Promise[HttpResponse]), (Try[HttpResponse], Promise[HttpResponse]), HostConnectionPool] =
+    if (protocol == "https") Http().cachedHostConnectionPoolHttps[Promise[HttpResponse]](host, port)
+    else Http().cachedHostConnectionPool[Promise[HttpResponse]](host, port)
 
+  // Http request to response queue
+  private val queue: SourceQueueWithComplete[(HttpRequest, Promise[HttpResponse])] =
+    Source.queue[(HttpRequest, Promise[HttpResponse])](poolSize, overflowStrategy)
+      .via(poolClientFlow)
+      .toMat(Sink.foreach({
+        case (Success(resp), p) => p.success(resp)
+        case (Failure(e), p) => p.failure(e)
+      }))(Keep.left)
+      .run()
+
+  def searchByUrl(query: String): Future[JObject] = {
+    logger.debug("Querying FHIR with {}", query)
+
+    // Prepare http request
+    val request = HttpRequest(
+      uri = Uri(s"$fhirServerBaseURI$query"),
+      method = HttpMethods.GET,
+      headers = defaultHeaders
+    ).withEntity(ContentTypes.`application/json`, "{}")
+
+    // This is actually queue request but cant call it to prevent infinite loop
+    val responsePromise = Promise[HttpResponse]()
+    val responseFuture = queue.offer(request -> responsePromise).flatMap {
+      case QueueOfferResult.Enqueued => responsePromise.future
+      case QueueOfferResult.Dropped => Future.failed(new RuntimeException("Queue overflowed. Try again later."))
+      case QueueOfferResult.Failure(ex) => Future.failed(ex)
+      case QueueOfferResult.QueueClosed => Future.failed(new RuntimeException("Queue was closed (pool shut down) while running the request. Try again later."))
+    }
+
+    // Process the FHIR response and return as a JObject
+    responseFuture.flatMap {
+      case resp if resp.status == StatusCodes.OK =>
+        Unmarshal(resp.entity).to[JObject]
+      case errUnk =>
+        errUnk.entity.toStrict(FiniteDuration(1000, MILLISECONDS)).map(_.data.utf8String).map { entity =>
+          throw FHIRClientException(entity)
+        }
+    }
+  }
 }
 
 object FHIRClient {
   def apply(host: String,
             port: Int,
             path: String,
-            protocol: String = "http",
-            batchSize: Int = 100): FHIRClient = {
-    new FHIRClient(host, port, path, protocol, batchSize)
+            protocol: String = "http")(implicit system: ActorSystem): FHIRClient = {
+    new FHIRClient(host, port, path, protocol, 64, OverflowStrategy.backpressure)
   }
 }

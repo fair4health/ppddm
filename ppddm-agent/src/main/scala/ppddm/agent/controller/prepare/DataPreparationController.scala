@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.hl7.fhir.r4.model.{Condition, DomainResource, Observation, Patient}
+import org.json4s.JString
 import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 import ppddm.core.fhir.FHIRClient
@@ -14,7 +14,6 @@ import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult, Eli
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
-import scala.util.Try
 
 /**
  * Controller object for data preparation.
@@ -38,83 +37,82 @@ object DataPreparationController {
    * @param dataPreparationRequest The request object for the data preparation.
    * @return
    */
-  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Seq[String]] = {
+  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
     // TODO: We may need some validation on the DataPreparationRequest object
-    Future {
-      prepareData(dataPreparationRequest)
-    }
+    prepareData(dataPreparationRequest)
   }
 
-  private def prepareData(dataPreparationRequest: DataPreparationRequest): Seq[String] = {
+  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
     logger.debug("Data preparation request received.")
 
     // Start with the Patients
     val patientQuery = QueryHandler.getPatientQuery(dataPreparationRequest.eligibility_criteria)
 
-    val numOfPatients: Int = patientQuery.getCount(fhirClient.getClient()) //Count the resulting resources
-    logger.debug(s"Number of patients: ${numOfPatients}")
+    patientQuery.getCount(fhirClient) map { numOfPatients => //Count the resulting resources
+      logger.debug(s"Number of patients: ${numOfPatients}")
+      if (numOfPatients > 0) {
+        //Number of pages to get all the results according to batch size
+        val numOfReturnPagesForQuery = numOfPatients / batchSize + 1
+        logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
 
-    if (numOfPatients > 0) {
-      //Number of pages to get all the results according to batch size
-      val numOfReturnPagesForQuery = numOfPatients / batchSize + 1
-      logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
+        //Parallelize the execution and process pages in parallel
+        val rdd: RDD[Set[String]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+          partitionIterator.map { pageIndex =>
+            // Fetch the Patient resources from the FHIR Repository and collect their IDs
+            val theFuture = patientQuery.getResources(fhirClient, batchSize, pageIndex) flatMap { patients =>
+              val patientURIs: Set[String] = patients
+                .map(p => (p \ "id").asInstanceOf[JString].values) // extract the IDs from the JObject of Patient
+                .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+                .toSet[String] // Convert to a set
 
-      //Parallelize the execution and process pages in parallel
-      val rdd: RDD[Seq[String]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
-        partitionIterator.map { pageIndex =>
-          // Fetch the Patient resources from the FHIR Repository and collect their IDs
-          val patientURIs: Seq[String] = Try(patientQuery.getResources[Patient](fhirClient.getClient(), batchSize, pageIndex)).recover {
-            case t: Throwable =>
-              logger.error("Problem in FHIR query while retrieving patients", t)
-              Nil
-          }.get
-            .map(patient => patient.getIdElement.getIdPart)
-            .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+              if (patientURIs.isEmpty) {
+                // There are no eligible patients in this partition. We do not need to execute the remaining criteria on other resources
+                logger.debug(s"There are no eligible patients in this partition at page index ${pageIndex}.") // Log the result
+                Future {
+                  Set.empty[String]
+                }
+              } else {
+                logger.debug(s"Finding eligible patients at page index ${pageIndex}")
 
-          if (patientURIs.isEmpty) {
-            // There are no eligible patients in this partition. We do not need to execute the remaining criteria on other resources
-            logger.debug(s"There are no eligible patients in this partition at page index ${pageIndex}.") // Log the result
-            Seq.empty
-          } else {
+                // Fetch the remaining resources (in parallel within worker node) indicated within the eligibilityCriteria
+                val criteriaOtherThanPatientResource = dataPreparationRequest.eligibility_criteria.filterNot(_.fhir_query.startsWith("/Patient"))
+                if (criteriaOtherThanPatientResource.isEmpty) {
+                  // There is only one criterion on the Patient resource, hence we need to use the already retrieved patientsIDs as the eligible patients
+                  logger.debug(s"${patientURIs.size} eligible patients are found.") // Log the result
+                  Future {
+                    patientURIs
+                  }
+                } else {
+                  // There are other resources in addition to the Patient resource query. Hence, they need to be executed to narrow down the eligible patients
+                  val queryFutures = criteriaOtherThanPatientResource.map(findEligiblePatientIDs(patientURIs, _))
 
-            logger.debug(s"Finding eligible patients at page index ${pageIndex}")
-
-            // Fetch the remaining resources (in parallel within worker node) indicated within the eligibilityCriteria
-            val criteriaOtherThanPatientResource = dataPreparationRequest.eligibility_criteria.filterNot(_.fhir_query.startsWith("/Patient"))
-            if (criteriaOtherThanPatientResource.isEmpty) {
-              // There is only one criterion on the Patient resource, hence we need to use the already retrieved patientsIDs as the eligible patients
-              logger.debug(s"${patientURIs.size} eligible patients are found.") // Log the result
-              patientURIs
-            } else {
-              // There are other resources in addition to the Patient resource query. Hence, they need to be executed to narrow down the eligible patients
-              val queryFutures = criteriaOtherThanPatientResource.map {
-                case conditionEC if conditionEC.fhir_query.startsWith("/Condition") => findEligiblePatientIDs[Condition](patientURIs, conditionEC)
-                case observationEC if observationEC.fhir_query.startsWith("/Observation") => findEligiblePatientIDs[Observation](patientURIs, observationEC)
-              }
-              val theFuture = Future.sequence(queryFutures) // Join the parallel Futures
-                .map(_.flatten.distinct) // Merge the sequence of patientIds into a single sequence and then eliminate the duplicates
-                .map(res => {
-                  logger.debug(s"${res.size} eligible patients are found at page index ${pageIndex}.") // Log the result
-                  res
-                })
-              try { // Wait for the eligibility criteria to be executed
-                Await.result(theFuture, Duration(60, TimeUnit.SECONDS))
-              } catch {
-                case e: TimeoutException =>
-                  logger.error("The eligibility criteria cannot be executed on the FHIR Repository within 60 seconds", e)
-                  Seq.empty // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
+                  Future.sequence(queryFutures) // Join the parallel Futures
+                    .map { queryResults =>
+                      val result = queryResults.reduceLeft((a, b) => a.intersect(b)) // Create a final list bu intersecting the resulting lists
+                      logger.debug(s"${result.size} eligible patients are found at page index ${pageIndex}.") // Log the result
+                      result
+                    }
+                }
               }
             }
+            try { // Wait for the eligibility criteria to be executed
+              Await.result(theFuture, Duration(60, TimeUnit.SECONDS))
+            } catch {
+              case e: TimeoutException =>
+                logger.error("The eligibility criteria cannot be executed on the FHIR Repository within 60 seconds", e)
+                Set.empty // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
+            }
           }
-        }
-      })
-      rdd.collect().toSeq.flatten // RDDs are lazy evaluated. In order to materialize the above statement, call an action rdd such as foreach, collect, count etc.
-      // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
-      // TODO When you are done, call rdd.unpersist() to remove it from cache.
+        })
 
-    } else {
-      logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
-      Seq.empty
+        rdd.collect().toSet.flatten // RDDs are lazy evaluated. In order to materialize the above statement, call an action rdd such as foreach, collect, count etc.
+        // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
+        // TODO When you are done, call rdd.unpersist() to remove it from cache.
+
+      } else {
+        logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
+        Set.empty[String]
+      }
     }
 
     // TODO: 1. Execute the eligibility query on FHIR Repository to retrieve the final set of resources to be used for data extraction
@@ -135,24 +133,13 @@ object DataPreparationController {
    * @param eligibilityCriteria
    * @return
    */
-  private def findEligiblePatientIDs[T <: DomainResource](patientURIs: Seq[String], eligibilityCriteria: EligibilityCriterion)(implicit m: Manifest[T]): Future[Seq[String]] = {
+  private def findEligiblePatientIDs(patientURIs: Set[String], eligibilityCriteria: EligibilityCriterion): Future[Set[String]] = {
     // TODO: Add the FHIRPath evaluation into this function.
 
-    Future {
-      val fhirQuery = QueryHandler.getResoucesOfPatientsQuery(patientURIs, eligibilityCriteria)
-
-      val resources: Seq[T] = Try(fhirQuery.getResources[T](fhirClient.getClient())).recover {
-        case t: Throwable =>
-          logger.error("Problem in FHIR query while retrieving resources of the given patients", t)
-          Nil
-      }.get
-
-      resources.map {
-        case condition: Condition => condition.getSubject.getReference
-        case observation: Observation => observation.getSubject.getReference
-      }
+    val fhirQuery = QueryHandler.getResoucesOfPatientsQuery(patientURIs, eligibilityCriteria)
+    fhirQuery.getResources(fhirClient) map { resources =>
+      resources.map(r => (r \ "subject" \ "reference").asInstanceOf[JString].values).toSet
     }
-
   }
 
   def getDataSourceStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {

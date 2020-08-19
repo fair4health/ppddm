@@ -1,7 +1,6 @@
 package ppddm.agent
 
 import akka.actor.ActorSystem
-import ca.uhn.fhir.context.FhirVersionEnum
 import com.typesafe.scalalogging.Logger
 import ppddm.agent.config.AgentConfig
 import ppddm.agent.gateway.AgentHttpServer
@@ -23,7 +22,7 @@ object Agent {
 
     implicit val system: ActorSystem = ActorSystem("ppddm-agent")
 
-    fhirClient = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol, AgentConfig.agentBatchSize)
+    fhirClient = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
     dataMiningEngine = DataMiningEngine(AgentConfig.appName, AgentConfig.sparkMaster)
 
     AgentHttpServer.start(AgentConfig.serverHost, AgentConfig.serverPort, AgentConfig.baseUri)

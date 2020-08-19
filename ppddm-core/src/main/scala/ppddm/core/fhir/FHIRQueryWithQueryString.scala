@@ -4,8 +4,8 @@ case class FHIRQueryWithQueryString(query: String) extends FHIRQuery {
 
   private val newQuery:String = if(query.contains("?")) query + "&" else query + "?"
 
-  override def constructQueryString(fhirServerBaseUri: String): String = {
-    s"${fhirServerBaseUri}${query}"
+  override def constructQueryString(): String = {
+    query
   }
 
   override def getCountQuery(): FHIRQuery = {

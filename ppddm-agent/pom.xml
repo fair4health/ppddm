@@ -120,7 +120,13 @@
             <groupId>org.json4s</groupId>
             <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
         </dependency>
-        
+
+        <!-- onFHIR -->
+        <dependency>
+            <groupId>onfhir</groupId>
+            <artifactId>onfhir-path</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

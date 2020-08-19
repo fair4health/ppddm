@@ -1,13 +1,13 @@
 package ppddm.core.fhir
 
-import ca.uhn.fhir.rest.client.api.IGenericClient
-import org.hl7.fhir.r4.model.{Bundle, DomainResource}
+import org.json4s.{JArray, JInt, JObject}
 
-import collection.JavaConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 trait FHIRQuery extends Serializable {
 
-  protected def constructQueryString(fhirServerBaseUri: String): String
+  protected def constructQueryString(): String
 
   def getCountQuery(): FHIRQuery
 
@@ -19,32 +19,27 @@ trait FHIRQuery extends Serializable {
    * @param client
    * @return
    */
-  def getCount(client: IGenericClient): Int = {
-    getCountQuery().execute(client).getTotal()
+  def getCount(client: FHIRClient): Future[Int] = {
+    getCountQuery().execute(client).map { res =>
+      // TODO: What happens if an exception occurs
+      (res \ "total").asInstanceOf[JInt].num.toInt
+    }
   }
 
-  /**
-   * Get the resources for the query
-   *
-   * @param client
-   * @param count
-   * @param pageIndex
-   * @tparam T
-   * @return
-   */
-  def getResources[T <: DomainResource](client: IGenericClient, count: Int, pageIndex: Int): Seq[T] = {
-    getPageQuery(count, pageIndex)
-      .execute(client)
-      .getEntry.asScala.map(_.getResource.asInstanceOf[T])
+  def getResources(client: FHIRClient, count: Int, pageIndex: Int): Future[Seq[JObject]] = {
+    getPageQuery(count, pageIndex).getResources(client)
   }
 
-  def getResources[T <: DomainResource](client: IGenericClient): Seq[T] = {
-    execute(client)
-      .getEntry.asScala.map(_.getResource.asInstanceOf[T])
+  def getResources(client: FHIRClient): Future[Seq[JObject]] = {
+    execute(client) map { bundle =>
+      (bundle \ "entry").asInstanceOf[JArray].arr.map { entry =>
+        (entry \ "resource").asInstanceOf[JObject]
+      }
+    }
   }
 
-  def execute(client: IGenericClient): Bundle = {
-    client.search().byUrl(constructQueryString(client.getServerBase)).execute()
+  def execute(client: FHIRClient): Future[JObject] = {
+    client.searchByUrl(constructQueryString())
   }
 
 }

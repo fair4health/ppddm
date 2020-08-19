@@ -19,7 +19,7 @@ object QueryHandler {
     patientQuery
   }
 
-  def getResoucesOfPatientsQuery(patientURIs: Seq[String], eligibilityCriteria: EligibilityCriterion): FHIRQuery = {
+  def getResoucesOfPatientsQuery(patientURIs: Set[String], eligibilityCriteria: EligibilityCriterion): FHIRQuery = {
     val queryString = if (eligibilityCriteria.fhir_query.contains("?"))
       eligibilityCriteria.fhir_query + '&'
     else eligibilityCriteria.fhir_query + '?'
