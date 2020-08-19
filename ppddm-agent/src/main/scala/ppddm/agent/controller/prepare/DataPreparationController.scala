@@ -10,6 +10,7 @@ import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 import ppddm.core.fhir.FHIRClient
 import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult, EligibilityCriterion}
+import io.onfhir.path.FhirPathEvaluator
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -28,6 +29,7 @@ object DataPreparationController {
   private val batchSize: Int = AgentConfig.agentBatchSize
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
   private val fhirClient: FHIRClient = Agent.fhirClient
+  private val fhirPathEvaluator: FhirPathEvaluator = new FhirPathEvaluator()
 
   /**
    * Start the data preparation (data extraction process) with the given DataPreparationRequest.
@@ -138,7 +140,18 @@ object DataPreparationController {
 
     val fhirQuery = QueryHandler.getResoucesOfPatientsQuery(patientURIs, eligibilityCriteria)
     fhirQuery.getResources(fhirClient) map { resources =>
-      resources.map(r => (r \ "subject" \ "reference").asInstanceOf[JString].values).toSet
+      resources.map(r => {
+        // If fhir_path is non-empty, check if the given resource satisfies the FHIR path expression
+        try {
+          if (eligibilityCriteria.fhir_path.isEmpty || fhirPathEvaluator.satisfies(eligibilityCriteria.fhir_path.get, r))
+            (r \ "subject" \ "reference").asInstanceOf[JString].values
+          else null
+        } catch {
+          case e: Exception =>
+            logger.error("Fhir path evaluation error", e)
+            null
+        }
+      }).toSet
     }
   }
 
