@@ -6,7 +6,7 @@ package ppddm.core.fhir
  * @param resourceType
  * @param params
  */
-case class FHIRQueryWithParams(resourceType: String, params: Seq[(String, String)]) extends FHIRQuery {
+case class FHIRQueryWithParams(resourceType: String, params: Seq[(String, String)], fhirPath: Option[String] = None) extends FHIRQuery(fhirPath) {
 
   override def constructQueryString(): String = {
     var query = s"/${resourceType}"

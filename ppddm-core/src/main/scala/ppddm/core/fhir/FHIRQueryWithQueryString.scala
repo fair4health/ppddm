@@ -1,6 +1,6 @@
 package ppddm.core.fhir
 
-case class FHIRQueryWithQueryString(query: String) extends FHIRQuery {
+case class FHIRQueryWithQueryString(query: String, fhirPath: Option[String] = None) extends FHIRQuery(fhirPath) {
 
   private val newQuery:String = if(query.contains("?")) query + "&" else query + "?"
 

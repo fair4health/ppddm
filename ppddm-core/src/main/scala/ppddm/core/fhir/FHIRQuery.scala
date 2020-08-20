@@ -5,9 +5,13 @@ import org.json4s.{JArray, JInt, JObject}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-trait FHIRQuery extends Serializable {
+abstract class FHIRQuery(fhirPath: Option[String]) extends Serializable {
 
   protected def constructQueryString(): String
+
+  def getFHIRPath(): Option[String] = {
+    this.fhirPath
+  }
 
   def getCountQuery(): FHIRQuery
 
