@@ -13,10 +13,12 @@ import ppddm.core.fhir.FHIRClient
 import ppddm.agent.spark.NodeExecutionContext._
 import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult, EligibilityCriterion, Variable, VariableDataType}
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
+
 
 /**
  * Controller object for data preparation.
@@ -39,12 +41,12 @@ object DataPreparationController {
    * @param dataPreparationRequest The request object for the data preparation.
    * @return
    */
-  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Set[Row]] = {
+  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
     // TODO: We may need some validation on the DataPreparationRequest object
     prepareData(dataPreparationRequest)
   }
 
-  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Set[Row]] = {
+  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
     logger.debug("Data preparation request received.")
 
     val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
@@ -60,7 +62,7 @@ object DataPreparationController {
         logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
 
         //Parallelize the execution and process pages in parallel
-        val rdd: RDD[Set[Row]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+        val rdd: RDD[Set[String]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
           partitionIterator.map { pageIndex =>
             val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
             val fhirPathEvaluator = FhirPathEvaluator()
@@ -110,7 +112,7 @@ object DataPreparationController {
               val eligiblePatientURIs = Await.result(theFuture, Duration(60, TimeUnit.SECONDS)) // Wait for the eligibility criteria to be executed
 
               if (eligiblePatientURIs.isEmpty) {
-                Set.empty[Row]
+                Set.empty[String]
               } else {
                 if (dataPreparationRequest.featureset.variables.isDefined) { // must check for optional type
                   val queryFutures = dataPreparationRequest.featureset.variables.get.map(getVariableRowMap(fhirClientPartition, eligiblePatientURIs, _)) // For each variable, get corresponding row map
@@ -137,7 +139,8 @@ object DataPreparationController {
                       val resourceForVariable = resourceMap(variable.name) // For a variable, get the values for patients.
                       resourceForVariable(patientURI) // Find the corresponding patient and write the value to the corresponding cell.
                     })
-                    Row.fromSeq(Seq(patientURI) ++ rowValues) // first column will be Patient ID. Concatenate it with patient ID and create the output Row
+                    s"${patientURI},${rowValues.mkString(",")}"// first column will be Patient ID. Concatenate it with patient ID and create the output Row
+                    // TODO TBD - Row.fromSeq(Seq(patientURI) ++ rowValues)
                   })
 
                   // Generate the schema for DataFrame based on the string of schema
@@ -147,7 +150,7 @@ object DataPreparationController {
                   println(schema)*/
 
                 } else {
-                  Set.empty[Row]
+                  Set.empty[String]
                 }
               }
             } catch {
@@ -164,7 +167,7 @@ object DataPreparationController {
 
       } else {
         logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
-        Set.empty[Row]
+        Set.empty[String]
       }
     }
 
