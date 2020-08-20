@@ -48,7 +48,7 @@ final case class Dataset(dataset_id: Option[String],
                          featureset: Featureset,
                          name: String,
                          description: String,
-                         eligibility_criteria: Seq[EligibilityCriteria],
+                         eligibility_criteria: Seq[EligibilityCriterion],
                          dataset_sources: Option[Seq[DatasetSource]],
                          execution_state: Option[ExecutionState],
                          created_by: String,
@@ -68,8 +68,8 @@ final case class Dataset(dataset_id: Option[String],
 
 }
 
-final case class EligibilityCriteria(fhir_query: String,
-                                     fhir_path: Option[String]) extends ModelClass
+final case class EligibilityCriterion(fhir_query: String,
+                                      fhir_path: Option[String]) extends ModelClass
 
 final case class DatasetSource(data_source: DataSource,
                                data_source_statistics: Option[DataSourceStatistics],
@@ -90,7 +90,7 @@ final case class VariableStatistics(variable: Variable,
 
 final case class DataPreparationRequest(dataset_id: String,
                                         featureset: Featureset,
-                                        eligibility_criteria: Seq[EligibilityCriteria],
+                                        eligibility_criteria: Seq[EligibilityCriterion],
                                         submitted_by: String) extends ModelClass
 
 final case class DataPreparationResult(dataset_id: String,

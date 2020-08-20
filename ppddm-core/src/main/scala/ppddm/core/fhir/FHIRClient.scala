@@ -1,48 +1,34 @@
-package ppddm.core.fhir.r4.service
-
-import java.util.concurrent.TimeUnit
+package ppddm.core.fhir
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.HostConnectionPool
-import akka.http.scaladsl.model.headers.{Accept, `Content-Type`}
-import akka.http.scaladsl.model.{ContentTypes, HttpMethods, HttpRequest, HttpResponse, MediaTypes, StatusCodes, Uri}
+import akka.http.scaladsl.model.headers.Accept
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.stream.{OverflowStrategy, QueueOfferResult}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source, SourceQueueWithComplete}
+import akka.stream.{OverflowStrategy, QueueOfferResult}
 import com.typesafe.scalalogging.Logger
-import ppddm.core.fhir.r4.resources.{Bundle, Condition, Resource}
+import org.json4s.JObject
+import ppddm.core.exception.FHIRClientException
 import ppddm.core.rest.model.Json4sSupport._
 
-import scala.concurrent.duration.{Duration, FiniteDuration, MILLISECONDS}
-import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success, Try}
 
-
-/**
- * Client for communicating with a FHIR Repository
- *
- * @param host                FHIR Repository server host address i.e. http://localhost
- * @param port                FHIR Repository server port address i.e. 8282
- * @param path                FHIR Repository server path i.e. fhir
- * @param protocol            The communication protocol: http or https
- * @param poolSize            Size of the request pool in number of requests
- * @param requestWaitDuration Wait duration of each request in the pool
- * @param overflowStrategy    Overflow strategy to be used on the pool
- */
 class FHIRClient(host: String,
                  port: Int,
                  path: String,
                  protocol: String,
                  poolSize: Int,
-                 requestWaitDuration: Int,
                  overflowStrategy: OverflowStrategy)(implicit system: ActorSystem) {
 
   private val logger: Logger = Logger(this.getClass)
 
   // onFHIR.io server path
-  private val serverPath = if(path.startsWith("/")) s"$host:$port$path" else s"$host:$port/$path"
+  private val fhirServerBaseURI = if (path.startsWith("/")) s"$protocol://$host:$port$path" else s"$protocol://$host:$port/$path"
 
   // Default headers
   private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
@@ -62,12 +48,12 @@ class FHIRClient(host: String,
       }))(Keep.left)
       .run()
 
-  def query[T <: Resource](query: String)(implicit m: Manifest[T]): Future[Bundle[T]] = {
+  def searchByUrl(query: String): Future[JObject] = {
     logger.debug("Querying FHIR with {}", query)
 
     // Prepare http request
     val request = HttpRequest(
-      uri = Uri(s"$protocol://$serverPath$query"),
+      uri = Uri(s"$fhirServerBaseURI$query"),
       method = HttpMethods.GET,
       headers = defaultHeaders
     ).withEntity(ContentTypes.`application/json`, "{}")
@@ -81,35 +67,23 @@ class FHIRClient(host: String,
       case QueueOfferResult.QueueClosed => Future.failed(new RuntimeException("Queue was closed (pool shut down) while running the request. Try again later."))
     }
 
-    // Execute token response and set the client access token parameter
+    // Process the FHIR response and return as a JObject
     responseFuture.flatMap {
       case resp if resp.status == StatusCodes.OK =>
-        Unmarshal(resp.entity).to[Bundle[T]]
-      case err if err.entity.contentType == ContentTypes.`application/json` =>
-        Unmarshal(err.entity).to[FHIRClientException] map { entity =>
-          throw FHIRClientException(entity.error, entity.errorDesc)
-        } recover { case _ => throw FHIRClientException() }
+        Unmarshal(resp.entity).to[JObject]
       case errUnk =>
-        errUnk.entity.toStrict(FiniteDuration(1000, MILLISECONDS)).map {
-          _.data
-        }.map(_.utf8String) map { entity =>
-          throw FHIRClientException(None, Some(s"Request failed. Response status is ${errUnk.status} and entity is $entity"))
+        errUnk.entity.toStrict(FiniteDuration(1000, MILLISECONDS)).map(_.data.utf8String).map { entity =>
+          throw FHIRClientException(entity)
         }
     }
-
   }
 }
 
 object FHIRClient {
-
   def apply(host: String,
             port: Int,
             path: String,
-            protocol: String = "http",
-            poolSize: Int = 64,
-            requestWaitDuration: Int = 10,
-            overflowStrategy: OverflowStrategy = OverflowStrategy.backpressure)(implicit system: ActorSystem): FHIRClient = {
-    new FHIRClient(host, port, path, protocol, poolSize, requestWaitDuration, overflowStrategy)
+            protocol: String = "http")(implicit system: ActorSystem): FHIRClient = {
+    new FHIRClient(host, port, path, protocol, 64, OverflowStrategy.backpressure)
   }
-
 }

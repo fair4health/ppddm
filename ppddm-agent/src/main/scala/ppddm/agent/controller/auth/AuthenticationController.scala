@@ -17,6 +17,7 @@ object AuthenticationController {
   private def checkAccessToken(accessToken: String): Boolean = {
     // TODO: Introspect the provided accessToken through FAIR4Health OAuth server
     // TODO: Use Akka Cache to prevent unnecessary introspection requests
+    logger.debug("AuthenticationController always return true, FOR NOW!")
     true
   }
 
