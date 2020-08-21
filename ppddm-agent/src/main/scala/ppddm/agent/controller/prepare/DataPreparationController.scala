@@ -143,12 +143,6 @@ object DataPreparationController {
                     // TODO TBD - Row.fromSeq(Seq(patientURI) ++ rowValues)
                   })
 
-                  // Generate the schema for DataFrame based on the string of schema
-                  /*val fields = dataPreparationRequest.featureset.variables.get
-                    .map(variable => StructField(variable.name, if (variable.variable_data_type == VariableDataType.CATEGORICAL) StringType else IntegerType , nullable = true))
-                  val schema = StructType(Seq(StructField("id", StringType)) ++ fields)
-                  println(schema)*/
-
                 } else {
                   Set.empty[String]
                 }
@@ -161,9 +155,23 @@ object DataPreparationController {
           }
         })
 
-        rdd.collect().toSet.flatten // RDDs are lazy evaluated. In order to materialize the above statement, call an action rdd such as foreach, collect, count etc.
+        val dataStringSet = rdd.collect().toSet.flatten // RDDs are lazy evaluated. In order to materialize the above statement, call an action rdd such as foreach, collect, count etc.
         // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
         // TODO When you are done, call rdd.unpersist() to remove it from cache.
+
+        val structureData = dataStringSet.map(row => Row.fromSeq(row.split(","))).toSeq
+
+        // Generate the schema for DataFrame based on the string of schema
+        val fields = dataPreparationRequest.featureset.variables.get
+          .map(variable => StructField(variable.name.replaceAll("\\s", ""), StringType)) // if (variable.variable_data_type == VariableDataType.CATEGORICAL) StringType else IntegerType
+        val structureSchema = StructType(Seq(StructField("id", StringType)) ++ fields)
+
+        val dataFrame = sparkSession.createDataFrame(
+          sparkSession.sparkContext.parallelize(structureData),structureSchema)
+        dataFrame.printSchema()
+        dataFrame.show(false)
+
+        dataStringSet
 
       } else {
         logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
