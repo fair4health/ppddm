@@ -30,3 +30,9 @@ object ExecutionState extends Enumeration {
   val IN_PROGRESS = "in_progress"
   val FINAL = "final"
 }
+
+object FHIRPathExpressionPrefix extends Enumeration {
+  type FHIRPathExpressionPrefix = String
+  val AGGREGATION = "aggr:"
+  val VALUE = "value:"
+}

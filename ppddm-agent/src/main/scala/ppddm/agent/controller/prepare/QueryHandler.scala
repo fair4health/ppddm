@@ -19,9 +19,13 @@ object QueryHandler {
     patientQuery
   }
 
-  def getResoucesOfPatientsQuery(patientURIs: Set[String], fhir_query: String, fhir_path: Option[String]): FHIRQuery = {
+  def getResourcesOfPatientsQuery(patientURIs: Set[String], fhir_query: String, fhir_path: Option[String]): FHIRQuery = {
     val queryString = if (fhir_query.contains("?")) fhir_query + '&' else fhir_query + '?'
-    FHIRQueryWithQueryString(s"${queryString}subject=${patientURIs.mkString(",")}", fhir_path)
+    if (fhir_query.startsWith("/Patient")) {
+      FHIRQueryWithQueryString(s"${queryString}_id=${patientURIs.map(_.substring(8)).mkString(",")}", fhir_path)
+    } else {
+      FHIRQueryWithQueryString(s"${queryString}subject=${patientURIs.mkString(",")}", fhir_path)
+    }
   }
 
 }
