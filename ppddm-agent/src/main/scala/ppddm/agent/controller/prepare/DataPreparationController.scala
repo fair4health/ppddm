@@ -3,19 +3,22 @@ package ppddm.agent.controller.prepare
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.scalalogging.Logger
-import io.onfhir.path.FhirPathEvaluator
+import io.onfhir.path._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
-import org.json4s.JString
+import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
+import org.json4s.JsonAST.JObject
+import org.json4s.{DefaultFormats, JArray, JString}
 import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
-import ppddm.core.fhir.FHIRClient
 import ppddm.agent.spark.NodeExecutionContext._
-import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult, EligibilityCriterion}
+import ppddm.core.fhir.{FHIRClient, FHIRQuery}
+import ppddm.core.rest.model._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
+
 
 /**
  * Controller object for data preparation.
@@ -30,6 +33,8 @@ object DataPreparationController {
   private val batchSize: Int = AgentConfig.agentBatchSize
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
+  implicit val formats: DefaultFormats = DefaultFormats
+
   /**
    * Start the data preparation (data extraction process) with the given DataPreparationRequest.
    * This function successfully returns if the preparation request is started. Data preparation will continue in the background
@@ -38,12 +43,14 @@ object DataPreparationController {
    * @param dataPreparationRequest The request object for the data preparation.
    * @return
    */
-  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
+  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Unit]] = {
     // TODO: We may need some validation on the DataPreparationRequest object
-    prepareData(dataPreparationRequest)
+    Future {
+      prepareData(dataPreparationRequest)
+    }
   }
 
-  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
+  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Unit] = {
     logger.debug("Data preparation request received.")
 
     val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
@@ -51,7 +58,7 @@ object DataPreparationController {
     // Start with the Patients
     val patientQuery = QueryHandler.getPatientQuery(dataPreparationRequest.eligibility_criteria)
 
-    patientQuery.getCount(fhirClientMaster) map { numOfPatients => //Count the resulting resources
+    patientQuery.getCount(fhirClientMaster) map { numOfPatients => //Count the resulting resources in terms of patients
       logger.debug(s"Number of patients: ${numOfPatients}")
       if (numOfPatients > 0) {
         //Number of pages to get all the results according to batch size
@@ -59,72 +66,198 @@ object DataPreparationController {
         logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
 
         //Parallelize the execution and process pages in parallel
-        val rdd: RDD[Set[String]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+        val rdd: RDD[Seq[Row]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
           partitionIterator.map { pageIndex =>
+            // Instantiate a FHIRClient and FhirPathEvaluator for each worker node
             val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
             val fhirPathEvaluator = FhirPathEvaluator()
 
             // Fetch the Patient resources from the FHIR Repository and collect their IDs
-            val theFuture = patientQuery.getResources(fhirClientPartition, batchSize, pageIndex) flatMap { results =>
-
-              // If fhir_path is non-empty, filter resulting patients which satisfy the FHIR path expression
-              val patients = results.filter(patientQuery.getFHIRPath().isEmpty || fhirPathEvaluator.satisfies(patientQuery.getFHIRPath().get, _))
-
-              val patientURIs: Set[String] = patients
-                .map(p => (p \ "id").asInstanceOf[JString].values) // extract the IDs from the JObject of Patient
-                .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
-                .toSet[String] // Convert to a set
-
-              if (patientURIs.isEmpty) {
-                // There are no eligible patients in this partition. We do not need to execute the remaining criteria on other resources
-                logger.debug(s"There are no eligible patients in this partition at page index ${pageIndex}.") // Log the result
+            val theFuture = findEligiblePatients(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.eligibility_criteria, patientQuery, pageIndex) flatMap { eligiblePatientURIs =>
+              if (eligiblePatientURIs.isEmpty) {
+                // No patients are eligible
                 Future {
-                  Set.empty[String]
+                  Seq.empty[Row]
                 }
               } else {
-                logger.debug(s"Finding eligible patients at page index ${pageIndex}")
-
-                // Fetch the remaining resources (in parallel within worker node) indicated within the eligibilityCriteria
-                val criteriaOtherThanPatientResource = dataPreparationRequest.eligibility_criteria.filterNot(_.fhir_query.startsWith("/Patient"))
-                if (criteriaOtherThanPatientResource.isEmpty) {
-                  // There is only one criterion on the Patient resource, hence we need to use the already retrieved patientsIDs as the eligible patients
-                  logger.debug(s"${patientURIs.size} eligible patients are found.") // Log the result
+                if (dataPreparationRequest.featureset.variables.isEmpty) {
+                  logger.warn("The feature set definition of the data preparation request does not contain any variable definitions. " +
+                    "This is probably an error. DataPreparationRequest object should have been verified upto this point.")
                   Future {
-                    patientURIs
+                    Seq.empty[Row]
                   }
                 } else {
-                  // There are other resources in addition to the Patient resource query. Hence, they need to be executed to narrow down the eligible patients
-                  val queryFutures = criteriaOtherThanPatientResource.map(findEligiblePatientIDs(fhirClientPartition, fhirPathEvaluator, patientURIs, _))
-
-                  Future.sequence(queryFutures) // Join the parallel Futures
-                    .map { queryResults =>
-                      val result = queryResults.reduceLeft((a, b) => a.intersect(b)) // Create a final list bu intersecting the resulting lists
-                      logger.debug(s"${result.size} eligible patients are found at page index ${pageIndex}.") // Log the result
-                      result
+                  populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs)
+                    .map { resourceMap: Map[String, Map[String, Any]] =>
+                      convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
                     }
                 }
               }
             }
-            try { // Wait for the eligibility criteria to be executed
-              Await.result(theFuture, Duration(60, TimeUnit.SECONDS))
+
+            try { // Wait for the whole execution to be completed on a worker node
+              Await.result(theFuture, Duration(10, TimeUnit.MINUTES))
             } catch {
               case e: TimeoutException =>
-                logger.error("The eligibility criteria cannot be executed on the FHIR Repository within 60 seconds", e)
-                Set.empty[String] // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
+                logger.error("The data preparation cannot be completed on a worker node with pageIndex:{} within 10 minutes.", pageIndex, e)
+                Seq.empty[Row] // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
             }
           }
         })
 
-        rdd.collect().toSet.flatten // RDDs are lazy evaluated. In order to materialize the above statement, call an action rdd such as foreach, collect, count etc.
+        // RDDs are lazy evaluated. In order to materialize the above statement, call an action on rdd such as foreach, collect, count etc.
+        val dataRowSet = rdd.collect() // Collect the Seq[Row]s from the worker nodes
+          .toSeq // Covert the Array[Seq[Row]]s to Seq[Seq[Row]]s
+          .flatten // Create a single Seq[Row] by merging all Seq[Row]s
         // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
         // TODO When you are done, call rdd.unpersist() to remove it from cache.
 
+        logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
+
+        val structureSchema = generateSchema(dataPreparationRequest.featureset)
+
+        val dataFrame = sparkSession.createDataFrame(
+          sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
+          structureSchema)
+
+//        logger.debug(dataFrame.schema.treeString)
+        dataFrame.printSchema()
+        dataFrame.show(false)
+
       } else {
         logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
-        Set.empty[String]
       }
     }
 
+  }
+
+  /**
+   * Generate the schema for the DataFrame by using the Variable definitions of the Featureset
+   *
+   * @param featureset The Featureset
+   * @return The schema of the resulting data in the format of StructType
+   */
+  private def generateSchema(featureset: Featureset): StructType = {
+    val fields = featureset.variables.get
+      .map(variable =>
+        StructField(
+          variable.name /*.replaceAll("\\s", "")*/ ,
+          if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
+        )
+      )
+    StructType(Seq(StructField("pid", StringType, nullable = false)) ++ fields)
+  }
+
+  /**
+   * Given the result set of values in the form of a Map, converts them to a sequence of Spark Row
+   *
+   * @param featureset  The Featureset which contains the Variable definitions
+   * @param patientURIs The URIs (/Patient/12323-2312-231) of the patients
+   * @param resourceMap The result set in the form returned by #populateVariableValues
+   * @return A Seq of Row
+   */
+  private def convertToSparkRow(featureset: Featureset, patientURIs: Set[String], resourceMap: Map[String, Map[String, Any]]): Seq[Row] = {
+    // Now create RDD Rows. Consider that we are trying to create data in tabular format here.
+    // Each Row will correspond to a patient, hence do the same operation for each patient.
+    patientURIs
+      .toSeq // Covert to sequence to achieve a Row[Seq] in th end. At this time, we are sure that we do not have duplicates.
+      .map(patientURI => { // For each patient
+        val rowValues = featureset.variables.get.map(variable => { // For each variable
+          val resourceForVariable = resourceMap(variable.name) // For the variable, get values for all patients
+          resourceForVariable.get(patientURI) // Find the corresponding patient and write the value to the corresponding cell.
+        }).filter(_.isDefined)// Keep values which exist for the given patients
+          .map(_.get) // Convert the map to Seq[Any]
+        // Create a Row from the values extracted for a single patient. Add the patientID to the beginning.
+        // Note that the values in the sequence are ordered in the order of the variable sequence in the featureset
+        Row.fromSeq(Seq(patientURI) ++ rowValues)
+        //s"${patientURI},${rowValues.mkString(",")}"// first column will be Patient ID. Concatenate it with patient ID and create the output Row
+      })
+  }
+
+  /**
+   * For each variable, executes #fetchValuesOfVariable and then merges the results to end up with a combined result set.
+   *
+   * @param fhirClient        The FHIRClient
+   * @param fhirPathEvaluator The FhirPathEvaluator
+   * @param featureset        The Featureset which contains the Variable definitions
+   * @param patientURIs       The URIs (/Patient/12323-2312-231) of the patients
+   * @return A Future of the Map in the following form:
+   *
+   *         Map(Smoking status -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 1, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
+   *         Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
+   *         Patient/1f02a91bb9343781e02c7f112d7b791d -> 1, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 1, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 1,
+   *         Patient/10e5dfbc9116508271574a10beec20a7 -> 0),
+   *         Number of prescribed drugs -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 0, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
+   *         Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
+   *         Patient/1f02a91bb9343781e02c7f112d7b791d -> 0, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 0, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 0,
+   *         Patient/10e5dfbc9116508271574a10beec20a7 -> 0))
+   *
+   */
+  private def populateVariableValues(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator,
+                                     featureset: Featureset, patientURIs: Set[String]): Future[Map[String, Map[String, Any]]] = {
+    val queryFutures = featureset.variables.get
+      .map(fetchValuesOfVariable(fhirClient, fhirPathEvaluator, patientURIs, _)) // For each variable, fetch the values for each patient
+
+    Future.sequence(queryFutures) // Join the parallel Futures
+      .map { queryResults =>
+        queryResults.reduceLeft((a, b) => a ++ b) // Add the maps together so that each entry holds the data for one variable
+      }
+  }
+
+  /**
+   * Find the eligible patients.
+   *
+   * @param fhirClient           The FHIRClient to be used for FHIR communication
+   * @param fhirPathEvaluator    The FHIRPath evaluator to be used for evaluating the FHIRPath expressions
+   * @param eligibility_criteria The sequence of EligibilityCriterion to construct the associated FHIR search queries
+   * @param patientQuery         The FHIRQuery associated with the Patient resources.
+   * @param pageIndex            The index of the spark worker node which calls this function.
+   * @return The IDs of the eligible patients.
+   */
+  private def findEligiblePatients(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator,
+                                   eligibility_criteria: Seq[EligibilityCriterion], patientQuery: FHIRQuery,
+                                   pageIndex: Int): Future[Set[String]] = {
+    // Fetch the Patient resources from the FHIR Repository and collect their IDs
+    patientQuery.getResources(fhirClient, batchSize, pageIndex) flatMap { results =>
+
+      // If fhir_path is non-empty, filter resulting patients which satisfy the FHIR path expression
+      val patients = results.filter(patientQuery.getFHIRPath().isEmpty || fhirPathEvaluator.satisfies(patientQuery.getFHIRPath().get, _))
+
+      val patientURIs: Set[String] = patients
+        .map(p => (p \ "id").asInstanceOf[JString].values) // extract the IDs from the JObject of Patient
+        .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+        .toSet[String] // Convert to a set
+
+      if (patientURIs.isEmpty) {
+        // There are no eligible patients in this partition. We do not need to execute the remaining criteria on other resources
+        logger.debug(s"There are no eligible patients in this partition at page index ${pageIndex}.") // Log the result
+        Future {
+          Set.empty[String]
+        }
+      } else {
+        logger.debug(s"Finding eligible patients at page index ${pageIndex}")
+
+        // Fetch the remaining resources (in parallel within worker node) indicated within the eligibilityCriteria
+        val criteriaOtherThanPatientResource = eligibility_criteria.filterNot(_.fhir_query.startsWith("/Patient"))
+        if (criteriaOtherThanPatientResource.isEmpty) {
+          // There is only one criterion on the Patient resource, hence we need to use the already retrieved patientsIDs as the eligible patients
+          logger.debug(s"${patientURIs.size} eligible patients are found.") // Log the result
+          Future {
+            patientURIs
+          }
+        } else {
+          // There are other resources in addition to the Patient resource query. Hence, they need to be executed to narrow down the eligible patients
+          val queryFutures = criteriaOtherThanPatientResource.map(findPatientIDsOfCriterion(fhirClient, fhirPathEvaluator, patientURIs, _))
+
+          Future.sequence(queryFutures) // Join the parallel Futures
+            .map { queryResults =>
+              val result = queryResults.reduceLeft((a, b) => a.intersect(b)) // Create a final list bu intersecting the resulting lists coming from criterionOtherThanPatientResource
+              logger.debug(s"${result.size} eligible patients are found at page index ${pageIndex}.") // Log the result
+              result
+            }
+        }
+      }
+    }
   }
 
   /**
@@ -138,16 +271,156 @@ object DataPreparationController {
    * @param eligibilityCriteria
    * @return
    */
-  private def findEligiblePatientIDs(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, patientURIs: Set[String],
-                                     eligibilityCriteria: EligibilityCriterion): Future[Set[String]] = {
-    val fhirQuery = QueryHandler.getResoucesOfPatientsQuery(patientURIs, eligibilityCriteria)
+  private def findPatientIDsOfCriterion(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, patientURIs: Set[String],
+                                        eligibilityCriteria: EligibilityCriterion): Future[Set[String]] = {
+
+    val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, eligibilityCriteria.fhir_query, eligibilityCriteria.fhir_path)
+
     fhirQuery.getResources(fhirClient) map { resources =>
-      resources
-        .filter(eligibilityCriteria.fhir_path.isEmpty // If fhir_path is non-empty, check if the given resource satisfies the FHIR path expression
-          || fhirPathEvaluator.satisfies(eligibilityCriteria.fhir_path.get, _))
-        .map(r => (r \ "subject" \ "reference").asInstanceOf[JString].values) // Collect the patientIDs
-        .toSet // Convert to set
+      if (eligibilityCriteria.fhir_path.nonEmpty) {
+        val fhirPathExpression = eligibilityCriteria.fhir_path.get
+
+        if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
+          // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
+          val expr: String = fhirPathExpression.substring(FHIRPathExpressionPrefix.AGGREGATION.length) // Extract the actual FHIRPath expression
+          val result = fhirPathEvaluator.evaluateString(expr, JArray(resources.toList)) // Evaluate path with aggregation. It should return a list of PatientIDs.
+          result.toSet // Convert to set
+        } else if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.SATISFY)) {
+          // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.SATISFY'
+          resources
+            .filter(fhirPathEvaluator.satisfies(fhirPathExpression.substring(FHIRPathExpressionPrefix.SATISFY.length), _)) // Filter the resources by whether they satisfy the path expression.
+            .map(r => (r \ "subject" \ "reference").asInstanceOf[JString].values) // Collect the patientIDs
+            .toSet // Convert to set
+        } else {
+          logger.error("Invalid fhir_path in eligibility_criteria.")
+          // TODO: It might be better to throw an Exception here
+          Set.empty[String]
+        }
+      } else {
+        resources
+          .map(r => (r \ "subject" \ "reference").asInstanceOf[JString].values) // Collect the patientIDs
+          .toSet // Convert to set
+      }
     }
+  }
+
+  /**
+   * Executes the fhir_query and fhir_path for the given variable on the given patientURIs and returns the values of the variable for each patient.
+   * This dataset corresponds to the column defined for the given variable, filled with the values of that variable for the given patients.
+   *
+   * @param fhirClient
+   * @param patientURIs
+   * @param variable
+   * @return returns a future in form of the following Map where the Map has only one entry:
+   *         Map(Smoking status -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 1, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
+   *         Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
+   *         Patient/1f02a91bb9343781e02c7f112d7b791d -> 1, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 1, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 1,
+   *         Patient/10e5dfbc9116508271574a10beec20a7 -> 0))
+   */
+  private def fetchValuesOfVariable(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, patientURIs: Set[String],
+                                    variable: Variable): Future[Map[String, Map[String, Any]]] = {
+    val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, variable.fhir_query, Some(variable.fhir_path))
+    fhirQuery.getResources(fhirClient) map { resources =>
+      if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
+        // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
+        evaluateAggrPath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
+      } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE)) {
+        // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE'
+        evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
+      } else { // Invalid FHIRPath expression
+        logger.error("Invalid FHIRPath expression: {}", variable.fhir_path)
+        // TODO: Throw an appropriate exception
+        Map.empty[String, Map[String, Any]]
+      }
+    }
+  }
+
+  /**
+   * Evaluates the fhir_path expression with the aggregation prefix (FHIRPathExpressionPrefix.AGGREGATION) for the given Variable.
+   * It is assumed that all aggregation functions will result in a numeric value (such as count/sum/average/max) and the
+   * data type is configured as a Double for all numeric values (even if it is an integer, it will be casted)
+   *
+   * @param fhirPathEvaluator
+   * @param resources
+   * @param variable
+   * @return returns a map in the following form:
+   *         Map(Prescribed Drugs -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 6, ...))
+   */
+  def evaluateAggrPath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
+                       variable: Variable): Map[String, Map[String, Any]] = {
+
+    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+
+    // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
+    val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
+    // Evaluate FHIR Path on the resource list
+    val result = fhirPathEvaluator.evaluate(fhirPathExpression, JArray(resources.toList))
+    val extractedValues = result.map { item =>
+
+      /**
+       * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
+       * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
+       */
+      val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
+        .json.obj // Access to the List[(String, JValue)]
+
+      val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
+      val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
+      patientID -> aggrResult // Patient ID -> count
+    }.toMap
+
+    Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+  }
+
+  /**
+   * Evaluates the fhir_path expression with the value prefix (FHIRPathExpressionPrefix.VALUE) for the given Variable.
+   * Evaluates it on resources one by one and extracts the value according to the FHIRPath expression.
+   *
+   * @param fhirPathEvaluator
+   * @param resources
+   * @param variable
+   * @return returns a map in the following form:
+   *         Map(Gender -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> male, ...))
+   */
+  def evaluateValuePath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
+                        variable: Variable): Map[String, Map[String, Any]] = {
+
+    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+
+    // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.VALUE'
+    val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE.length)
+
+    val isPatient = variable.fhir_query.startsWith("/Patient")
+    val lookingForExistence: Boolean = fhirPathExpression.startsWith("exists")
+
+    val extractedValues = resources
+      .map { item => // For each resulting resource
+        val resultOption = fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption
+        resultOption.map { result =>
+          var value: Any = 1.toDouble // Initialize the value as 1 in case this is an existence expression
+          if(!lookingForExistence) {
+            // If we will get the value from the FHIRPath expression, then take it from the evaluation result
+            value = result match {
+              case FhirPathString(s) => s
+              case FhirPathNumber(v) => v.toDouble
+              case FhirPathDateTime(dt) => dt.toString
+              case _ =>
+                logger.error("Unsupported FHIRPath result type: {}", result)
+                // TODO: Throw an appropriate exception
+                "-"
+            }
+          }
+          // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
+          if (isPatient) {
+            "Patient/" + (item \ "id").asInstanceOf[JString].values -> value
+          } else {
+            (item \ "subject" \ "reference").asInstanceOf[JString].values -> value
+          }
+        }
+      }.filter(_.isDefined) // Keep only tuples which have value
+      .map(_.get) // Convert the map to List[(String, Any)]
+      .toMap // Convert to Map[String, Any]
+    Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
   }
 
   def getDataSourceStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {

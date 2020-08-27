@@ -35,6 +35,8 @@ abstract class FHIRQuery(fhirPath: Option[String]) extends Serializable {
   }
 
   def getResources(client: FHIRClient): Future[Seq[JObject]] = {
+    // TODO: This query only retrieves the 1st page (default 20).
+    // TODO: All resources should be returned by this function.
     execute(client) map { bundle =>
       (bundle \ "entry").asInstanceOf[JArray].arr.map { entry =>
         (entry \ "resource").asInstanceOf[JObject]
