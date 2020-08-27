@@ -43,12 +43,14 @@ object DataPreparationController {
    * @param dataPreparationRequest The request object for the data preparation.
    * @return
    */
-  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
+  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Unit]] = {
     // TODO: We may need some validation on the DataPreparationRequest object
-    prepareData(dataPreparationRequest)
+    Future {
+      prepareData(dataPreparationRequest)
+    }
   }
 
-  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Set[String]] = {
+  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Unit] = {
     logger.debug("Data preparation request received.")
 
     val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
@@ -118,14 +120,12 @@ object DataPreparationController {
           sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
           structureSchema)
 
-        logger.debug(dataFrame.schema.treeString)
+//        logger.debug(dataFrame.schema.treeString)
+        dataFrame.printSchema()
         dataFrame.show(false)
-
-        Set.empty[String]
 
       } else {
         logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
-        Set.empty[String]
       }
     }
 
@@ -141,7 +141,7 @@ object DataPreparationController {
     val fields = featureset.variables.get
       .map(variable =>
         StructField(
-          variable.name/*.replaceAll("\\s", "")*/,
+          variable.name /*.replaceAll("\\s", "")*/ ,
           if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
         )
       )
@@ -164,8 +164,9 @@ object DataPreparationController {
       .map(patientURI => { // For each patient
         val rowValues = featureset.variables.get.map(variable => { // For each variable
           val resourceForVariable = resourceMap(variable.name) // For the variable, get values for all patients
-          resourceForVariable(patientURI) // Find the corresponding patient and write the value to the corresponding cell.
-        })
+          resourceForVariable.get(patientURI) // Find the corresponding patient and write the value to the corresponding cell.
+        }).filter(_.isDefined)// Keep values which exist for the given patients
+          .map(_.get) // Convert the map to Seq[Any]
         // Create a Row from the values extracted for a single patient. Add the patientID to the beginning.
         // Note that the values in the sequence are ordered in the order of the variable sequence in the featureset
         Row.fromSeq(Seq(patientURI) ++ rowValues)
@@ -183,13 +184,13 @@ object DataPreparationController {
    * @return A Future of the Map in the following form:
    *
    *         Map(Smoking status -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 1, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
-   *                                   Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
-   *                                   Patient/1f02a91bb9343781e02c7f112d7b791d -> 1, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 1, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 1,
-   *                                   Patient/10e5dfbc9116508271574a10beec20a7 -> 0),
-   *             Number of prescribed drugs -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 0, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
-   *                                               Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
-   *                                               Patient/1f02a91bb9343781e02c7f112d7b791d -> 0, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 0, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 0,
-   *                                               Patient/10e5dfbc9116508271574a10beec20a7 -> 0))
+   *         Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
+   *         Patient/1f02a91bb9343781e02c7f112d7b791d -> 1, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 1, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 1,
+   *         Patient/10e5dfbc9116508271574a10beec20a7 -> 0),
+   *         Number of prescribed drugs -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 0, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
+   *         Patient/04e5829775e37d63b7a236d9f591e1cb -> 0, Patient/16ed073856be0118031ac67309198420 -> 0, Patient/6602b46629ae17ab1145aaa0fc1f625e -> 0,
+   *         Patient/1f02a91bb9343781e02c7f112d7b791d -> 0, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 0, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 0,
+   *         Patient/10e5dfbc9116508271574a10beec20a7 -> 0))
    *
    */
   private def populateVariableValues(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator,
@@ -250,7 +251,7 @@ object DataPreparationController {
 
           Future.sequence(queryFutures) // Join the parallel Futures
             .map { queryResults =>
-              val result = queryResults.reduceLeft((a, b) => a.intersect(b)) // Create a final list bu intersecting the resulting lists
+              val result = queryResults.reduceLeft((a, b) => a.intersect(b)) // Create a final list bu intersecting the resulting lists coming from criterionOtherThanPatientResource
               logger.debug(s"${result.size} eligible patients are found at page index ${pageIndex}.") // Log the result
               result
             }
@@ -272,28 +273,27 @@ object DataPreparationController {
    */
   private def findPatientIDsOfCriterion(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, patientURIs: Set[String],
                                         eligibilityCriteria: EligibilityCriterion): Future[Set[String]] = {
-    val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, eligibilityCriteria.fhir_query, eligibilityCriteria.fhir_path)
-    fhirQuery.getResources(fhirClient) map { resources =>
 
-      if (eligibilityCriteria.fhir_path.nonEmpty && resources.nonEmpty) {
+    val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, eligibilityCriteria.fhir_query, eligibilityCriteria.fhir_path)
+
+    fhirQuery.getResources(fhirClient) map { resources =>
+      if (eligibilityCriteria.fhir_path.nonEmpty) {
         val fhirPathExpression = eligibilityCriteria.fhir_path.get
 
         if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
           // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
-          val a: String = fhirPathExpression.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
-          val result = fhirPathEvaluator.evaluateString(a, JArray(resources.toList)) // Evaluate path with aggregation. It should return a list of PatientIDs.
-          if (result.nonEmpty) result.toSet // Convert to set
-          else Set.empty[String]
-
+          val expr: String = fhirPathExpression.substring(FHIRPathExpressionPrefix.AGGREGATION.length) // Extract the actual FHIRPath expression
+          val result = fhirPathEvaluator.evaluateString(expr, JArray(resources.toList)) // Evaluate path with aggregation. It should return a list of PatientIDs.
+          result.toSet // Convert to set
         } else if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.SATISFY)) {
           // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.SATISFY'
           resources
             .filter(fhirPathEvaluator.satisfies(fhirPathExpression.substring(FHIRPathExpressionPrefix.SATISFY.length), _)) // Filter the resources by whether they satisfy the path expression.
             .map(r => (r \ "subject" \ "reference").asInstanceOf[JString].values) // Collect the patientIDs
             .toSet // Convert to set
-
         } else {
           logger.error("Invalid fhir_path in eligibility_criteria.")
+          // TODO: It might be better to throw an Exception here
           Set.empty[String]
         }
       } else {
@@ -321,85 +321,106 @@ object DataPreparationController {
                                     variable: Variable): Future[Map[String, Map[String, Any]]] = {
     val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, variable.fhir_query, Some(variable.fhir_path))
     fhirQuery.getResources(fhirClient) map { resources =>
-
       if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
         evaluateAggrPath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
-
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE'
         evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
-
       } else { // Invalid FHIRPath expression
-        Map(variable.name -> patientURIs.map((_ -> 0.toDouble)).toMap)
+        logger.error("Invalid FHIRPath expression: {}", variable.fhir_path)
+        // TODO: Throw an appropriate exception
+        Map.empty[String, Map[String, Any]]
       }
     }
   }
 
   /**
-   * Evaluates the fhir_path expression with the aggregation prefix (FHIRPathExpressionPrefix.AGGREGATION) for Feature Set.
-   * Takes resources in bulk while evaluating. Evaluation result is expected as follows: (PatientID -> count).
+   * Evaluates the fhir_path expression with the aggregation prefix (FHIRPathExpressionPrefix.AGGREGATION) for the given Variable.
+   * It is assumed that all aggregation functions will result in a numeric value (such as count/sum/average/max) and the
+   * data type is configured as a Double for all numeric values (even if it is an integer, it will be casted)
+   *
    * @param fhirPathEvaluator
    * @param resources
-   * @param patientURIs
    * @param variable
    * @return returns a map in the following form:
    *         Map(Prescribed Drugs -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 6, ...))
    */
   def evaluateAggrPath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
                        variable: Variable): Map[String, Map[String, Any]] = {
-    val map1: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+
+    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+
     // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
     val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
     // Evaluate FHIR Path on the resource list
     val result = fhirPathEvaluator.evaluate(fhirPathExpression, JArray(resources.toList))
+    val extractedValues = result.map { item =>
 
-    val map2 = map1 ++ result.map { item =>
-      val a = item.asInstanceOf[FhirPathComplex].json.obj
-      (a.head._2.extract[String] -> a(1)._2.extract[Double]) // Patient ID -> count
+      /**
+       * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
+       * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
+       */
+      val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
+        .json.obj // Access to the List[(String, JValue)]
+
+      val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
+      val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
+      patientID -> aggrResult // Patient ID -> count
     }.toMap
-    Map(variable.name -> map2)
+
+    Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
   }
 
   /**
-   * Evaluates the fhir_path expression with the value prefix (FHIRPathExpressionPrefix.VALUE) for Feature Set.
-   * Evaluates it on resources one by one.
+   * Evaluates the fhir_path expression with the value prefix (FHIRPathExpressionPrefix.VALUE) for the given Variable.
+   * Evaluates it on resources one by one and extracts the value according to the FHIRPath expression.
+   *
    * @param fhirPathEvaluator
    * @param resources
-   * @param patientURIs
    * @param variable
    * @return returns a map in the following form:
    *         Map(Gender -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> male, ...))
    */
   def evaluateValuePath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
                         variable: Variable): Map[String, Map[String, Any]] = {
-    val map1: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+
+    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+
     // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.VALUE'
     val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE.length)
 
+    val isPatient = variable.fhir_query.startsWith("/Patient")
     val lookingForExistence: Boolean = fhirPathExpression.startsWith("exists")
 
-    val map2 = map1 ++ resources.map { r =>
-      var value: Any = 1.toDouble
-      if (!lookingForExistence) { // TODO: generalize it for all. Currently, only for existence check
-        val result = fhirPathEvaluator.evaluate(fhirPathExpression, r).head
-        value = result match {
-          case FhirPathString(s) => s
-          case FhirPathNumber(v) => v.toDouble
-          case FhirPathDateTime(dt) => dt.toString
-          case _ => "-"
+    val extractedValues = resources
+      .map { item => // For each resulting resource
+        val resultOption = fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption
+        resultOption.map { result =>
+          var value: Any = 1.toDouble // Initialize the value as 1 in case this is an existence expression
+          if(!lookingForExistence) {
+            // If we will get the value from the FHIRPath expression, then take it from the evaluation result
+            value = result match {
+              case FhirPathString(s) => s
+              case FhirPathNumber(v) => v.toDouble
+              case FhirPathDateTime(dt) => dt.toString
+              case _ =>
+                logger.error("Unsupported FHIRPath result type: {}", result)
+                // TODO: Throw an appropriate exception
+                "-"
+            }
+          }
+          // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
+          if (isPatient) {
+            "Patient/" + (item \ "id").asInstanceOf[JString].values -> value
+          } else {
+            (item \ "subject" \ "reference").asInstanceOf[JString].values -> value
+          }
         }
-      }
-
-      // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
-      if (variable.fhir_query.startsWith("/Patient")) {
-        ("Patient/" + (r \ "id").asInstanceOf[JString].values -> value)
-      } else {
-        ((r \ "subject" \ "reference").asInstanceOf[JString].values -> value)
-      }
-
-    }.toMap
-    Map(variable.name -> map2)
+      }.filter(_.isDefined) // Keep only tuples which have value
+      .map(_.get) // Convert the map to List[(String, Any)]
+      .toMap // Convert to Map[String, Any]
+    Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
   }
 
   def getDataSourceStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {
