@@ -35,4 +35,5 @@ object FHIRPathExpressionPrefix extends Enumeration {
   type FHIRPathExpressionPrefix = String
   val AGGREGATION = "aggr:"
   val VALUE = "value:"
+  val SATISFY = "satisfy:"
 }
