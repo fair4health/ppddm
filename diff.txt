@@ -1,0 +1,112 @@
+diff --git a/ppddm-core/src/main/scala/ppddm/core/rest/model/RestEnum.scala b/ppddm-core/src/main/scala/ppddm/core/rest/model/RestEnum.scala
+index da4a056..e9ebcee 100644
+--- a/ppddm-core/src/main/scala/ppddm/core/rest/model/RestEnum.scala
++++ b/ppddm-core/src/main/scala/ppddm/core/rest/model/RestEnum.scala
+@@ -24,6 +24,18 @@ object DataSourceSelectionStatus extends Enumeration {
+   val DISCARDED = "discarded"
+ }
+ 
++/**
++ * ExecutionState is being used by Dataset and DatasetSource classes of the model.
++ *
++ * Dataset: When a Dataset is created, it will invoke Agents to prepare their data. The ExecutionState of the Dataset
++ * will be QUERYING at this point. Once all Agents prepare their data, th ExecutionState of the Dataset will be
++ * IN_PROGRESS since the user now will select/discard the Dataset. After this selection, the ExecutionState will be FINAL.
++ *
++ * DatasetSource: When an Agent is invoked to prepare its data, the associated DatasetSource's ExecutionState will be
++ * QUERYING. When the data is ready at the Agent, then the ExecutionState will be FINAL. Hence, DatasetSource uses only
++ * two of the available ExecutionState enumeration values.
++ *
++ */
+ object ExecutionState extends Enumeration {
+   type ExecutionState = String
+   val QUERYING = "querying"
+diff --git a/ppddm-core/src/main/scala/ppddm/core/util/JsonFormatter.scala b/ppddm-core/src/main/scala/ppddm/core/util/JsonFormatter.scala
+index 04c222b..1afee3b 100644
+--- a/ppddm-core/src/main/scala/ppddm/core/util/JsonFormatter.scala
++++ b/ppddm-core/src/main/scala/ppddm/core/util/JsonFormatter.scala
+@@ -14,8 +14,8 @@ object JsonFormatter {
+    * Scala class that adds "parseJson" & "extract" methods to Strings
+    */
+   class JsonParsable(json: String) {
+-    def parseJson: JObject = {
+-      parse(json).asInstanceOf[JObject]
++    def parseJson: JValue = {
++      parse(json)
+     }
+ 
+     def extract[T: Manifest]: T = {
+diff --git a/ppddm-manager/src/main/scala/ppddm/manager/Manager.scala b/ppddm-manager/src/main/scala/ppddm/manager/Manager.scala
+index 97c4bba..33e8b6c 100644
+--- a/ppddm-manager/src/main/scala/ppddm/manager/Manager.scala
++++ b/ppddm-manager/src/main/scala/ppddm/manager/Manager.scala
+@@ -6,6 +6,7 @@ import ppddm.core.ai.DataMiningEngine
+ import ppddm.core.db.{EmbeddedMongo, MongoDB}
+ import ppddm.manager.config.ManagerConfig
+ import ppddm.manager.gateway.ManagerHttpServer
++import ppddm.manager.registry.AgentRegistry
+ 
+ /**
+  * The starter object for PPDDM Manager
+@@ -20,6 +21,8 @@ object Manager {
+   def start(): Unit = {
+     logger.info("PPDDM Manager is starting up...")
+ 
++    println(AgentRegistry.dataSources)
++
+     implicit val system: ActorSystem = ActorSystem("ppddm-manager")
+ 
+     if (ManagerConfig.mongoEmbedded) {
+diff --git a/ppddm-manager/src/main/scala/ppddm/manager/controller/dataset/DatasetController.scala b/ppddm-manager/src/main/scala/ppddm/manager/controller/dataset/DatasetController.scala
+index c0d2247..236a6a9 100644
+--- a/ppddm-manager/src/main/scala/ppddm/manager/controller/dataset/DatasetController.scala
++++ b/ppddm-manager/src/main/scala/ppddm/manager/controller/dataset/DatasetController.scala
+@@ -26,7 +26,8 @@ object DatasetController {
+   private val db = Manager.mongoDB.getDatabase
+ 
+   /**
+-   * Creates a new Dataset on the Platform Repository and invokes the agents to start their data extraction processes.
++   * Creates a new Dataset on the Platform Repository
++   * and invokes the agents to start their data extraction/preparation processes.
+    *
+    * @param dataset The Dataset to be created
+    * @return The created Dataset with a unique dataset_id in it
+@@ -35,7 +36,7 @@ object DatasetController {
+     // Create a new Dataset object with a unique identifier
+     val datasetWithId = dataset.withUniqueDatasetId
+ 
+-    // Invoke agents to start data extraction process
++    // Invoke agents to start data preparation processes 
+     val datasetSources = FederatedQueryManager.invokeAgents(datasetWithId)
+ 
+     // Create a new Dataset object with data sources and execution state "querying"
+diff --git a/ppddm-manager/src/main/scala/ppddm/manager/controller/query/FederatedQueryManager.scala b/ppddm-manager/src/main/scala/ppddm/manager/controller/query/FederatedQueryManager.scala
+index cf0d687..1acb078 100644
+--- a/ppddm-manager/src/main/scala/ppddm/manager/controller/query/FederatedQueryManager.scala
++++ b/ppddm-manager/src/main/scala/ppddm/manager/controller/query/FederatedQueryManager.scala
+@@ -4,20 +4,17 @@ import java.util.UUID
+ 
+ import ppddm.core.rest.model.{DataPreparationRequest, DataSource, Dataset, DatasetSource, ExecutionState}
+ import ppddm.core.util.JsonFormatter
++import ppddm.manager.registry.AgentRegistry
+ 
+ object FederatedQueryManager {
+ 
+   def invokeAgents(dataset: Dataset): Seq[DatasetSource] = {
+     // TODO 1. Fetch data sources from Service Registry
+ 
+-    // 2. Create DataSource object for each data source in IN_PROGRESS status.
+-    val datasetSources = Seq[DatasetSource](
+-      DatasetSource(DataSource(UUID.randomUUID().toString, "SAS", "sas.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+-      DatasetSource(DataSource(UUID.randomUUID().toString, "UNIGE", "unige.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+-      DatasetSource(DataSource(UUID.randomUUID().toString, "IACS", "iacs.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+-      DatasetSource(DataSource(UUID.randomUUID().toString, "UCSC", "ucsc.com/agent"), None, None, Some(ExecutionState.QUERYING)),
+-      DatasetSource(DataSource(UUID.randomUUID().toString, "UP", "up.com/agent"), None, None, Some(ExecutionState.QUERYING))
+-    ) // TODO to be deleted
++    // 2. Create DataSource objects for each data source with QUERYING status.
++    val datasetSources = AgentRegistry.dataSources.map {ds =>
++      DatasetSource(ds, None, None, Some(ExecutionState.QUERYING))
++    }
+ 
+     // TODO 3. Invoke agents to start data extraction process
+     val dataPreperationRequest = DataPreparationRequest(dataset.dataset_id.get, dataset.featureset, dataset.eligibility_criteria, "1903") // TODO submitted by

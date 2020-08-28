@@ -26,7 +26,8 @@ object DatasetController {
   private val db = Manager.mongoDB.getDatabase
 
   /**
-   * Creates a new Dataset on the Platform Repository and invokes the agents to start their data extraction processes.
+   * Creates a new Dataset on the Platform Repository
+   * and invokes the agents to start their data extraction/preparation processes.
    *
    * @param dataset The Dataset to be created
    * @return The created Dataset with a unique dataset_id in it
@@ -35,7 +36,7 @@ object DatasetController {
     // Create a new Dataset object with a unique identifier
     val datasetWithId = dataset.withUniqueDatasetId
 
-    // Invoke agents to start data extraction process
+    // Invoke agents to start data preparation processes 
     val datasetSources = FederatedQueryManager.invokeAgents(datasetWithId)
 
     // Create a new Dataset object with data sources and execution state "querying"

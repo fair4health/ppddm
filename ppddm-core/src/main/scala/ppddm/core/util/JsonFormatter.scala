@@ -14,8 +14,8 @@ object JsonFormatter {
    * Scala class that adds "parseJson" & "extract" methods to Strings
    */
   class JsonParsable(json: String) {
-    def parseJson: JObject = {
-      parse(json).asInstanceOf[JObject]
+    def parseJson: JValue = {
+      parse(json)
     }
 
     def extract[T: Manifest]: T = {

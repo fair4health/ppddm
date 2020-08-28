@@ -6,6 +6,7 @@ import ppddm.core.ai.DataMiningEngine
 import ppddm.core.db.{EmbeddedMongo, MongoDB}
 import ppddm.manager.config.ManagerConfig
 import ppddm.manager.gateway.ManagerHttpServer
+import ppddm.manager.registry.AgentRegistry
 
 /**
  * The starter object for PPDDM Manager
@@ -19,6 +20,8 @@ object Manager {
 
   def start(): Unit = {
     logger.info("PPDDM Manager is starting up...")
+
+    println(AgentRegistry.dataSources)
 
     implicit val system: ActorSystem = ActorSystem("ppddm-manager")
 
