@@ -14,6 +14,7 @@ import ppddm.agent.config.AgentConfig
 import ppddm.agent.spark.NodeExecutionContext._
 import ppddm.core.fhir.{FHIRClient, FHIRQuery}
 import ppddm.core.rest.model._
+import ppddm.core.util.JsonFormatter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -33,6 +34,8 @@ object DataPreparationController {
   private val batchSize: Int = AgentConfig.agentBatchSize
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
+  import sparkSession.implicits._
+
   /**
    * Start the data preparation (data extraction process) with the given DataPreparationRequest.
    * This function successfully returns if the preparation request is started. Data preparation will continue in the background
@@ -51,80 +54,105 @@ object DataPreparationController {
   private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Unit] = {
     logger.debug("Data preparation request received.")
 
-    val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
+    // Check data store whether the Dataset with given dataset_id is already created and saved
+    DataStoreManager.getDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)) flatMap {
+      case Some(_) =>
+        Future {
+          logger.info(s"Dataset with id: ${dataPreparationRequest.dataset_id} already exists.")
+        }
+      case None =>
+        val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
 
-    // Start with the Patients
-    val patientQuery = QueryHandler.getPatientQuery(dataPreparationRequest.eligibility_criteria)
+        // Start with the Patients
+        val patientQuery = QueryHandler.getPatientQuery(dataPreparationRequest.eligibility_criteria)
 
-    patientQuery.getCount(fhirClientMaster) map { numOfPatients => //Count the resulting resources in terms of patients
-      logger.debug(s"Number of patients: ${numOfPatients}")
-      if (numOfPatients > 0) {
-        //Number of pages to get all the results according to batch size
-        val numOfReturnPagesForQuery = numOfPatients / batchSize + 1
-        logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
+        patientQuery.getCount(fhirClientMaster) map { numOfPatients => //Count the resulting resources in terms of patients
+          logger.debug(s"Number of patients: ${numOfPatients}")
+          if (numOfPatients > 0) {
+            //Number of pages to get all the results according to batch size
+            val numOfReturnPagesForQuery = numOfPatients / batchSize + 1
+            logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
 
-        //Parallelize the execution and process pages in parallel
-        val rdd: RDD[Seq[Row]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
-          partitionIterator.map { pageIndex =>
-            // Instantiate a FHIRClient and FhirPathEvaluator for each worker node
-            val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
-            val fhirPathEvaluator = FhirPathEvaluator()
+            //Parallelize the execution and process pages in parallel
+            val rdd: RDD[Seq[Row]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+              partitionIterator.map { pageIndex =>
+                // Instantiate a FHIRClient and FhirPathEvaluator for each worker node
+                val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
+                val fhirPathEvaluator = FhirPathEvaluator()
 
-            // Fetch the Patient resources from the FHIR Repository and collect their IDs
-            val theFuture = findEligiblePatients(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.eligibility_criteria, patientQuery, pageIndex) flatMap { eligiblePatientURIs =>
-              if (eligiblePatientURIs.isEmpty) {
-                // No patients are eligible
-                Future {
-                  Seq.empty[Row]
-                }
-              } else {
-                if (dataPreparationRequest.featureset.variables.isEmpty) {
-                  logger.warn("The feature set definition of the data preparation request does not contain any variable definitions. " +
-                    "This is probably an error. DataPreparationRequest object should have been verified upto this point.")
-                  Future {
-                    Seq.empty[Row]
-                  }
-                } else {
-                  populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs)
-                    .map { resourceMap: Map[String, Map[String, Any]] =>
-                      convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
+                // Fetch the Patient resources from the FHIR Repository and collect their IDs
+                val theFuture = findEligiblePatients(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.eligibility_criteria, patientQuery, pageIndex) flatMap { eligiblePatientURIs =>
+                  if (eligiblePatientURIs.isEmpty) {
+                    // No patients are eligible
+                    Future {
+                      Seq.empty[Row]
                     }
+                  } else {
+                    if (dataPreparationRequest.featureset.variables.isEmpty) {
+                      logger.warn("The feature set definition of the data preparation request does not contain any variable definitions. " +
+                        "This is probably an error. DataPreparationRequest object should have been verified upto this point.")
+                      Future {
+                        Seq.empty[Row]
+                      }
+                    } else {
+                      populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs)
+                        .map { resourceMap: Map[String, Map[String, Any]] =>
+                          convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
+                        }
+                    }
+                  }
+                }
+
+                try { // Wait for the whole execution to be completed on a worker node
+                  Await.result(theFuture, Duration(10, TimeUnit.MINUTES))
+                } catch {
+                  case e: TimeoutException =>
+                    logger.error("The data preparation cannot be completed on a worker node with pageIndex:{} within 10 minutes.", pageIndex, e)
+                    Seq.empty[Row] // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
                 }
               }
-            }
+            })
 
-            try { // Wait for the whole execution to be completed on a worker node
-              Await.result(theFuture, Duration(10, TimeUnit.MINUTES))
+            // RDDs are lazy evaluated. In order to materialize the above statement, call an action on rdd such as foreach, collect, count etc.
+            val dataRowSet = rdd.collect() // Collect the Seq[Row]s from the worker nodes
+              .toSeq // Covert the Array[Seq[Row]]s to Seq[Seq[Row]]s
+              .flatten // Create a single Seq[Row] by merging all Seq[Row]s
+            // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
+            // TODO When you are done, call rdd.unpersist() to remove it from cache.
+
+            logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
+
+            val structureSchema = generateSchema(dataPreparationRequest.featureset)
+
+            val dataFrame = sparkSession.createDataFrame(
+              sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
+              structureSchema)
+
+            try {
+              // Save dataFrame into ppddm-store/datasets/:dataset_id
+              DataStoreManager.saveDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
+
+              val variablesOption = dataPreparationRequest.featureset.variables
+              if (variablesOption.isDefined) {
+                val statistics = StatisticsPreparationController.prepareStatistics(dataPreparationRequest.dataset_id, variablesOption.get, dataFrame)
+
+                DataStoreManager.saveDF(DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id), Seq(JsonFormatter.convertToJson(statistics).toJson).toDF())
+
+              } else {
+                logger.warn("There is no variable in the data preparation request.")
+              }
             } catch {
-              case e: TimeoutException =>
-                logger.error("The data preparation cannot be completed on a worker node with pageIndex:{} within 10 minutes.", pageIndex, e)
-                Seq.empty[Row] // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
+              case e: Exception =>
+                logger.error(s"Cannot save Data Frame with id: ${dataPreparationRequest.dataset_id}.", e)
             }
+
+            dataFrame.printSchema()
+            dataFrame.show(false)
+
+          } else {
+            logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
           }
-        })
-
-        // RDDs are lazy evaluated. In order to materialize the above statement, call an action on rdd such as foreach, collect, count etc.
-        val dataRowSet = rdd.collect() // Collect the Seq[Row]s from the worker nodes
-          .toSeq // Covert the Array[Seq[Row]]s to Seq[Seq[Row]]s
-          .flatten // Create a single Seq[Row] by merging all Seq[Row]s
-        // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
-        // TODO When you are done, call rdd.unpersist() to remove it from cache.
-
-        logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
-
-        val structureSchema = generateSchema(dataPreparationRequest.featureset)
-
-        val dataFrame = sparkSession.createDataFrame(
-          sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
-          structureSchema)
-
-//        logger.debug(dataFrame.schema.treeString)
-        dataFrame.printSchema()
-        dataFrame.show(false)
-
-      } else {
-        logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
-      }
+        }
     }
 
   }
@@ -275,7 +303,7 @@ object DataPreparationController {
     val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, eligibilityCriteria.fhir_query, eligibilityCriteria.fhir_path)
 
     fhirQuery.getResources(fhirClient) map { resources =>
-      if (eligibilityCriteria.fhir_path.nonEmpty) {
+      if (eligibilityCriteria.fhir_path.nonEmpty && resources.nonEmpty) {
         val fhirPathExpression = eligibilityCriteria.fhir_path.get
 
         if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
@@ -424,8 +452,18 @@ object DataPreparationController {
   }
 
   def getDataSourceStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {
-    Future {
-      None
+    DataStoreManager.getDF(DataStoreManager.getStatisticsPath(dataset_id)) map  {
+      case Some(df) =>
+        Option {
+          JsonFormatter.parseFromJson(
+            df // Dataframe consisting of a column named "value" that holds Json inside
+              .head() // Get the Array[Row]
+              .getString(0) // Get Json String
+          ).extract[DataPreparationResult] // Extract as DataPreparationResult
+        }
+      case None =>
+        logger.warn(s"Statistics for the Dataset with id: $dataset_id are not yet ready.")
+        None
     }
   }
 
