@@ -5,6 +5,7 @@ import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.model._
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
+import ppddm.core.util.URLUtil
 import ppddm.manager.exception.AgentCommunicationException
 import ppddm.manager.registry.AgentRegistry
 
@@ -23,6 +24,8 @@ import ppddm.manager.config.ManagerExecutionContext._
  * executed on each Datasource endpoint.
  */
 object FederatedQueryManager {
+
+  val DATA_PREPARATION_PATH = "prepare"
 
   private val logger: Logger = Logger(this.getClass)
 
@@ -69,7 +72,7 @@ object FederatedQueryManager {
    */
   private def invokeDataPreparation(dataSource: DataSource, dataset: Dataset): Future[Option[DatasetSource]] = {
     val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
-    val uri = if (dataSource.endpoint.endsWith("/")) s"${dataSource.endpoint}prepare" else s"${dataSource.endpoint}/prepare"
+    val uri = URLUtil.append(dataSource.endpoint, DATA_PREPARATION_PATH)
 
     val request = HttpRequest(
       uri = Uri(uri),
@@ -92,5 +95,11 @@ object FederatedQueryManager {
         None
     }
 
+  }
+
+  def getPreparedDataStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {
+    Future {
+      None
+    }
   }
 }

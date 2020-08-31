@@ -12,6 +12,7 @@ import com.typesafe.scalalogging.Logger
 import org.json4s.JObject
 import ppddm.core.exception.FHIRClientException
 import ppddm.core.rest.model.Json4sSupport._
+import ppddm.core.util.URLUtil
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
@@ -28,7 +29,7 @@ class FHIRClient(host: String,
   private val logger: Logger = Logger(this.getClass)
 
   // onFHIR.io server path
-  private val fhirServerBaseURI = if (path.startsWith("/")) s"$protocol://$host:$port$path" else s"$protocol://$host:$port/$path"
+  private val fhirServerBaseURI = URLUtil.append(s"$protocol://$host:$port", path)
 
   // Default headers
   private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
