@@ -36,24 +36,23 @@ object DatasetController {
     // Create a new Dataset object with a unique identifier
     val datasetWithId = dataset.withUniqueDatasetId
 
-    // Invoke agents to start data preparation processes 
-    val datasetSources = FederatedQueryManager.invokeAgents(datasetWithId)
-
-    // Create a new Dataset object with data sources and execution state "querying"
-    val datasetWithDataSources = datasetWithId.withDataSources(datasetSources).withExecutionState(ExecutionState.QUERYING)
-
-    db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database
-      .map { result =>
-        val _id = result.getInsertedId.asObjectId().getValue.toString
-        logger.debug("Inserted document _id:{} and datasetId:{}", _id, datasetWithDataSources.dataset_id.get)
-        datasetWithDataSources
-      }
-      .recoverWith {
-        case e: Exception =>
-          val msg = s"Error while inserting a Dataset with dataset_id:${datasetWithDataSources.dataset_id.get} into the database."
-          logger.error(msg, datasetWithDataSources.dataset_id.get, e)
-          throw DBException(msg, e)
-      }
+    // Invoke agents to start data preparation processes
+    // Returns a new Dataset object with data sources and execution state "querying"
+    FederatedQueryManager.invokeAgentsDataPreparation(datasetWithId) flatMap { datasetWithDataSources =>
+      logger.info("Data preparation endpoints are invoked for all registered Agents (datasources)")
+      db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database
+        .map { result =>
+          val _id = result.getInsertedId.asObjectId().getValue.toString
+          logger.debug("Inserted document _id:{} and datasetId:{}", _id, datasetWithDataSources.dataset_id.get)
+          datasetWithDataSources
+        }
+        .recoverWith {
+          case e: Exception =>
+            val msg = s"Error while inserting a Dataset with dataset_id:${datasetWithDataSources.dataset_id.get} into the database."
+            logger.error(msg, datasetWithDataSources.dataset_id.get, e)
+            throw DBException(msg, e)
+        }
+    }
   }
 
   /**

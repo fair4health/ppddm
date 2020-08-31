@@ -1,6 +1,5 @@
 package ppddm.manager
 
-import akka.actor.ActorSystem
 import com.typesafe.scalalogging.Logger
 import ppddm.core.ai.DataMiningEngine
 import ppddm.core.db.{EmbeddedMongo, MongoDB}
@@ -22,8 +21,6 @@ object Manager {
     logger.info("PPDDM Manager is starting up...")
 
     println(AgentRegistry.dataSources)
-
-    implicit val system: ActorSystem = ActorSystem("ppddm-manager")
 
     if (ManagerConfig.mongoEmbedded) {
       // If it is configured to use an embedded Mongo instance
@@ -51,6 +48,8 @@ object Manager {
 
     dataMiningEngine = DataMiningEngine(ManagerConfig.appName, ManagerConfig.sparkMaster)
 
+    /* Import the ActorSystem */
+    import ppddm.manager.config.ManagerExecutionContext._
     ManagerHttpServer.start(ManagerConfig.serverHost, ManagerConfig.serverPort, ManagerConfig.baseUri)
   }
 

@@ -10,9 +10,13 @@ object AgentRegistry {
 
   private val logger: Logger = Logger(this.getClass)
 
+  // TODO Fetch data sources from Service Registry
+
   val dataSources: Seq[DataSource] =  {
     val fileContent:String = Source.fromResource("datasource.json").mkString
-    fileContent.extract[Seq[DataSource]]
+    val dsList = fileContent.extract[Seq[DataSource]]
+    logger.debug("A total of {} registered data sources (agents) have been retrieved.", dsList.size)
+    dsList
   }
 
 }

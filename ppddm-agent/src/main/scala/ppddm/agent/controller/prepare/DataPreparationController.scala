@@ -8,7 +8,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
 import org.json4s.JsonAST.JObject
-import org.json4s.{DefaultFormats, JArray, JString}
+import org.json4s.{JArray, JString}
 import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 import ppddm.agent.spark.NodeExecutionContext._
@@ -32,8 +32,6 @@ object DataPreparationController {
 
   private val batchSize: Int = AgentConfig.agentBatchSize
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
-
-  implicit val formats: DefaultFormats = DefaultFormats
 
   /**
    * Start the data preparation (data extraction process) with the given DataPreparationRequest.
@@ -363,6 +361,8 @@ object DataPreparationController {
        */
       val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
         .json.obj // Access to the List[(String, JValue)]
+
+      import ppddm.core.util.JsonFormatter._
 
       val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
       val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
