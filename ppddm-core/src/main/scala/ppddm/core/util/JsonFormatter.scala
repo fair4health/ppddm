@@ -8,7 +8,8 @@ import ppddm.core.rest.model.ModelClass
 import scala.language.implicitConversions
 
 object JsonFormatter {
-  implicit lazy val formats: Formats = Serialization.formats(NoTypeHints) + JavaDateTimeSerializers.LocalDateTimeSerializer
+
+  implicit lazy val formats: Formats = JsonFormats.getFormats
 
   /**
    * Scala class that adds "parseJson" & "extract" methods to Strings

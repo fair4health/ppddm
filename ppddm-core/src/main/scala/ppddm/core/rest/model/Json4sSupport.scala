@@ -6,9 +6,8 @@ import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import akka.util.ByteString
-import org.json4s.jackson.Serialization
-import org.json4s.{Formats, MappingException, NoTypeHints, Serialization, jackson}
-import ppddm.core.util.JavaDateTimeSerializers
+import org.json4s.{Formats, MappingException, Serialization, jackson}
+import ppddm.core.util.JsonFormats
 
 /**
  * Automatic to and from JSON marshalling/unmarshalling using an in-scope *Json4s* protocol.
@@ -17,7 +16,7 @@ import ppddm.core.util.JavaDateTimeSerializers
  */
 object Json4sSupport extends Json4sSupport {
 
-  implicit lazy val formats: Formats = Serialization.formats(NoTypeHints) + JavaDateTimeSerializers.LocalDateTimeSerializer
+  implicit lazy val formats: Formats = JsonFormats.getFormats
   implicit lazy val serialization: Serialization = jackson.Serialization
 
   sealed abstract class ShouldWritePretty

@@ -5,6 +5,7 @@ import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
 import com.typesafe.scalalogging.Logger
 import ppddm.core.exception.{AuthException, DBException}
+import ppddm.manager.exception.AgentCommunicationException
 
 trait ManagerExceptionHandler {
   private val logger: Logger = Logger(this.getClass)
@@ -16,6 +17,9 @@ trait ManagerExceptionHandler {
       complete(StatusCodes.Unauthorized -> s"Not Authorized. ${e.getMessage}")
     case e: DBException =>
       logger.error(s"DBException: ${e.getMessage}", e)
+      complete(StatusCodes.InternalServerError -> s"Error with the MongoDB Database. ${e.getMessage}")
+    case e: AgentCommunicationException =>
+      logger.error(s"AgentCommunicationException: ${e.getMessage}", e)
       complete(StatusCodes.InternalServerError -> s"Error with the MongoDB Database. ${e.getMessage}")
     case e: Exception =>
       logger.error("Unknown Exception", e)

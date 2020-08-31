@@ -21,6 +21,9 @@
         </layout>
     </appender>
 
+    <logger name="ppddm">
+        <level value="DEBUG" />
+    </logger>
     <logger name="org.apache.spark">
         <level value="ERROR" />
     </logger>
