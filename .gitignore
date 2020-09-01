@@ -130,3 +130,4 @@ buildNumber.properties
 
 ### PPDDM ###
 *.emb.mongo
+ppddm-store/
