@@ -46,7 +46,7 @@ object DatasetController {
           logger.debug("Inserted document _id:{} and datasetId:{}", _id, datasetWithDataSources.dataset_id.get)
           datasetWithDataSources
         }
-        .recoverWith {
+        .recover {
           case e: Exception =>
             val msg = s"Error while inserting a Dataset with dataset_id:${datasetWithDataSources.dataset_id.get} into the database."
             logger.error(msg, datasetWithDataSources.dataset_id.get, e)

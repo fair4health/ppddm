@@ -34,7 +34,7 @@ object FeaturesetController {
         logger.debug("Inserted document _id:{} and featuresetId:{}", _id, featuresetWithId.featureset_id.get)
         featuresetWithId
       }
-      .recoverWith {
+      .recover {
         case e: Exception =>
           val msg = s"Error while inserting a Featureset with featureset_id:${featuresetWithId.featureset_id.get} into the database."
           logger.error(msg, featuresetWithId.featureset_id.get, e)
