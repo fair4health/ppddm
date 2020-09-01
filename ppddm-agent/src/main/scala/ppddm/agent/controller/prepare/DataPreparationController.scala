@@ -131,10 +131,13 @@ object DataPreparationController {
           try {
             // Save the dataFrame which includes the prepared data into ppddm-store/datasets/:dataset_id
             DataStoreManager.saveDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
+            logger.info("Prepared data has been successfully saved.")
           }
           catch {
             case e: Exception =>
-              throw DataPreparationException(s"Cannot save the Dataframe of the prepared data with id: ${dataPreparationRequest.dataset_id}.", e)
+              val msg = s"Cannot save the Dataframe of the prepared data with id: ${dataPreparationRequest.dataset_id}."
+              logger.error(msg)
+              throw DataPreparationException(msg, e)
           }
 
           try {
@@ -145,12 +148,15 @@ object DataPreparationController {
               DataStoreManager.saveDF(
                 DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
                 Seq(dataPreparationResult.toJson).toDF())
+              logger.info("Calculated statistics have been successfully saved.")
             } else {
               logger.warn("This should not have HAPPENED!!! There are no variables in the data preparation request.")
             }
           } catch {
             case e: Exception =>
-              logger.error(s"Cannot save Dataframe with id: ${dataPreparationRequest.dataset_id}.", e)
+              val msg = s"Cannot save Dataframe with id: ${dataPreparationRequest.dataset_id}."
+              logger.error(msg)
+              throw DataPreparationException(msg, e)
           }
 
           // We print the schema and the data only for debugging purposes. Will be removed in the future.
@@ -173,7 +179,7 @@ object DataPreparationController {
     val fields = featureset.variables.get
       .map(variable =>
         StructField(
-          variable.name /*.replaceAll("\\s", "")*/ ,
+          variable.name.trim.replaceAll("\\s", ""),
           if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
         )
       )
