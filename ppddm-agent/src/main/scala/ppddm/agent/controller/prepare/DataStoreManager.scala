@@ -3,10 +3,11 @@ package ppddm.agent.controller.prepare
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 import scala.util.Try
 
+/**
+ * Manages the persistent storage of the Dataframes as parquet files
+ */
 object DataStoreManager {
 
   final private val DS_STORE_DIR: String = "ppddm-store/datasets/"
@@ -15,24 +16,24 @@ object DataStoreManager {
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
   /**
-   * Saves the DataFrame to the given location
+   * Saves the DataFrame to the given file path
    *
-   * @param path
-   * @param df
+   * @param path The filepath to save the DataFrame
+   * @param df The DataFrame to be saved
    * @return
    */
-  def saveDF (path: String, df: DataFrame): Future[Unit] = {
-    Future(df.write.parquet(path))
+  def saveDF(path: String, df: DataFrame): Unit = {
+    df.write.parquet(path)
   }
 
   /**
-   * Retrieves the DataFrame at the given location
+   * Retrieves the DataFrame from the given file path
    *
-   * @param path
-   * @return
+   * @param path The filepath of the DataFrame
+   * @return the DataFrame if it is found
    */
-  def getDF (path: String): Future[Option[DataFrame]] = {
-    Future(Try(sparkSession.read.parquet(path)).toOption)
+  def getDF(path: String): Option[DataFrame] = {
+    Try(sparkSession.read.parquet(path)).toOption
   }
 
   /**
@@ -42,7 +43,7 @@ object DataStoreManager {
    * @param dataset_id
    * @return
    */
-  def getDatasetPath (dataset_id: String): String = {
+  def getDatasetPath(dataset_id: String): String = {
     DS_STORE_DIR + dataset_id
   }
 
@@ -53,7 +54,7 @@ object DataStoreManager {
    * @param dataset_id
    * @return
    */
-  def getStatisticsPath (dataset_id: String): String = {
+  def getStatisticsPath(dataset_id: String): String = {
     STAT_STORE_DIR + dataset_id
   }
 
