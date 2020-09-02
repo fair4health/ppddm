@@ -424,8 +424,9 @@ object DataPreparationController {
    */
   def evaluateValuePath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
                                    variable: Variable): Map[String, Map[String, Any]] = {
-
-    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+    // If variable data type is Categorical set null otherwise 0
+    val initialValue = if (variable.variable_data_type == VariableDataType.NUMERIC) 0.toDouble else null
+    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> initialValue)).toMap
 
     // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.VALUE'
     val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE.length)
