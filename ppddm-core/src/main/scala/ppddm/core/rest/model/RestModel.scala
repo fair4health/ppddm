@@ -8,6 +8,7 @@ import ppddm.core.rest.model.ExecutionState.ExecutionState
 import ppddm.core.rest.model.ProjectType.ProjectType
 import ppddm.core.rest.model.VariableDataType.VariableDataType
 import ppddm.core.rest.model.VariableType.VariableType
+import ppddm.core.util.URLUtil
 
 sealed class ModelClass
 
@@ -59,7 +60,13 @@ final case class Dataset(dataset_id: Option[String],
   }
 
   def withDataSources(dataset_sources: Seq[DatasetSource]): Dataset = {
-    this.copy(dataset_sources = Some(dataset_sources))
+    // Find the ExecutionState for the newly created Dataset
+    val areAllAgentsFinished = dataset_sources
+      // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
+      .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
+      .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become IN_PROGRESS
+    val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.IN_PROGRESS) else execution_state
+    this.copy(dataset_sources = Some(dataset_sources), execution_state = newExecutionState)
   }
 
   def withExecutionState(execution_state: ExecutionState): Dataset = {
@@ -78,7 +85,16 @@ final case class DatasetSource(data_source: DataSource,
 
 final case class DataSource(datasource_id: String,
                             name: String,
-                            endpoint: String) extends ModelClass
+                            endpoint: String) extends ModelClass {
+
+  def getDataPreparationURI(dataset_id: Option[String] = None) = {
+    if (dataset_id.isDefined) {
+      URLUtil.append(endpoint, "prepare", dataset_id.get)
+    } else {
+      URLUtil.append(endpoint, "prepare")
+    }
+  }
+}
 
 final case class DataSourceStatistics(number_of_records: Long,
                                       variable_statistics: Seq[VariableStatistics]) extends ModelClass
@@ -89,9 +105,11 @@ final case class VariableStatistics(variable: Variable,
                                     null_percentage: Option[Double]) extends ModelClass
 
 final case class DataPreparationRequest(dataset_id: String,
+                                        data_source: DataSource,
                                         featureset: Featureset,
                                         eligibility_criteria: Seq[EligibilityCriterion],
                                         submitted_by: String) extends ModelClass
 
 final case class DataPreparationResult(dataset_id: String,
+                                       data_source: DataSource,
                                        datasource_statistics: DataSourceStatistics) extends ModelClass

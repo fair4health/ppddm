@@ -6,16 +6,12 @@ import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
-import ppddm.core.util.URLUtil
 import ppddm.manager.exception.AgentCommunicationException
 import ppddm.manager.registry.AgentRegistry
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
-
-/* To use the toJson, toPrettyJson methods of the JsonFormatter */
-import ppddm.core.util.JsonFormatter._
 
 /* Import the ActorSystem */
 import ppddm.manager.config.ManagerExecutionContext._
@@ -25,8 +21,6 @@ import ppddm.manager.config.ManagerExecutionContext._
  * executed on each Datasource endpoint.
  */
 object FederatedQueryManager {
-
-  val DATA_PREPARATION_PATH = "prepare"
 
   private val logger: Logger = Logger(this.getClass)
 
@@ -44,7 +38,7 @@ object FederatedQueryManager {
    * @return A new Dataset populated with the invoked DatasetSource objects.
    */
   def invokeAgentsDataPreparation(dataset: Dataset): Future[Dataset] = {
-    logger.debug("Will invoke the prepare endpoints of the registered agents")
+    logger.debug("I will invoke the prepare endpoints of the registered agents")
 
     Future.sequence(
       AgentRegistry.dataSources.map { dataSource =>
@@ -72,23 +66,26 @@ object FederatedQueryManager {
    * @return
    */
   private def invokeDataPreparation(dataSource: DataSource, dataset: Dataset): Future[Try[DatasetSource]] = {
-    val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
-    val uri = URLUtil.append(dataSource.endpoint, DATA_PREPARATION_PATH)
+    val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, dataSource, dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
+    val uri = Uri(dataSource.getDataPreparationURI())
+
+    /* To use the toJson, toPrettyJson methods of the JsonFormatter */
+    import ppddm.core.util.JsonFormatter._
 
     val request = HttpRequest(
-      uri = Uri(uri),
+      uri = uri,
       method = HttpMethods.POST,
       headers = defaultHeaders)
       .withHeaders(Authorization(headers.OAuth2BearerToken(accessToken)))
       .withEntity(ContentTypes.`application/json`, dataPreparationRequest.toJson)
 
-    logger.debug("Invoking agent data preparation on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id, dataset.name)
+    logger.debug("Invoking agent data preparation on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
 
     Http().singleRequest(request).map(Try(_)) flatMap {
       case Success(res) =>
         res.status match {
           case StatusCodes.OK =>
-            logger.debug("Agent data preparation invocation successful on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id, dataset.name)
+            logger.debug("Agent data preparation invocation successful on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
             Future {
               Success(DatasetSource(dataSource, None, None, Some(ExecutionState.QUERYING)))
             }
@@ -102,13 +99,87 @@ object FederatedQueryManager {
         throw e
     } recover {
       case e: Exception =>
-        Failure(AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent",e))
+        Failure(AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent for data preparation", e))
     }
   }
 
-  def getPreparedDataStatistics(dataset_id: String): Future[Option[DataPreparationResult]] = {
-    Future {
-      None
+  /**
+   * Asks the data preparation results of the dataset to the DatasetSources defined within the given dataset.
+   *
+   * @param dataset
+   * @return A new Dataset which contains the new DatasetSources based on the retrieved results
+   */
+  def askAgentsDataPreparationResults(dataset: Dataset): Future[Dataset] = {
+    if (dataset.dataset_sources.isEmpty) {
+      val msg = s"You want me to ask the data preparation results of this dataset with id:${dataset.dataset_id} and " +
+        s"name:${dataset.name} HOWEVER there are no DatasetSources for this Dataset"
+      logger.error(msg)
+      throw new InternalError(msg)
     }
+
+    logger.debug("I will ask for the DataPreparationResults from {} DatasetSources of the Dataset with id:{} and name:{}",
+      dataset.dataset_sources.get.size, dataset.dataset_id, dataset.name)
+
+    Future.sequence(
+      dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each datasetSource in this set (actually, for each DataSource)
+        getPreparedDataStatistics(datasetSource.data_source, dataset) // Ask for the data preparation results (do this in parallel)
+      }
+    ) map { responses: Seq[Option[DataPreparationResult]] => // Join the responses coming from different data sources (Agents)
+      logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
+      responses.map(result => { // For each DataPreparationResult
+        result map { dataPreparationResult => // Create a corresponding DatasetSource object
+          DatasetSource(dataPreparationResult.data_source, Some(dataPreparationResult.datasource_statistics), None, Some(ExecutionState.FINAL))
+        }
+      })
+        .filter(_.isDefined) // Keep the the data sources which produced the results
+        .map(_.get) // Get rid of the Option since we eliminated the None elements above
+    } map { datasetSourcesWithResult: Seq[DatasetSource] => // DatasetSources which finished data preparation
+      val updatedDatasetSources = dataset.dataset_sources.get map { existingDatasetSource => // Iterate over the existing DatasetSources of the dataset
+        // decide whether there is a data preparation result for the existingDatasetSource
+        val finishedDatasetSource = datasetSourcesWithResult.find(_.data_source.datasource_id == existingDatasetSource.data_source.datasource_id)
+        // Return the DatasetSource if that has a result, otherwise keep the existing DatasetSource in the list
+        if(finishedDatasetSource.isDefined) finishedDatasetSource.get else existingDatasetSource
+      }
+      dataset.withDataSources(updatedDatasetSources) // create a new Dataset with the updatedDatasetSources
+    }
+  }
+
+  /**
+   * Asks the DataPreparationResult from the given dataSource for the given dataset.
+   *
+   * @param dataSource
+   * @param dataset
+   * @return An Option[DataPreparationResult]. If the result is None, that means the data has not been prepared yet.
+   */
+  def getPreparedDataStatistics(dataSource: DataSource, dataset: Dataset): Future[Option[DataPreparationResult]] = {
+    val uri = Uri(dataSource.getDataPreparationURI(dataset.dataset_id))
+    val request = HttpRequest(
+      uri = uri,
+      method = HttpMethods.GET,
+      headers = defaultHeaders)
+      .withHeaders(Authorization(headers.OAuth2BearerToken(accessToken)))
+
+    logger.debug("Asking the data preparation result to the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
+
+    /* So that we can Unmarshal to DataPreparationResult */
+    import ppddm.core.rest.model.Json4sSupport._
+
+    Http().singleRequest(request).map(Try(_)) flatMap {
+      case Success(res) =>
+        res.status match {
+          case StatusCodes.OK =>
+            Unmarshal(res.entity).to[Option[DataPreparationResult]]
+          case _ =>
+            Unmarshal(res.entity).to[String].flatMap { body =>
+              throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
+            }
+        }
+      case Failure(e) =>
+        throw e
+    } recover {
+      case e: Exception =>
+        throw AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent for asking the data preparation result", e)
+    }
+
   }
 }
