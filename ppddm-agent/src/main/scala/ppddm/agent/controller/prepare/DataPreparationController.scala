@@ -46,9 +46,8 @@ object DataPreparationController {
    * @return
    */
   def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Unit]] = {
-    // TODO: We may need some validation on the DataPreparationRequest object
     Future {
-      prepareData(dataPreparationRequest)
+      prepareData(preProcessPreparationRequest(dataPreparationRequest))
     }
   }
 
@@ -170,6 +169,37 @@ object DataPreparationController {
   }
 
   /**
+   * Removes any inappropriate characters in variable names of the data preparation request and returns new one.
+   *
+   * @param dataPreparationRequest
+   * @return
+   */
+  def preProcessPreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
+    if (dataPreparationRequest.featureset.variables.isDefined) {
+      dataPreparationRequest.copy(
+        featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
+          variables = Option( // Assign new variables
+            dataPreparationRequest.featureset.variables.get // Get Variables from Option
+              .map(variable => variable.copy(name = removeInvalidChars(variable.name))) // Remove invalid characters in variable.name
+          )
+        )
+      )
+    } else {
+      throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
+    }
+  }
+
+  /**
+   * Removes invalid characters that prevent the recording and filtering of the Parquet files from being done correctly.
+   *
+   * @param value
+   * @return
+   */
+  def removeInvalidChars (value: String): String = {
+    value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
+  }
+
+  /**
    * Generate the schema for the DataFrame by using the Variable definitions of the Featureset
    *
    * @param featureset The Featureset
@@ -179,7 +209,7 @@ object DataPreparationController {
     val fields = featureset.variables.get
       .map(variable =>
         StructField(
-          variable.name.trim.replaceAll("\\s", ""),
+          variable.name /*.trim.replaceAll("\\s", "")*/ ,
           if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
         )
       )
