@@ -455,7 +455,10 @@ object DataPreparationController {
   def evaluateValuePath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
                                    variable: Variable): Map[String, Map[String, Any]] = {
 
-    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
+    val isCategoricalType = variable.variable_data_type == VariableDataType.CATEGORICAL
+    // If variable data type is Categorical set null otherwise 0
+    val initialValue = if (isCategoricalType) null else 0.toDouble
+    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> initialValue)).toMap
 
     // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.VALUE'
     val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE.length)
@@ -465,10 +468,16 @@ object DataPreparationController {
 
     val extractedValues = resources
       .map { item => // For each resulting resource
-        val resultOption = fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption
-        resultOption.map { result =>
-          var value: Any = 1.toDouble // Initialize the value as 1 in case this is an existence expression
-          if (!lookingForExistence) {
+        /**
+         * Set the value null if the variable data type is categorical or the fhir_path is not looking for existence.
+         * e.g. Observation.valueQuantity.value field is numeric and fhir_path is not looking for existence,
+         *      and if its fhir_path evaluation result is None, the value should be null.
+         * Setting the value 1 means that the variable is looking for the existence, and its default value is 1 if it exists among resources.
+         */
+        var value = if (isCategoricalType || !lookingForExistence) null else 1.toDouble
+        if (!lookingForExistence) {
+          val resultOption = fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption
+          resultOption.foreach { result =>
             // If we will get the value from the FHIRPath expression, then take it from the evaluation result
             value = result match {
               case FhirPathString(s) => s
@@ -477,18 +486,17 @@ object DataPreparationController {
               case _ =>
                 logger.error("Unsupported FHIRPath result type: {}", result)
                 // TODO: Throw an appropriate exception
-                "-"
+                null
             }
           }
-          // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
-          if (isPatient) {
-            "Patient/" + (item \ "id").asInstanceOf[JString].values -> value
-          } else {
-            (item \ "subject" \ "reference").asInstanceOf[JString].values -> value
-          }
         }
-      }.filter(_.isDefined) // Keep only tuples which have value
-      .map(_.get) // Convert the map to List[(String, Any)]
+        // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
+        if (isPatient) {
+          "Patient/" + (item \ "id").asInstanceOf[JString].values -> value
+        } else {
+          (item \ "subject" \ "reference").asInstanceOf[JString].values -> value
+        }
+      }
       .toMap // Convert to Map[String, Any]
     Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
   }
