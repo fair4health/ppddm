@@ -62,7 +62,19 @@ object DatasetController {
    * @return The Dataset if dataset_id is valid, None otherwise.
    */
   def getDataset(dataset_id: String): Future[Option[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).find(equal("dataset_id", dataset_id)).first().headOption()
+    db.getCollection[Dataset](COLLECTION_NAME).find(equal("dataset_id", dataset_id))
+      .first()
+      .headOption()
+      .flatMap { datasetOption =>
+        if (datasetOption.isDefined) { // If the dataset is found with the given dataset_id
+          // Ask the data preparation results to its DatasetSources
+          FederatedQueryManager.askAgentsDataPreparationResults(datasetOption.get) map (Some(_))
+        } else {
+          Future {
+            None
+          }
+        }
+      }
   }
 
   /**
@@ -72,23 +84,13 @@ object DatasetController {
    * @return The list of all Datasets for the given project, empty list if there are no Datasets.
    */
   def getAllDatasets(project_id: String): Future[Seq[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() map { datasets => {
-      // TODO define a future list to send all requests to agents in parallel
-
-      datasets foreach { dataset =>
-        if (dataset.dataset_sources.isDefined) {
-          dataset.dataset_sources.get foreach { datasetSource =>
-            if (datasetSource.data_source_statistics.isEmpty) {
-              // TODO ask agent about the status of data extraction
-              // TODO if agent returns the result, update data source
-              // TODO update status of dataset if all the agents responded
-            }
-          }
-        }
-      }
-
-      datasets
-    }}
+    db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() flatMap { datasets =>
+      Future.sequence(
+        // Ask the data preparation results for each dataset to their DatasetSources
+        // Do this job in pararllel and then join with Future.sequence to return a Future[Seq[Dataset]]
+        datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset))
+      )
+    }
   }
 
   /**

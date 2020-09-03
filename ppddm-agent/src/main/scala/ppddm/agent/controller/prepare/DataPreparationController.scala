@@ -20,6 +20,7 @@ import ppddm.core.util.JsonFormatter._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
+import scala.util.Try
 
 
 /**
@@ -143,7 +144,7 @@ object DataPreparationController {
             val variablesOption = dataPreparationRequest.featureset.variables
             if (variablesOption.isDefined) {
               val dataSourceStatistics: DataSourceStatistics = StatisticsController.calculateStatistics(dataFrame, variablesOption.get)
-              val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataSourceStatistics)
+              val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.data_source, dataSourceStatistics)
               DataStoreManager.saveDF(
                 DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
                 Seq(dataPreparationResult.toJson).toDF())
@@ -508,6 +509,8 @@ object DataPreparationController {
    * @return
    */
   def getDataSourceStatistics(dataset_id: String): Option[DataPreparationResult] = {
+    logger.debug("DataSourceStatistics is requested for the Dataset:{}", dataset_id)
+    // FIXME: What happens if there is an Exception in this function?
     DataStoreManager.getDF(DataStoreManager.getStatisticsPath(dataset_id)) map { df =>
       df // Dataframe consisting of a column named "value" that holds Json inside
         .head() // Get the Array[Row]

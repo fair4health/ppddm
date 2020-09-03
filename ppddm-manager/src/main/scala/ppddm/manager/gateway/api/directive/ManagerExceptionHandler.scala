@@ -19,8 +19,9 @@ trait ManagerExceptionHandler {
       logger.error(s"DBException: ${e.getMessage}", e)
       complete(StatusCodes.InternalServerError -> s"Error with the MongoDB Database. ${e.getMessage}")
     case e: AgentCommunicationException =>
-      logger.error(s"AgentCommunicationException: ${e.getMessage}", e)
-      complete(StatusCodes.InternalServerError -> s"Error with the MongoDB Database. ${e.getMessage}")
+      val msg = s"AgentCommunicationException while connecting to Agent on URI: ${e.url} whose name:${e.name}: ${e.getMessage}"
+      logger.error(msg, e)
+      complete(StatusCodes.InternalServerError -> msg)
     case e: Exception =>
       logger.error("Unknown Exception", e)
       complete(StatusCodes.InternalServerError -> s"UNKNOWN EXCEPTION: ${e.getMessage}")
