@@ -19,6 +19,7 @@ object AgentConfig extends AppConfig {
   lazy val fhirPath: String = Try(config.getString("fhir.path")).getOrElse("/")
 
   /** PPDDM-Agent config */
+  lazy val agentID: String = Try(config.getString("agent.id")).getOrElse("agent-1")
   lazy val agentBatchSize: Int = Try(config.getInt("agent.batch.size")).getOrElse(10)
 
 }

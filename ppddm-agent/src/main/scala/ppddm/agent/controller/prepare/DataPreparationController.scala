@@ -519,4 +519,14 @@ object DataPreparationController {
     }
   }
 
+  /**
+   * Deletes Dataset and all its persisted data.
+   *
+   * @param dataset_id The unique identifier of the Dataset to be deleted.
+   * @return 
+   */
+  def deleteData(dataset_id: String): Future[Unit] = {
+    Future {}
+  }
+
 }
