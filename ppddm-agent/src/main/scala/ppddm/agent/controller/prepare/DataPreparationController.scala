@@ -46,9 +46,8 @@ object DataPreparationController {
    * @return
    */
   def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Unit]] = {
-    // TODO: We may need some validation on the DataPreparationRequest object
     Future {
-      prepareData(reformatPreparationRequest(dataPreparationRequest))
+      prepareData(preProcessPreparationRequest(dataPreparationRequest))
     }
   }
 
@@ -175,8 +174,7 @@ object DataPreparationController {
    * @param dataPreparationRequest
    * @return
    */
-  def reformatPreparationRequest (dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
-    // TODO: Other validation operations can be performed here
+  def preProcessPreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
     if (dataPreparationRequest.featureset.variables.isDefined) {
       dataPreparationRequest.copy(
         featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
@@ -187,7 +185,7 @@ object DataPreparationController {
         )
       )
     } else {
-      dataPreparationRequest
+      throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
     }
   }
 
