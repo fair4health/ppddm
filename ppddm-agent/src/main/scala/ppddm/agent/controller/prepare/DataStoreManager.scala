@@ -2,6 +2,7 @@ package ppddm.agent.controller.prepare
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
+import ppddm.agent.config.AgentConfig
 
 import scala.util.Try
 
@@ -9,9 +10,10 @@ import scala.util.Try
  * Manages the persistent storage of the Dataframes as parquet files
  */
 object DataStoreManager {
-
-  final private val DS_STORE_DIR: String = "ppddm-store/datasets/"
-  final private val STAT_STORE_DIR: String = "ppddm-store/statistics/"
+  // Place AgentID on ppddm store path to avoid the problem that will occur when agents working on the same machine trying to edit the same files.
+  final private val BASE_STORE_DIR: String = "ppddm-store/" + AgentConfig.agentID
+  final private val DS_STORE_DIR: String = BASE_STORE_DIR + "/datasets/"
+  final private val STAT_STORE_DIR: String = BASE_STORE_DIR + "/statistics/"
 
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
