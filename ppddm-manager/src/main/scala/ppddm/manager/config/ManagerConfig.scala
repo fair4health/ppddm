@@ -6,8 +6,6 @@ import scala.util.Try
 
 object ManagerConfig extends AppConfig {
 
-  object AgentConfig extends AppConfig {
-
     /** Application name */
     override lazy val appName: String = Try(config.getString("app.name")).getOrElse("FAIR4Health PPDDM-Manager")
 
@@ -16,7 +14,5 @@ object ManagerConfig extends AppConfig {
 
     /** MogoDB Configuration */
     override lazy val mongoDbName: String = Try(config.getString("mongodb.db")).getOrElse("ppddm-manager")
-
-  }
 
 }

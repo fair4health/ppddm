@@ -29,7 +29,12 @@ trait DataPreparationEndpoint {
           complete { // Get the prepared data source statistics. This returns 404 if it is not ready yet.
             DataPreparationController.getDataSourceStatistics(dataset_id)
           }
-        }
+        } ~
+          delete { // Delete the prepared data from this Agent
+            complete {
+              DataPreparationController.deleteData(dataset_id)
+            }
+          }
       }
     }
   }
