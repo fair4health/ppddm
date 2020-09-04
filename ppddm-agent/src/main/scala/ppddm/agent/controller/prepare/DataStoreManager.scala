@@ -1,9 +1,12 @@
 package ppddm.agent.controller.prepare
 
+import java.io.File
+
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 
+import scala.reflect.io.Directory
 import scala.util.Try
 
 /**
@@ -36,6 +39,15 @@ object DataStoreManager {
    */
   def getDF(path: String): Option[DataFrame] = {
     Try(sparkSession.read.parquet(path)).toOption
+  }
+
+  /**
+   * Deletes the files under the given path recursively.
+   *
+   * @param path The filepath of the DataFrame
+   */
+  def deleteDF(path: String): Unit = {
+    new Directory(new File(path)).deleteRecursively()
   }
 
   /**

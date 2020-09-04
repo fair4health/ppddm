@@ -182,4 +182,41 @@ object FederatedQueryManager {
     }
 
   }
+
+  /**
+   * Deletes the extracted Dataset and Statistics from the Agents.
+   *
+   * @param dataSource
+   * @param dataset
+   * @return
+   */
+  def deleteDatasetAndStatistics(dataSource: DataSource, dataset: Dataset): Future[Unit] = {
+    val uri = Uri(dataSource.getDataPreparationURI(dataset.dataset_id))
+    val request = HttpRequest(
+      uri = uri,
+      method = HttpMethods.DELETE,
+      headers = defaultHeaders)
+      .withHeaders(Authorization(headers.OAuth2BearerToken(accessToken)))
+
+    logger.debug("Deleting the extracted dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
+
+    Http().singleRequest(request).map(Try(_)) flatMap {
+      case Success(res) =>
+        res.status match {
+          case StatusCodes.OK =>
+            Future {
+              logger.debug("Successfully deleted the dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
+            }
+          case _ =>
+            Unmarshal(res.entity).to[String].flatMap { body =>
+              throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
+            }
+        }
+      case Failure(e) =>
+        throw e
+    } recover {
+      case e: Exception =>
+        throw AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent for deleting the extracted dataset and statistics", e)
+    }
+  }
 }
