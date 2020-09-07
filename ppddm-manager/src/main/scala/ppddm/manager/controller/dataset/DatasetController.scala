@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{Dataset, ExecutionState}
+import ppddm.core.rest.model.{Dataset, DatasetSource, ExecutionState}
 import ppddm.manager.Manager
 import ppddm.manager.controller.query.FederatedQueryManager
 
@@ -117,7 +117,16 @@ object DatasetController {
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
   def deleteDataset(dataset_id: String): Future[Option[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id)).headOption()
+    val datasetOptionFuture = db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id)).headOption()
+    // Delete the extracted dataset and statistics from the Agents
+    datasetOptionFuture.map { datasetOption: Option[Dataset] =>
+      datasetOption.foreach { dataset: Dataset =>
+        dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each DataSource in this set
+          FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.data_source, datasetOption.get) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
+        }
+      }
+    }
+    datasetOptionFuture
   }
 }
 

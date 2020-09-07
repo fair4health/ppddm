@@ -526,7 +526,20 @@ object DataPreparationController {
    * @return 
    */
   def deleteData(dataset_id: String): Future[Unit] = {
-    Future {}
+    Future {
+      try {
+        // Delete the dataset with the given dataset_id
+        DataStoreManager.deleteDF(DataStoreManager.getDatasetPath(dataset_id))
+        // Delete the statistics related with the given dataset_id
+        DataStoreManager.deleteDF(DataStoreManager.getStatisticsPath(dataset_id))
+        logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
+      } catch {
+        case e: Exception =>
+          // TODO: Throw an appropriate exception
+          val msg = s"Cannot delete datasets/statistics with id: $dataset_id"
+          logger.error(msg)
+      }
+    }
   }
 
 }
