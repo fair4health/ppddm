@@ -2,11 +2,12 @@ package ppddm.agent.controller.prepare
 
 import java.util.concurrent.TimeUnit
 
+import akka.Done
 import com.typesafe.scalalogging.Logger
 import io.onfhir.path._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
+import org.apache.spark.sql.{Row, SparkSession}
 import org.json4s.JsonAST.JObject
 import org.json4s.{JArray, JString}
 import ppddm.agent.Agent
@@ -46,19 +47,20 @@ object DataPreparationController {
    * @param dataPreparationRequest The request object for the data preparation.
    * @return
    */
-  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Unit]] = {
+  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Done]] = {
     Future {
       prepareData(preProcessPreparationRequest(dataPreparationRequest))
     }
   }
 
-  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Unit] = {
+  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Done] = {
     logger.debug("Data preparation request received.")
 
     if (DataStoreManager.getDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
       // Check data store whether the Dataset with given dataset_id is already created and saved
       Future {
         logger.warn(s"Dataset with id: ${dataPreparationRequest.dataset_id} already exists. Why do you want to prepare it again?")
+        Done
       }
     } else {
       val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
@@ -162,8 +164,11 @@ object DataPreparationController {
           // We print the schema and the data only for debugging purposes. Will be removed in the future.
           dataFrame.printSchema()
           dataFrame.show(false)
+
+          Done
         } else {
           logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
+          Done
         }
       }
     }
@@ -196,7 +201,7 @@ object DataPreparationController {
    * @param value
    * @return
    */
-  def removeInvalidChars (value: String): String = {
+  def removeInvalidChars(value: String): String = {
     value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
   }
 
@@ -472,7 +477,7 @@ object DataPreparationController {
         /**
          * Set the value null if the variable data type is categorical or the fhir_path is not looking for existence.
          * e.g. Observation.valueQuantity.value field is numeric and fhir_path is not looking for existence,
-         *      and if its fhir_path evaluation result is None, the value should be null.
+         * and if its fhir_path evaluation result is None, the value should be null.
          * Setting the value 1 means that the variable is looking for the existence, and its default value is 1 if it exists among resources.
          */
         var value = if (isCategoricalType || !lookingForExistence) null else 1.toDouble
@@ -510,35 +515,29 @@ object DataPreparationController {
    */
   def getDataSourceStatistics(dataset_id: String): Option[DataPreparationResult] = {
     logger.debug("DataSourceStatistics is requested for the Dataset:{}", dataset_id)
-    // FIXME: What happens if there is an Exception in this function?
-    DataStoreManager.getDF(DataStoreManager.getStatisticsPath(dataset_id)) map { df =>
-      df // Dataframe consisting of a column named "value" that holds Json inside
-        .head() // Get the Array[Row]
-        .getString(0) // Get Json String
-        .extract[DataPreparationResult]
-    }
+    Try(
+      DataStoreManager.getDF(DataStoreManager.getStatisticsPath(dataset_id)) map { df =>
+        df // Dataframe consisting of a column named "value" that holds Json inside
+          .head() // Get the Array[Row]
+          .getString(0) // Get Json String
+          .extract[DataPreparationResult]
+      }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 
   /**
    * Deletes Dataset and all its persisted data.
    *
    * @param dataset_id The unique identifier of the Dataset to be deleted.
-   * @return 
+   * @return
    */
-  def deleteData(dataset_id: String): Future[Unit] = {
+  def deleteData(dataset_id: String): Future[Done] = {
     Future {
-      try {
-        // Delete the dataset with the given dataset_id
-        DataStoreManager.deleteDF(DataStoreManager.getDatasetPath(dataset_id))
-        // Delete the statistics related with the given dataset_id
-        DataStoreManager.deleteDF(DataStoreManager.getStatisticsPath(dataset_id))
-        logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
-      } catch {
-        case e: Exception =>
-          // TODO: Throw an appropriate exception
-          val msg = s"Cannot delete datasets/statistics with id: $dataset_id"
-          logger.error(msg)
-      }
+      // Delete the dataset with the given dataset_id
+      DataStoreManager.deleteDF(DataStoreManager.getDatasetPath(dataset_id))
+      // Delete the statistics related with the given dataset_id
+      DataStoreManager.deleteDF(DataStoreManager.getStatisticsPath(dataset_id))
+      logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
+      Done
     }
   }
 

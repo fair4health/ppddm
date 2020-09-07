@@ -1,5 +1,6 @@
 package ppddm.manager.controller.query
 
+import akka.Done
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Accept, Authorization}
@@ -168,9 +169,11 @@ object FederatedQueryManager {
       case Success(res) =>
         res.status match {
           case StatusCodes.OK =>
-            Unmarshal(res.entity).to[Option[DataPreparationResult]]
+            Unmarshal(res.entity).to[DataPreparationResult] map { Some (_) }
+          case StatusCodes.NotFound =>
+            Future.apply(Option.empty[DataPreparationResult])
           case _ =>
-            Unmarshal(res.entity).to[String].flatMap { body =>
+            Unmarshal(res.entity).to[String].map { body =>
               throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
             }
         }
@@ -190,7 +193,7 @@ object FederatedQueryManager {
    * @param dataset
    * @return
    */
-  def deleteDatasetAndStatistics(dataSource: DataSource, dataset: Dataset): Future[Unit] = {
+  def deleteDatasetAndStatistics(dataSource: DataSource, dataset: Dataset): Future[Done] = {
     val uri = Uri(dataSource.getDataPreparationURI(dataset.dataset_id))
     val request = HttpRequest(
       uri = uri,
@@ -206,9 +209,10 @@ object FederatedQueryManager {
           case StatusCodes.OK =>
             Future {
               logger.debug("Successfully deleted the dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
+              Done
             }
           case _ =>
-            Unmarshal(res.entity).to[String].flatMap { body =>
+            Unmarshal(res.entity).to[String].map { body =>
               throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
             }
         }

@@ -117,16 +117,19 @@ object DatasetController {
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
   def deleteDataset(dataset_id: String): Future[Option[Dataset]] = {
-    val datasetOptionFuture = db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id)).headOption()
-    // Delete the extracted dataset and statistics from the Agents
-    datasetOptionFuture.map { datasetOption: Option[Dataset] =>
-      datasetOption.foreach { dataset: Dataset =>
-        dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each DataSource in this set
-          FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.data_source, datasetOption.get) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
-        }
+    db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id)).headOption() flatMap { datasetOption: Option[Dataset] =>
+      if (datasetOption.isDefined) {
+        val dataset = datasetOption.get
+        Future.sequence(
+          dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each DataSource in this set
+            FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.data_source, dataset) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
+          }) map { _ => Some(dataset) }
+      }
+      else {
+        Future.apply(Option.empty[Dataset])
       }
     }
-    datasetOptionFuture
   }
+
 }
 
