@@ -19,7 +19,7 @@ trait AgentExceptionHandler {
       complete(StatusCodes.Unauthorized -> s"Not Authorized. ${e.getMessage}")
     case e:DataPreparationException =>
       logger.error(s"DataPreparationException: ${e.getMessage}", e)
-      complete(StatusCodes.InternalServerError -> s"Internal Server Error. ${e.getMessage}")
+      complete(StatusCodes.BadRequest -> s"DataPreparationException. ${e.getMessage}")
     case e: Exception =>
       logger.error("Unknown Exception", e)
       complete(StatusCodes.InternalServerError -> s"UNKNOWN EXCEPTION: ${e.getMessage}")
