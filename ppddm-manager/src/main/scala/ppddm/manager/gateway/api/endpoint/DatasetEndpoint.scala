@@ -17,7 +17,9 @@ trait DatasetEndpoint {
         post { // create a new data set
           entity(as[Dataset]) { dataset =>
             complete {
-              StatusCodes.Created -> DatasetController.createDataset(dataset)
+              DatasetController.createDataset(dataset) map { dataset =>
+                StatusCodes.Created -> dataset
+              }
             }
           }
         } ~
@@ -34,28 +36,19 @@ trait DatasetEndpoint {
         pathEndOrSingleSlash {
           get { // get data set
             complete {
-              DatasetController.getDataset(dataset_id) map { dataset =>
-                if(dataset.isDefined) StatusCodes.OK -> dataset.get
-                else StatusCodes.NotFound
-              }
+              DatasetController.getDataset(dataset_id)
             }
           } ~
             put { // update data set
               entity(as[Dataset]) { dataset =>
                 complete {
-                  DatasetController.updateDataset(dataset) map {dataset =>
-                    if(dataset.isDefined) StatusCodes.OK -> dataset.get
-                    else StatusCodes.NotFound
-                  }
+                  DatasetController.updateDataset(dataset)
                 }
               }
             } ~
             delete { // delete data set
               complete {
-                DatasetController.deleteDataset(dataset_id) map {dataset =>
-                  if(dataset.isDefined) StatusCodes.OK -> dataset.get
-                  else StatusCodes.NotFound
-                }
+                DatasetController.deleteDataset(dataset_id)
               }
             }
         }
