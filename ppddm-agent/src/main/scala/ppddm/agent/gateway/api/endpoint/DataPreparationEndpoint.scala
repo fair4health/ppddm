@@ -1,6 +1,6 @@
 package ppddm.agent.gateway.api.endpoint
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ppddm.agent.controller.prepare.DataPreparationController
@@ -30,14 +30,12 @@ trait DataPreparationEndpoint {
       pathEndOrSingleSlash {
         get {
           complete { // Get the prepared data source statistics. This returns 404 if it is not ready yet.
-            val stats = DataPreparationController.getDataSourceStatistics(dataset_id)
-            if(stats.isDefined) StatusCodes.OK -> stats.get
-            else StatusCodes.NotFound
+            DataPreparationController.getDataSourceStatistics(dataset_id)
           }
         } ~
           delete { // Delete the prepared data from this Agent
             complete {
-              StatusCodes.NoContent -> DataPreparationController.deleteData(dataset_id)
+              DataPreparationController.deleteData(dataset_id)
             }
           }
       }

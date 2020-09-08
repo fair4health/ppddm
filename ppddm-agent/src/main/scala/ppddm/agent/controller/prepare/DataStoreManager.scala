@@ -46,7 +46,7 @@ object DataStoreManager {
    *
    * @param path The filepath of the DataFrame
    */
-  def deleteDF(path: String): Unit = {
+  def deleteDF(path: String): Boolean = {
     new Directory(new File(path)).deleteRecursively()
   }
 

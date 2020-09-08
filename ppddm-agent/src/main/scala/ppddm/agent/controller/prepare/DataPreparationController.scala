@@ -524,14 +524,17 @@ object DataPreparationController {
    * @param dataset_id The unique identifier of the Dataset to be deleted.
    * @return
    */
-  def deleteData(dataset_id: String): Future[Done] = {
-    Future {
-      // Delete the dataset with the given dataset_id
-      DataStoreManager.deleteDF(DataStoreManager.getDatasetPath(dataset_id))
-      // Delete the statistics related with the given dataset_id
-      DataStoreManager.deleteDF(DataStoreManager.getStatisticsPath(dataset_id))
+  def deleteData(dataset_id: String): Option[Done] = {
+    // Delete the dataset with the given dataset_id
+    val datasetDeleted = DataStoreManager.deleteDF(DataStoreManager.getDatasetPath(dataset_id))
+    // Delete the statistics related with the given dataset_id
+    val statisticsDeleted = DataStoreManager.deleteDF(DataStoreManager.getStatisticsPath(dataset_id))
+    if (datasetDeleted && statisticsDeleted) {
       logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
-      Done
+      Some(Done)
+    } else {
+      logger.info(s"Dataset and statistics (with id: $dataset_id) do not exist!")
+      Option.empty[Done]
     }
   }
 
