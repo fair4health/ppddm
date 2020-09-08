@@ -47,13 +47,7 @@ object DataPreparationController {
    * @param dataPreparationRequest The request object for the data preparation.
    * @return
    */
-  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Future[Done]] = {
-    Future {
-      prepareData(preProcessPreparationRequest(dataPreparationRequest))
-    }
-  }
-
-  private def prepareData(dataPreparationRequest: DataPreparationRequest): Future[Done] = {
+  def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Done] = {
     logger.debug("Data preparation request received.")
 
     if (DataStoreManager.getDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
@@ -180,7 +174,7 @@ object DataPreparationController {
    * @param dataPreparationRequest
    * @return
    */
-  def preProcessPreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
+  def validatePreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
     if (dataPreparationRequest.featureset.variables.isDefined) {
       dataPreparationRequest.copy(
         featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
