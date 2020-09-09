@@ -88,6 +88,7 @@ object DatasetController {
       Future.sequence(
         // Ask the data preparation results for each dataset to their DatasetSources
         // Do this job in pararllel and then join with Future.sequence to return a Future[Seq[Dataset]]
+        // FIXME: ASk only for not-final datasets
         datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset))
       )
     }
@@ -101,6 +102,7 @@ object DatasetController {
    */
   def updateDataset(dataset: Dataset): Future[Option[Dataset]] = {
     // TODO: Add some integrity checks before document replacement
+    // TODO: Check whether at least one DatasetSource is selected
     // Update the execution state of the dataset to "final"
     val datasetWithNewExecutionState = dataset.withExecutionState(ExecutionState.FINAL)
 

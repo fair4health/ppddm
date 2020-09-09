@@ -55,7 +55,7 @@ object FederatedQueryManager {
       val successfulAgents = responses.collect { case Success(x) => x }
       dataset
         .withDataSources(successfulAgents) // create a new Dataset with the DatasetSources which are QUERYING
-        .withExecutionState(ExecutionState.QUERYING) // Set the ExecutionState of the Dataset itself to QUERYING
+        .withExecutionState(ExecutionState.EXECUTING) // Set the ExecutionState of the Dataset itself to QUERYING
     }
   }
 
@@ -88,7 +88,7 @@ object FederatedQueryManager {
           case StatusCodes.OK =>
             logger.debug("Agent data preparation invocation successful on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
             Future {
-              Success(DatasetSource(dataSource, None, None, Some(ExecutionState.QUERYING)))
+              Success(DatasetSource(dataSource, None, None, Some(ExecutionState.EXECUTING)))
             }
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure
