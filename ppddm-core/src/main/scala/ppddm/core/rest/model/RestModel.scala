@@ -3,7 +3,8 @@ package ppddm.core.rest.model
 import java.time.LocalDateTime
 import java.util.UUID
 
-import ppddm.core.rest.model.DataSourceSelectionStatus.DataSourceSelectionStatus
+import ppddm.core.rest.model.SelectionStatus.SelectionStatus
+import ppddm.core.rest.model.DataType.DataType
 import ppddm.core.rest.model.ExecutionState.ExecutionState
 import ppddm.core.rest.model.ProjectType.ProjectType
 import ppddm.core.rest.model.VariableDataType.VariableDataType
@@ -65,7 +66,7 @@ final case class Dataset(dataset_id: Option[String],
       // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
       .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
       .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become IN_PROGRESS
-    val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.IN_PROGRESS) else execution_state
+    val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else execution_state
     this.copy(dataset_sources = Some(dataset_sources), execution_state = newExecutionState)
   }
 
@@ -80,14 +81,14 @@ final case class EligibilityCriterion(fhir_query: String,
 
 final case class DatasetSource(data_source: DataSource,
                                data_source_statistics: Option[DataSourceStatistics],
-                               selection_status: Option[DataSourceSelectionStatus],
+                               selection_status: Option[SelectionStatus],
                                execution_state: Option[ExecutionState]) extends ModelClass
 
 final case class DataSource(datasource_id: String,
                             name: String,
                             endpoint: String) extends ModelClass {
 
-  def getDataPreparationURI(dataset_id: Option[String] = None) = {
+  def getDataPreparationURI(dataset_id: Option[String] = None): String = {
     if (dataset_id.isDefined) {
       URLUtil.append(endpoint, "prepare", dataset_id.get)
     } else {
@@ -113,3 +114,36 @@ final case class DataPreparationRequest(dataset_id: String,
 final case class DataPreparationResult(dataset_id: String,
                                        data_source: DataSource,
                                        datasource_statistics: DataSourceStatistics) extends ModelClass
+
+final case class DataMiningModel(model_id: Option[String],
+                                 project_id: String,
+                                 dataset: Dataset,
+                                 name: String,
+                                 description: String,
+                                 algorithms: Seq[Algorithm],
+                                 algorithm_results: Option[Seq[AlgorithmExecution]],
+                                 execution_state: Option[ExecutionState],
+                                 created_by: String,
+                                 created_on: Option[LocalDateTime]) extends ModelClass
+
+final case class Algorithm(id: String,
+                           name: String,
+                           parameters: Seq[Parameter]) extends ModelClass
+
+final case class AlgorithmExecution(algorithm: Algorithm,
+                                    statistics: Option[Seq[Parameter]],
+                                    fit_model: Option[Seq[Any]],
+                                    selection_status: Option[SelectionStatus]) extends ModelClass
+
+final case class Parameter(name: String,
+                           data_type: DataType,
+                           value: Any) extends ModelClass
+
+final case class AlgorithmExecutionRequest(model_id: String,
+                                           dataset_id: String,
+                                           algorithms: Seq[AlgorithmExecution],
+                                           submitted_by: String) extends ModelClass
+
+final case class AlgorithmExecutionResult(model_id: String,
+                                          dataset_id: String,
+                                          algorithm_results: Seq[AlgorithmExecution]) extends ModelClass
