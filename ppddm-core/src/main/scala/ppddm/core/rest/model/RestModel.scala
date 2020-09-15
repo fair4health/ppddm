@@ -61,13 +61,17 @@ final case class Dataset(dataset_id: Option[String],
   }
 
   def withDataSources(dataset_sources: Seq[DatasetSource]): Dataset = {
-    // Find the ExecutionState for the newly created Dataset
-    val areAllAgentsFinished = dataset_sources
-      // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
-      .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
-      .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become IN_PROGRESS
-    val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else execution_state
-    this.copy(dataset_sources = Some(dataset_sources), execution_state = newExecutionState)
+    if(dataset_sources.isEmpty) {
+      return this
+    } else {
+      // Find the ExecutionState for the newly created Dataset
+      val areAllAgentsFinished = dataset_sources
+        // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
+        .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
+        .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become READY
+      val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else execution_state
+      this.copy(dataset_sources = Some(dataset_sources), execution_state = newExecutionState)
+    }
   }
 
   def withExecutionState(execution_state: ExecutionState): Dataset = {
