@@ -53,6 +53,10 @@ object FederatedQueryManager {
       }
 
       val successfulAgents = responses.collect { case Success(x) => x }
+      if(successfulAgents.isEmpty) {
+        val msg = "No Agents are communicated, hence I cannot create a Dataset!!"
+        throw AgentCommunicationException("All Agents", "", msg)
+      }
       dataset
         .withDataSources(successfulAgents) // create a new Dataset with the DatasetSources which are QUERYING
         .withExecutionState(ExecutionState.EXECUTING) // Set the ExecutionState of the Dataset itself to QUERYING
