@@ -31,7 +31,7 @@ object ProjectController {
     db.getCollection[Project](COLLECTION_NAME).insertOne(projectWithId).toFuture() // insert into the database
       .map { result =>
         val _id = result.getInsertedId.asObjectId().getValue.toString
-        logger.debug("Inserted document _id:{} and projectId:{}", _id, project.project_id.get)
+        logger.debug("Inserted document _id:{} and projectId:{}", _id, projectWithId.project_id.get)
         projectWithId
       }
       .recover {
