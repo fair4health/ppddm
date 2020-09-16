@@ -199,15 +199,4 @@
     </dependencies>
   </dependencyManagement>
 
-  <repositories>
-    <repository>
-      <id>maven-releases</id>
-      <url>http://nexus.srdc.com.tr/repository/maven-releases/</url>
-    </repository>
-    <repository>
-      <id>maven-snapshots</id>
-      <url>http://nexus.srdc.com.tr/repository/maven-snapshots/</url>
-    </repository>
-  </repositories>
-
 </project>
