@@ -62,18 +62,19 @@ final case class Dataset(dataset_id: Option[String],
 
   def withDataSources(dataset_sources: Seq[DatasetSource]): Dataset = {
     if(dataset_sources.isEmpty) {
-      return this
+      this
     } else {
       // Find the ExecutionState for the newly created Dataset
       val areAllAgentsFinished = dataset_sources
         // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
         .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
         .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become READY
-      val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else execution_state
+      val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
       this.copy(dataset_sources = Some(dataset_sources), execution_state = newExecutionState)
     }
   }
 
+  // TODO: Remove this method so that the execution_state always gets updated automatically by withDataSources method
   def withExecutionState(execution_state: ExecutionState): Dataset = {
     this.copy(execution_state = Some(execution_state))
   }

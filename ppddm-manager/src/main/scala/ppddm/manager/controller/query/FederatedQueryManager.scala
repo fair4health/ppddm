@@ -53,13 +53,12 @@ object FederatedQueryManager {
       }
 
       val successfulAgents = responses.collect { case Success(x) => x }
-      if(successfulAgents.isEmpty) {
+      if (successfulAgents.isEmpty) {
         val msg = "No Agents are communicated, hence I cannot create a Dataset!!"
         throw AgentCommunicationException("All Agents", "", msg)
       }
       dataset
-        .withDataSources(successfulAgents) // create a new Dataset with the DatasetSources which are QUERYING
-        .withExecutionState(ExecutionState.EXECUTING) // Set the ExecutionState of the Dataset itself to QUERYING
+        .withDataSources(successfulAgents) // create a new Dataset with the DatasetSources which are EXECUTING
     }
   }
 
@@ -122,30 +121,38 @@ object FederatedQueryManager {
       throw new InternalError(msg)
     }
 
-    logger.debug("I will ask for the DataPreparationResults from {} DatasetSources of the Dataset with id:{} and name:{}",
-      dataset.dataset_sources.get.size, dataset.dataset_id, dataset.name)
+    if (dataset.execution_state.get != ExecutionState.EXECUTING) {
+      // If the Dataset is not executing any queries, then it means all Agents returned their responses.
+      // There is no need to ask any questions to the Dataset sources (Agents)
+      logger.debug("There is no need to ask the DataPreparationResults of the Dataset with id:{} and name:{}. Its state is {}",
+        dataset.dataset_id, dataset.name, dataset.execution_state.get)
+      Future.apply(dataset)
+    } else {
+      logger.debug("I will ask for the DataPreparationResults from {} DatasetSources of the Dataset with id:{} and name:{}",
+        dataset.dataset_sources.get.size, dataset.dataset_id, dataset.name)
 
-    Future.sequence(
-      dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each datasetSource in this set (actually, for each DataSource)
-        getPreparedDataStatistics(datasetSource.data_source, dataset) // Ask for the data preparation results (do this in parallel)
-      }
-    ) map { responses: Seq[Option[DataPreparationResult]] => // Join the responses coming from different data sources (Agents)
-      logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
-      responses.map(result => { // For each DataPreparationResult
-        result map { dataPreparationResult => // Create a corresponding DatasetSource object
-          DatasetSource(dataPreparationResult.data_source, Some(dataPreparationResult.datasource_statistics), None, Some(ExecutionState.FINAL))
+      Future.sequence(
+        dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each datasetSource in this set (actually, for each DataSource)
+          getPreparedDataStatistics(datasetSource.data_source, dataset) // Ask for the data preparation results (do this in parallel)
         }
-      })
-        .filter(_.isDefined) // Keep the the data sources which produced the results
-        .map(_.get) // Get rid of the Option since we eliminated the None elements above
-    } map { datasetSourcesWithResult: Seq[DatasetSource] => // DatasetSources which finished data preparation
-      val updatedDatasetSources = dataset.dataset_sources.get map { existingDatasetSource => // Iterate over the existing DatasetSources of the dataset
-        // decide whether there is a data preparation result for the existingDatasetSource
-        val finishedDatasetSource = datasetSourcesWithResult.find(_.data_source.datasource_id == existingDatasetSource.data_source.datasource_id)
-        // Return the DatasetSource if that has a result, otherwise keep the existing DatasetSource in the list
-        if(finishedDatasetSource.isDefined) finishedDatasetSource.get else existingDatasetSource
+      ) map { responses: Seq[Option[DataPreparationResult]] => // Join the responses coming from different data sources (Agents)
+        logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
+        responses.map(result => { // For each DataPreparationResult
+          result map { dataPreparationResult => // Create a corresponding DatasetSource object
+            DatasetSource(dataPreparationResult.data_source, Some(dataPreparationResult.datasource_statistics), None, Some(ExecutionState.FINAL))
+          }
+        })
+          .filter(_.isDefined) // Keep the the data sources which produced the results
+          .map(_.get) // Get rid of the Option since we eliminated the None elements above
+      } map { datasetSourcesWithResult: Seq[DatasetSource] => // DatasetSources which finished data preparation
+        val updatedDatasetSources = dataset.dataset_sources.get map { existingDatasetSource => // Iterate over the existing DatasetSources of the dataset
+          // decide whether there is a data preparation result for the existingDatasetSource
+          val finishedDatasetSource = datasetSourcesWithResult.find(_.data_source.datasource_id == existingDatasetSource.data_source.datasource_id)
+          // Return the DatasetSource if that has a result, otherwise keep the existing DatasetSource in the list
+          if (finishedDatasetSource.isDefined) finishedDatasetSource.get else existingDatasetSource
+        }
+        dataset.withDataSources(updatedDatasetSources) // create a new Dataset with the updatedDatasetSources
       }
-      dataset.withDataSources(updatedDatasetSources) // create a new Dataset with the updatedDatasetSources
     }
   }
 
@@ -173,7 +180,9 @@ object FederatedQueryManager {
       case Success(res) =>
         res.status match {
           case StatusCodes.OK =>
-            Unmarshal(res.entity).to[DataPreparationResult] map { Some (_) }
+            Unmarshal(res.entity).to[DataPreparationResult] map {
+              Some(_)
+            }
           case StatusCodes.NotFound =>
             Future.apply(Option.empty[DataPreparationResult])
           case _ =>
