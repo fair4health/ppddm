@@ -87,7 +87,7 @@ object DatasetController {
     db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() flatMap { datasets =>
       Future.sequence(
         // Ask the data preparation results for each dataset to their DatasetSources
-        // Do this job in pararllel and then join with Future.sequence to return a Future[Seq[Dataset]]
+        // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
         // FIXME: ASk only for not-final datasets
         datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset))
       )
@@ -104,6 +104,7 @@ object DatasetController {
     // TODO: Add some integrity checks before document replacement
     // TODO: Check whether at least one DatasetSource is selected
     // Update the execution state of the dataset to "final"
+    // TODO: Set the ExecutionState within the withDataSources method of the Dataset
     val datasetWithNewExecutionState = dataset.withExecutionState(ExecutionState.FINAL)
 
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
