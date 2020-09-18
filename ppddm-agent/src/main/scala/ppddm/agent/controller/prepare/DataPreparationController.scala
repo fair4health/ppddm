@@ -419,27 +419,31 @@ object DataPreparationController {
 
     val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> 0.toDouble)).toMap
 
-    // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
-    val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
-    // Evaluate FHIR Path on the resource list
-    val result = fhirPathEvaluator.evaluate(fhirPathExpression, JArray(resources.toList))
-    val extractedValues = result.map { item =>
+    if (resources.nonEmpty) {
+      // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
+      val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
+      // Evaluate FHIR Path on the resource list
+      val result = fhirPathEvaluator.evaluate(fhirPathExpression, JArray(resources.toList))
+      val extractedValues = result.map { item =>
 
-      /**
-       * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
-       * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
-       */
-      val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
-        .json.obj // Access to the List[(String, JValue)]
+        /**
+         * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
+         * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
+         */
+        val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
+          .json.obj // Access to the List[(String, JValue)]
 
-      import ppddm.core.util.JsonFormatter._
+        import ppddm.core.util.JsonFormatter._
 
-      val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
-      val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
-      patientID -> aggrResult // Patient ID -> count
-    }.toMap
+        val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
+        val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
+        patientID -> aggrResult // Patient ID -> count
+      }.toMap
 
-    Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+      Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+    } else {
+      Map(variable.name -> initialValuesForAllPatients)
+    }
   }
 
   /**
