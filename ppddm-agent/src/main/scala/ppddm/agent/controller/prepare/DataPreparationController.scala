@@ -176,14 +176,18 @@ object DataPreparationController {
    */
   def validatePreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
     if (dataPreparationRequest.featureset.variables.isDefined) {
-      dataPreparationRequest.copy(
-        featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
-          variables = Option( // Assign new variables
-            dataPreparationRequest.featureset.variables.get // Get Variables from Option
-              .map(variable => variable.copy(name = removeInvalidChars(variable.name))) // Remove invalid characters in variable.name
+      if (dataPreparationRequest.eligibility_criteria.count(_.fhir_query.startsWith("/Patient")) > 1) { // Check if there are multiple Patient queries
+        throw DataPreparationException(s"The Eligibility Criteria in the submitted DataPreparationRequest has multiple Patient queries. It should not be more than one.")
+      } else {
+        dataPreparationRequest.copy(
+          featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
+            variables = Option( // Assign new variables
+              dataPreparationRequest.featureset.variables.get // Get Variables from Option
+                .map(variable => variable.copy(name = removeInvalidChars(variable.name))) // Remove invalid characters in variable.name
+            )
           )
         )
-      )
+      }
     } else {
       throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
     }
