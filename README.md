@@ -1,4 +1,4 @@
-# FAIR4Health Data Curation & Validation Tool
+# FAIR4Health Privacy-Preserving Distributed Data Mining (PPDDM) Framework
 
 <p align="center">
   <a href="https://www.fair4health.eu" target="_blank"><img width="400" src="https://www.fair4health.eu/images/logo.png" alt="FAIR4Health logo"></a>
