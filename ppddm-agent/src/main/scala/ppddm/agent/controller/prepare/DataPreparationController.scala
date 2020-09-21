@@ -290,15 +290,37 @@ object DataPreparationController {
                                    eligibility_criteria: Seq[EligibilityCriterion], patientQuery: FHIRQuery,
                                    pageIndex: Int): Future[Set[String]] = {
     // Fetch the Patient resources from the FHIR Repository and collect their IDs
-    patientQuery.getResources(fhirClient, batchSize, pageIndex) flatMap { results =>
+    patientQuery.getResources(fhirClient, batchSize, pageIndex) flatMap { resources =>
 
       // If fhir_path is non-empty, filter resulting patients which satisfy the FHIR path expression
-      val patients = results.filter(item => patientQuery.getFHIRPath().isEmpty || Try(fhirPathEvaluator.satisfies(patientQuery.getFHIRPath().get, item)).getOrElse(false))
+      val patientURIs: Set[String] = if (patientQuery.getFHIRPath().nonEmpty && resources.nonEmpty) {
+        val fhirPathExpression = patientQuery.getFHIRPath().get
 
-      val patientURIs: Set[String] = patients
-        .map(p => (p \ "id").asInstanceOf[JString].values) // extract the IDs from the JObject of Patient
-        .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
-        .toSet[String] // Convert to a set
+        if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
+          // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
+          val expr: String = fhirPathExpression.substring(FHIRPathExpressionPrefix.AGGREGATION.length) // Extract the actual FHIRPath expression
+          val result = Try(fhirPathEvaluator.evaluateString(expr, JArray(resources.toList))).getOrElse(Seq.empty) // Evaluate path with aggregation. It should return a list of PatientIDs.
+          result
+            .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+            .toSet // Convert to set
+        } else if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.SATISFY)) {
+          // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.SATISFY'
+          resources
+            .filter(item => Try(fhirPathEvaluator.satisfies(fhirPathExpression.substring(FHIRPathExpressionPrefix.SATISFY.length), item)).getOrElse(false)) // Filter the resources by whether they satisfy the path expression.
+            .map(r => (r \ "id").asInstanceOf[JString].values) // Collect the patientIDs
+            .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+            .toSet // Convert to set
+        } else {
+          // Invalid FHIRPath expression
+          logger.error("Invalid fhir_path expression prefix in eligibility_criteria: {}", fhirPathExpression)
+          throw DataPreparationException(s"Invalid fhir_path expression prefix in eligibility_criteria: $fhirPathExpression")
+        }
+      } else {
+        resources
+          .map(p => (p \ "id").asInstanceOf[JString].values) // extract the IDs from the JObject of Patient
+          .map(pid => s"Patient/$pid") // Prepend the Patient keyword to each pid
+          .toSet // Convert to set
+      }
 
       if (patientURIs.isEmpty) {
         // There are no eligible patients in this partition. We do not need to execute the remaining criteria on other resources
