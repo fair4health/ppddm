@@ -1,4 +1,21 @@
-## FAIR4Health Privacy-Preserving Distributed Data Mining Framework
+<!--
+Copyright (C) 2020 FAIR4Health Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+FAIR4Health Privacy-Preserving Distributed Data Mining Framework [![License Info](http://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](https://github.com/fair4health/ppddm/blob/master/LICENSE)
+===
 
 This is the data mining framework of the FAIR4Health Project (https://www.fair4health.eu/) 
 which allows data scientists to train statistical/machine learning models using the 
@@ -34,3 +51,8 @@ Privacy-Preserving Distributed Data Mining (PPDDM) Manager
 ## ppddm-core
 Core components and libraries shared by other modules of the FAIR4Health PPDDM such as the REST model
 or machine learning libraries.
+
+## Acknowledgement
+
+This research has received funding from the European Union’s Horizon 2020 research and innovation programme under grant agreement No 824666,
+[FAIR4Health Project](https://www.fair4health.eu/) (Improving Health Research in EU through FAIR Data).
