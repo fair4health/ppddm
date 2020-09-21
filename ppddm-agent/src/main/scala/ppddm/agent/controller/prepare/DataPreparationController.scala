@@ -509,7 +509,7 @@ object DataPreparationController {
          */
         var value = if (isCategoricalType || !lookingForExistence) null else 1.toDouble
         if (!lookingForExistence) {
-          val resultOption = fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption
+          val resultOption = Try(fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption).getOrElse(None)
           resultOption.foreach { result =>
             // If we will get the value from the FHIRPath expression, then take it from the evaluation result
             value = result match {
