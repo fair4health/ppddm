@@ -1,16 +1,16 @@
 [
   {
-    "datasource_id": "sas-id",
+    "agent_id": "sas-id",
     "name": "SAS",
     "endpoint": "http://localhost:8000/agent"
   },
   {
-    "datasource_id": "iacs-id",
+    "agent_id": "iacs-id",
     "name": "IACS",
     "endpoint": "http://localhost:8001/agent"
   },
   {
-    "datasource_id": "unige-id",
+    "agent_id": "unige-id",
     "name": "UNIGE",
     "endpoint": "http://localhost:8002/agent"
   }

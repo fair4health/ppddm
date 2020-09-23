@@ -60,7 +60,7 @@ final case class Dataset(dataset_id: Option[String],
     this.copy(dataset_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
   }
 
-  def withDataSources(dataset_sources: Seq[DatasetSource]): Dataset = {
+  def withDatasetSources(dataset_sources: Seq[DatasetSource]): Dataset = {
     if(dataset_sources.isEmpty) {
       this
     } else {
@@ -84,14 +84,14 @@ final case class Dataset(dataset_id: Option[String],
 final case class EligibilityCriterion(fhir_query: String,
                                       fhir_path: Option[String]) extends ModelClass
 
-final case class DatasetSource(data_source: DataSource,
-                               data_source_statistics: Option[DataSourceStatistics],
+final case class DatasetSource(agent: Agent,
+                               agent_data_statistics: Option[AgentDataStatistics],
                                selection_status: Option[SelectionStatus],
                                execution_state: Option[ExecutionState]) extends ModelClass
 
-final case class DataSource(datasource_id: String,
-                            name: String,
-                            endpoint: String) extends ModelClass {
+final case class Agent(agent_id: String,
+                       name: String,
+                       endpoint: String) extends ModelClass {
 
   def getDataPreparationURI(dataset_id: Option[String] = None): String = {
     if (dataset_id.isDefined) {
@@ -102,8 +102,8 @@ final case class DataSource(datasource_id: String,
   }
 }
 
-final case class DataSourceStatistics(number_of_records: Long,
-                                      variable_statistics: Seq[VariableStatistics]) extends ModelClass
+final case class AgentDataStatistics(number_of_records: Long,
+                                     variable_statistics: Seq[VariableStatistics]) extends ModelClass
 
 final case class VariableStatistics(variable: Variable,
                                     min_value: Option[Double],
@@ -111,14 +111,14 @@ final case class VariableStatistics(variable: Variable,
                                     null_percentage: Option[Double]) extends ModelClass
 
 final case class DataPreparationRequest(dataset_id: String,
-                                        data_source: DataSource,
+                                        agent: Agent,
                                         featureset: Featureset,
                                         eligibility_criteria: Seq[EligibilityCriterion],
                                         submitted_by: String) extends ModelClass
 
 final case class DataPreparationResult(dataset_id: String,
-                                       data_source: DataSource,
-                                       datasource_statistics: DataSourceStatistics) extends ModelClass
+                                       agent: Agent,
+                                       agent_data_statistics: AgentDataStatistics) extends ModelClass
 
 final case class DataMiningModel(model_id: Option[String],
                                  project_id: String,

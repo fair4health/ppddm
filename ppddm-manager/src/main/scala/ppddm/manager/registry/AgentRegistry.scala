@@ -2,7 +2,7 @@ package ppddm.manager.registry
 
 import com.typesafe.scalalogging.Logger
 import ppddm.core.util.JsonFormatter._
-import ppddm.core.rest.model.DataSource
+import ppddm.core.rest.model.Agent
 
 import scala.io.Source
 
@@ -12,11 +12,11 @@ object AgentRegistry {
 
   // TODO Fetch data sources from Service Registry
 
-  val dataSources: Seq[DataSource] =  {
-    val fileContent:String = Source.fromResource("datasource.json").mkString
-    val dsList = fileContent.extract[Seq[DataSource]]
-    logger.debug("A total of {} registered data sources (agents) have been retrieved.", dsList.size)
-    dsList
+  val agents: Seq[Agent] =  {
+    val fileContent:String = Source.fromResource("agents.json").mkString
+    val agentList = fileContent.extract[Seq[Agent]]
+    logger.debug("A total of {} registered agents (data sources) have been retrieved.", agentList.size)
+    agentList
   }
 
 }

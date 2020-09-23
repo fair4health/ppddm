@@ -20,7 +20,7 @@ object Manager {
   def start(): Unit = {
     logger.info("PPDDM Manager is starting up...")
 
-    println(AgentRegistry.dataSources)
+    println(AgentRegistry.agents)
 
     if (ManagerConfig.mongoEmbedded) {
       // If it is configured to use an embedded Mongo instance

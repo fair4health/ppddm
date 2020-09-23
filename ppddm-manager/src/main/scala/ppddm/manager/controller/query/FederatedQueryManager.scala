@@ -42,8 +42,8 @@ object FederatedQueryManager {
     logger.debug("I will invoke the prepare endpoints of the registered agents")
 
     Future.sequence(
-      AgentRegistry.dataSources.map { dataSource =>
-        invokeDataPreparation(dataSource, dataset)
+      AgentRegistry.agents.map { agent =>
+        invokeDataPreparation(agent, dataset)
       }
     ) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }
@@ -58,20 +58,21 @@ object FederatedQueryManager {
         throw AgentCommunicationException("All Agents", "", msg)
       }
       dataset
-        .withDataSources(successfulAgents) // create a new Dataset with the DatasetSources which are EXECUTING
+        .withDatasetSources(successfulAgents) // create a new Dataset with the DatasetSources which are EXECUTING
     }
   }
 
   /**
    * Invokes the data preparation endpoint of the given DataSource for the given Dataset
    *
-   * @param dataSource
+   * @param agent
    * @param dataset
    * @return
    */
-  private def invokeDataPreparation(dataSource: DataSource, dataset: Dataset): Future[Try[DatasetSource]] = {
-    val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, dataSource, dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
-    val uri = Uri(dataSource.getDataPreparationURI())
+  private def invokeDataPreparation(agent: Agent, dataset: Dataset): Future[Try[DatasetSource]] = {
+    val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, agent,
+      dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
+    val uri = Uri(agent.getDataPreparationURI())
 
     /* To use the toJson, toPrettyJson methods of the JsonFormatter */
     import ppddm.core.util.JsonFormatter._
@@ -91,19 +92,19 @@ object FederatedQueryManager {
           case StatusCodes.OK =>
             logger.debug("Agent data preparation invocation successful on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
             Future {
-              Success(DatasetSource(dataSource, None, None, Some(ExecutionState.EXECUTING)))
+              Success(DatasetSource(agent, None, None, Some(ExecutionState.EXECUTING)))
             }
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure
             Unmarshal(res.entity).to[String].flatMap { body =>
-              throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
+              throw AgentCommunicationException(agent.name, agent.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
             }
         }
       case Failure(e) =>
         throw e
     } recover {
       case e: Exception =>
-        Failure(AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent for data preparation", e))
+        Failure(AgentCommunicationException(agent.name, agent.endpoint, "Exception while connecting to the Agent for data preparation", e))
     }
   }
 
@@ -133,13 +134,13 @@ object FederatedQueryManager {
 
       Future.sequence(
         dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each datasetSource in this set (actually, for each DataSource)
-          getPreparedDataStatistics(datasetSource.data_source, dataset) // Ask for the data preparation results (do this in parallel)
+          getPreparedDataStatistics(datasetSource.agent, dataset) // Ask for the data preparation results (do this in parallel)
         }
       ) map { responses: Seq[Option[DataPreparationResult]] => // Join the responses coming from different data sources (Agents)
         logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
         responses.map(result => { // For each DataPreparationResult
           result map { dataPreparationResult => // Create a corresponding DatasetSource object
-            DatasetSource(dataPreparationResult.data_source, Some(dataPreparationResult.datasource_statistics), None, Some(ExecutionState.FINAL))
+            DatasetSource(dataPreparationResult.agent, Some(dataPreparationResult.agent_data_statistics), None, Some(ExecutionState.FINAL))
           }
         })
           .filter(_.isDefined) // Keep the the data sources which produced the results
@@ -147,24 +148,24 @@ object FederatedQueryManager {
       } map { datasetSourcesWithResult: Seq[DatasetSource] => // DatasetSources which finished data preparation
         val updatedDatasetSources = dataset.dataset_sources.get map { existingDatasetSource => // Iterate over the existing DatasetSources of the dataset
           // decide whether there is a data preparation result for the existingDatasetSource
-          val finishedDatasetSource = datasetSourcesWithResult.find(_.data_source.datasource_id == existingDatasetSource.data_source.datasource_id)
+          val finishedDatasetSource = datasetSourcesWithResult.find(_.agent.agent_id == existingDatasetSource.agent.agent_id)
           // Return the DatasetSource if that has a result, otherwise keep the existing DatasetSource in the list
           if (finishedDatasetSource.isDefined) finishedDatasetSource.get else existingDatasetSource
         }
-        dataset.withDataSources(updatedDatasetSources) // create a new Dataset with the updatedDatasetSources
+        dataset.withDatasetSources(updatedDatasetSources) // create a new Dataset with the updatedDatasetSources
       }
     }
   }
 
   /**
-   * Asks the DataPreparationResult from the given dataSource for the given dataset.
+   * Asks the DataPreparationResult from the given Agent for the given dataset.
    *
-   * @param dataSource
+   * @param agent
    * @param dataset
    * @return An Option[DataPreparationResult]. If the result is None, that means the data has not been prepared yet.
    */
-  def getPreparedDataStatistics(dataSource: DataSource, dataset: Dataset): Future[Option[DataPreparationResult]] = {
-    val uri = Uri(dataSource.getDataPreparationURI(dataset.dataset_id))
+  def getPreparedDataStatistics(agent: Agent, dataset: Dataset): Future[Option[DataPreparationResult]] = {
+    val uri = Uri(agent.getDataPreparationURI(dataset.dataset_id))
     val request = HttpRequest(
       uri = uri,
       method = HttpMethods.GET,
@@ -187,14 +188,14 @@ object FederatedQueryManager {
             Future.apply(Option.empty[DataPreparationResult])
           case _ =>
             Unmarshal(res.entity).to[String].map { body =>
-              throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
+              throw AgentCommunicationException(agent.name, agent.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
             }
         }
       case Failure(e) =>
         throw e
     } recover {
       case e: Exception =>
-        throw AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent for asking the data preparation result", e)
+        throw AgentCommunicationException(agent.name, agent.endpoint, "Exception while connecting to the Agent for asking the data preparation result", e)
     }
 
   }
@@ -202,12 +203,12 @@ object FederatedQueryManager {
   /**
    * Deletes the extracted Dataset and Statistics from the Agents.
    *
-   * @param dataSource
+   * @param agent
    * @param dataset
    * @return
    */
-  def deleteDatasetAndStatistics(dataSource: DataSource, dataset: Dataset): Future[Done] = {
-    val uri = Uri(dataSource.getDataPreparationURI(dataset.dataset_id))
+  def deleteDatasetAndStatistics(agent: Agent, dataset: Dataset): Future[Done] = {
+    val uri = Uri(agent.getDataPreparationURI(dataset.dataset_id))
     val request = HttpRequest(
       uri = uri,
       method = HttpMethods.DELETE,
@@ -226,14 +227,14 @@ object FederatedQueryManager {
             }
           case _ =>
             Unmarshal(res.entity).to[String].map { body =>
-              throw AgentCommunicationException(dataSource.name, dataSource.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
+              throw AgentCommunicationException(agent.name, agent.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
             }
         }
       case Failure(e) =>
         throw e
     } recover {
       case e: Exception =>
-        throw AgentCommunicationException(dataSource.name, dataSource.endpoint, "Exception while connecting to the Agent for deleting the extracted dataset and statistics", e)
+        throw AgentCommunicationException(agent.name, agent.endpoint, "Exception while connecting to the Agent for deleting the extracted dataset and statistics", e)
     }
   }
 }
