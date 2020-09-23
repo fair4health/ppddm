@@ -370,7 +370,7 @@ object DataPreparationController {
 
     val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, eligibilityCriteria.fhir_query, eligibilityCriteria.fhir_path)
 
-    fhirQuery.getResources(fhirClient) map { resources =>
+    fhirQuery.getResources(fhirClient, all = true) map { resources =>
       if (eligibilityCriteria.fhir_path.nonEmpty && resources.nonEmpty) {
         val fhirPathExpression = eligibilityCriteria.fhir_path.get
 
@@ -414,7 +414,7 @@ object DataPreparationController {
   private def fetchValuesOfVariable(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, patientURIs: Set[String],
                                     variable: Variable): Future[Map[String, Map[String, Any]]] = {
     val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, variable.fhir_query, Some(variable.fhir_path))
-    fhirQuery.getResources(fhirClient) map { resources =>
+    fhirQuery.getResources(fhirClient, all = true) map { resources =>
       if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
         evaluateAggrPath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
