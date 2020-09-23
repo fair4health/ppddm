@@ -139,8 +139,8 @@ object DataPreparationController {
           try {
             val variablesOption = dataPreparationRequest.featureset.variables
             if (variablesOption.isDefined) {
-              val dataSourceStatistics: DataSourceStatistics = StatisticsController.calculateStatistics(dataFrame, variablesOption.get)
-              val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.data_source, dataSourceStatistics)
+              val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variablesOption.get)
+              val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent, agentDataStatistics)
               DataStoreManager.saveDF(
                 DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
                 Seq(dataPreparationResult.toJson).toDF())

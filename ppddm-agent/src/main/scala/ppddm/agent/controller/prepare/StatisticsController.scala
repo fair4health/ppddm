@@ -3,7 +3,7 @@ package ppddm.agent.controller.prepare
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, StringType}
-import ppddm.core.rest.model.{DataSourceStatistics, Variable, VariableStatistics}
+import ppddm.core.rest.model.{AgentDataStatistics, Variable, VariableStatistics}
 
 import scala.util.Try
 
@@ -19,7 +19,7 @@ object StatisticsController {
    * @param dataFrame The data to be used for statistics calculation
    * @return
    */
-  def calculateStatistics(dataFrame: DataFrame, variables: Seq[Variable]): DataSourceStatistics = {
+  def calculateStatistics(dataFrame: DataFrame, variables: Seq[Variable]): AgentDataStatistics = {
     // Get the number of records
     val numberOfRecords = dataFrame.count()
     // Init the final statistics list
@@ -49,7 +49,7 @@ object StatisticsController {
       }
     }
 
-    DataSourceStatistics(numberOfRecords, variableStatisticsList)
+    AgentDataStatistics(numberOfRecords, variableStatisticsList)
   }
 
   /**

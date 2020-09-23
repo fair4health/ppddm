@@ -125,7 +125,7 @@ object DatasetController {
         val dataset = datasetOption.get
         Future.sequence(
           dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each DataSource in this set
-            FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.data_source, dataset) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
+            FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.agent, dataset) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
           }) map { _ => Some(dataset) }
       }
       else {
