@@ -31,13 +31,12 @@ object ProjectController {
     db.getCollection[Project](COLLECTION_NAME).insertOne(projectWithId).toFuture() // insert into the database
       .map { result =>
         val _id = result.getInsertedId.asObjectId().getValue.toString
-        logger.debug("Inserted document _id:{} and projectId:{}", _id, projectWithId.project_id.get)
+        logger.debug("Inserted document _id:{} and project_id:{}", _id, projectWithId.project_id.get)
         projectWithId
       }
       .recover {
         case e: Exception =>
           val msg = s"Error while inserting a Project with project_id:${projectWithId.project_id.get} into the database."
-          logger.error(msg, projectWithId.project_id.get, e)
           throw DBException(msg, e)
       }
   }

@@ -1,10 +1,13 @@
 package ppddm.manager.gateway.api.endpoint
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ppddm.core.rest.model.DataMiningModel
-import ppddm.manager.controller.dm.DataMiningController
+import ppddm.manager.controller.dm.DataMiningModelController
 import ppddm.core.rest.model.Json4sSupport._
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 trait DataMiningModelEndpoint {
 
@@ -13,8 +16,10 @@ trait DataMiningModelEndpoint {
       pathEndOrSingleSlash {
         post {
           entity(as[DataMiningModel]) { datamining_model =>
-            complete {
-              datamining_model // Create a new DataMiningModel and return the created entity
+            complete { // Create a new DataMiningModel and return the created entity
+              DataMiningModelController.createDataMiningModel(datamining_model) map { dataMiningModel =>
+                StatusCodes.Created -> dataMiningModel
+              }
             }
           }
         } ~

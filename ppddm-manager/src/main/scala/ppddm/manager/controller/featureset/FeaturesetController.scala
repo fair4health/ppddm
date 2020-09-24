@@ -31,13 +31,12 @@ object FeaturesetController {
     db.getCollection[Featureset](COLLECTION_NAME).insertOne(featuresetWithId).toFuture() // insert into the database
       .map { result =>
         val _id = result.getInsertedId.asObjectId().getValue.toString
-        logger.debug("Inserted document _id:{} and featuresetId:{}", _id, featuresetWithId.featureset_id.get)
+        logger.debug("Inserted document _id:{} and featureset_id:{}", _id, featuresetWithId.featureset_id.get)
         featuresetWithId
       }
       .recover {
         case e: Exception =>
           val msg = s"Error while inserting a Featureset with featureset_id:${featuresetWithId.featureset_id.get} into the database."
-          logger.error(msg, featuresetWithId.featureset_id.get, e)
           throw DBException(msg, e)
       }
   }

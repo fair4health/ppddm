@@ -61,7 +61,7 @@ final case class Dataset(dataset_id: Option[String],
   }
 
   def withDatasetSources(dataset_sources: Seq[DatasetSource]): Dataset = {
-    if(dataset_sources.isEmpty) {
+    if (dataset_sources.isEmpty) {
       this
     } else {
       // Find the ExecutionState for the newly created Dataset
@@ -93,12 +93,20 @@ final case class Agent(agent_id: String,
                        name: String,
                        endpoint: String) extends ModelClass {
 
-  def getDataPreparationURI(dataset_id: Option[String] = None): String = {
-    if (dataset_id.isDefined) {
-      URLUtil.append(endpoint, "prepare", dataset_id.get)
+  private def getURI(path: String, id: Option[String] = None): String = {
+    if (id.isDefined) {
+      URLUtil.append(endpoint, path, id.get)
     } else {
-      URLUtil.append(endpoint, "prepare")
+      URLUtil.append(endpoint, path)
     }
+  }
+
+  def getDataPreparationURI(dataset_id: Option[String] = None): String = {
+    getURI("prepare", dataset_id)
+  }
+
+  def getDataMiningURI(model_id: Option[String] = None): String = {
+    getURI("dm", model_id)
   }
 }
 
@@ -126,19 +134,29 @@ final case class DataMiningModel(model_id: Option[String],
                                  name: String,
                                  description: String,
                                  algorithms: Seq[Algorithm],
-                                 algorithm_results: Option[Seq[AlgorithmExecution]],
+                                 data_mining_sources: Option[Seq[DataMiningSource]],
+                                 selected_algorithm_models_bag: Option[Seq[AlgorithmModel]],
                                  execution_state: Option[ExecutionState],
                                  created_by: String,
-                                 created_on: Option[LocalDateTime]) extends ModelClass
+                                 created_on: Option[LocalDateTime]) extends ModelClass {
+
+  def withUniqueModelId: DataMiningModel = {
+    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+  }
+
+}
+
+final case class DataMiningSource(agent: Agent,
+                                  algorithm_models: Option[Seq[AlgorithmModel]]) extends ModelClass
 
 final case class Algorithm(id: String,
                            name: String,
                            parameters: Seq[Parameter]) extends ModelClass
 
-final case class AlgorithmExecution(algorithm: Algorithm,
-                                    statistics: Option[Seq[Parameter]],
-                                    fit_model: Option[Seq[Any]],
-                                    selection_status: Option[SelectionStatus]) extends ModelClass
+final case class AlgorithmModel(algorithm: Algorithm,
+                                agent: Agent,
+                                statistics: Seq[Parameter],
+                                fitted_model: Any) extends ModelClass
 
 final case class Parameter(name: String,
                            data_type: DataType,
@@ -146,9 +164,11 @@ final case class Parameter(name: String,
 
 final case class AlgorithmExecutionRequest(model_id: String,
                                            dataset_id: String,
-                                           algorithms: Seq[AlgorithmExecution],
+                                           agent: Agent,
+                                           algorithms: Seq[Algorithm],
                                            submitted_by: String) extends ModelClass
 
 final case class AlgorithmExecutionResult(model_id: String,
                                           dataset_id: String,
-                                          algorithm_results: Seq[AlgorithmExecution]) extends ModelClass
+                                          agent: Agent,
+                                          algorithm_models: Seq[AlgorithmModel]) extends ModelClass

@@ -6,7 +6,6 @@ import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.exception.DBException
 import ppddm.core.rest.model.{Dataset, DatasetSource, ExecutionState}
 import ppddm.manager.Manager
-import ppddm.manager.controller.query.FederatedQueryManager
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -49,7 +48,6 @@ object DatasetController {
         .recover {
           case e: Exception =>
             val msg = s"Error while inserting a Dataset with dataset_id:${datasetWithDataSources.dataset_id.get} into the database."
-            logger.error(msg, datasetWithDataSources.dataset_id.get, e)
             throw DBException(msg, e)
         }
     }
