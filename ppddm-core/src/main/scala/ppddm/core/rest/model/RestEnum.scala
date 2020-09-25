@@ -59,3 +59,50 @@ object DataType extends Enumeration {
   val DOUBLE = "double"
   val STRING = "string"
 }
+
+object AlgorithmName extends Enumeration {
+  type AlgorithmName = String
+  val ARL_BRUTE_FORCE = "arl_brute_force"
+  val ARL_APRIORI = "arl_apriori"
+  val ARL_ECLAT = "arl_eclat"
+  val ARL_FPGROWTH = "arl_fpgrowth"
+  val CLUSTERING_KMEANS = "clustering_kmeans"
+  val CLUSTERING_HIERARCHICAL = "clustering_hierarchical"
+  val CLUSTERING_GAUSSIAN_MIXTURE = "clustering_gaussian_mixture"
+  val CLUSTERING_POWER_ITERATION = "clustering_power_iteration"
+  val CLUSTERING_BISECTING_KMEANS = "clustering_bisecting_kmeans"
+  val CLUSTERING_STREAMING_KMEANS = "clustering_streaming_kmeans"
+  val CLASSIFICATION_SVM = "classification_svm"
+  val CLASSIFICATION_LOGISTIC_REGRESSION = "classification_logistic_regression"
+  val CLASSIFICATION_DECISION_TREE = "classification_decision_tree"
+  val CLASSIFICATION_RANDOM_FOREST = "classification_random_forest"
+  val CLASSIFICATION_GBT = "classification_gbt"
+  val CLASSIFICATION_NAIVE_BAYES = "classification_naive_bayes"
+  val CLASSIFICATION_KNN = "classification_knn"
+  val REGRESSION_LLS = "regression_lls"
+  val REGRESSION_LASSO = "regression_lasso"
+  val REGRESSION_RIDGE = "regression_ridge"
+  val REGRESSION_DECISION_TREE = "regression_decision_tree"
+  val REGRESSION_RANDOM_FOREST = "regression_random_forest"
+  val REGRESSION_GBT = "regression_gbt"
+}
+
+object AlgorithmParameterName extends Enumeration {
+  type AlgorithmParameterName = String
+  val THRESHOLD = "threshold" // Threshold [Double]
+  val MAX_ITER = "max_iter" // Maximum number of iterations [Integer]
+  val REG_PARAM = "reg_param" // Regularization parameter [Double]
+  val ELASTIC_NET_PARAM = "elasticnet_param" // ElasticNet mixing parameter [Double]
+}
+
+object AlgorithmStatisticsName extends Enumeration {
+  type AlgorithmStatisticsName = String
+  val ACCURACY = "accuracy"
+  val PRECISION = "precision"
+  val RECALL = "recall"
+  val FPR = "false_positive_rate"
+  val TPR = "true_positive_rate"
+  val F_MEASURE = "f_measure"
+  val AUROC = "area_under_roc"
+  val AUPR = "area_under_pr"
+}

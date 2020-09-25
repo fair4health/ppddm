@@ -127,7 +127,7 @@ object DataPreparationController {
           try {
             // Save the dataFrame which includes the prepared data into ppddm-store/datasets/:dataset_id
             DataStoreManager.saveDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
-            logger.info("Prepared data has been successfully saved.")
+            logger.info(s"Prepared data has been successfully saved with id: ${dataPreparationRequest.dataset_id}")
           }
           catch {
             case e: Exception =>

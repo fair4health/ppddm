@@ -6,7 +6,7 @@ import ppddm.agent.controller.auth.AuthenticationController
 import ppddm.agent.gateway.api.directive.AgentExceptionHandler
 import ppddm.core.rest.directive.CorsHandler
 
-trait AgentEndpoint extends CorsHandler with AgentExceptionHandler with ServiceEndpoint with DataPreparationEndpoint with DataMiningEndpoint {
+trait AgentEndpoint extends CorsHandler with AgentExceptionHandler with ServiceEndpoint with DataPreparationEndpoint with DataMiningEndpoint with TestEndpoint {
 
   def mainRoute(baseUri: String) =
     handleCORS { // CORS handling
@@ -15,7 +15,7 @@ trait AgentEndpoint extends CorsHandler with AgentExceptionHandler with ServiceE
           handleExceptions(ppddmExceptionHandler) { // Exception Handling specific to PPDDM Agent
             pathPrefix(baseUri) { // Catch the baseUri at this point and do not use the baseUri in the paths of the inner routes
               authenticateOAuth2(realm = baseUri, AuthenticationController.accessTokenAuthenticator) { implicit accessToken =>
-                prepareRoute ~ serviceRoute ~ dataMiningRoute
+                prepareRoute ~ serviceRoute ~ dataMiningRoute ~ testRoute
               }
             }
           }
