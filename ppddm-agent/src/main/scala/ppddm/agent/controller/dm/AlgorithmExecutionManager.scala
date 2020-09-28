@@ -1,12 +1,10 @@
 package ppddm.agent.controller.dm
 
-import akka.Done
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.classification.LogisticRegression
-import org.apache.spark.ml.util.MLWritable
 import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics}
 import org.apache.spark.sql.DataFrame
-import ppddm.core.rest.model.{Algorithm, AlgorithmName, AlgorithmParameterName, Parameter}
+import ppddm.core.rest.model.{Agent, Algorithm, AlgorithmModel, AlgorithmName, AlgorithmParameterName, Parameter}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -24,28 +22,30 @@ object AlgorithmExecutionManager {
 
   /**
    * Execute the algorithm on the given DataFrame containing "features" and "label"
+   * @param agent The agent
    * @param algorithm Data mining algorithm to be executed
    * @param dataFrame DataFrame object containing "features" and "label"
    * @return
    */
-  def executeAlgorithm(algorithm: Algorithm, dataFrame: DataFrame): Future[Done] = {
+  def executeAlgorithm(agent: Agent, algorithm: Algorithm, dataFrame: DataFrame): Future[AlgorithmModel] = {
 
-    algorithm.name match {
-      case AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION => executeLogisticRegression(algorithm.parameters, dataFrame)
+    Future {
+      algorithm.name match {
+        case AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION => executeLogisticRegression(agent, algorithm, dataFrame)
+      }
     }
 
-    Future.apply(Done)
   }
 
-  private def executeLogisticRegression(parameters: Seq[Parameter], dataFrame: DataFrame): MLWritable = {
+  private def executeLogisticRegression(agent: Agent, algorithm: Algorithm, dataFrame: DataFrame): AlgorithmModel = {
     logger.debug("## Start executing logistic regression ##")
 
     // Create the LogisticRegression object
     val lr = new LogisticRegression()
-    parameters.foreach( p => {
+    algorithm.parameters.foreach( p => {
       val value = p.value.asInstanceOf[String]
       p.name match {
-        case AlgorithmParameterName.THRESHOLD => lr.setThreshold(value.toDouble)
+        case AlgorithmParameterName.THRESHOLD => lr.setThreshold(value.toDouble) // TODO check with DataType of Parameter?
         case AlgorithmParameterName.MAX_ITER => lr.setMaxIter(value.toInt)
         case AlgorithmParameterName.REG_PARAM => lr.setRegParam(value.toDouble)
         case AlgorithmParameterName.ELASTIC_NET_PARAM => lr.setElasticNetParam(value.toDouble)
@@ -130,7 +130,7 @@ object AlgorithmExecutionManager {
     }
 
     logger.debug("## Finish executing logistic regression ##")
-    lrModel
+    AlgorithmModel(algorithm, agent, null, null, null) // TODO return statistics and model
 
   }
 

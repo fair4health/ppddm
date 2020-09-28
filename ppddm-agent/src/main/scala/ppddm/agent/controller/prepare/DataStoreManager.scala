@@ -17,6 +17,7 @@ object DataStoreManager {
   final private val BASE_STORE_DIR: String = "ppddm-store/" + AgentConfig.agentID
   final private val DS_STORE_DIR: String = BASE_STORE_DIR + "/datasets/"
   final private val STAT_STORE_DIR: String = BASE_STORE_DIR + "/statistics/"
+  final private val MODEL_STORE_DIR: String = BASE_STORE_DIR + "/models/"
 
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
@@ -70,6 +71,17 @@ object DataStoreManager {
    */
   def getStatisticsPath(dataset_id: String): String = {
     STAT_STORE_DIR + dataset_id
+  }
+
+  /**
+   * Returns the path to the location where the model with the given model_id is kept.
+   * /ppddm-store/models/:model_id
+   *
+   * @param model_id
+   * @return
+   */
+  def getModelPath(model_id: String): String = {
+    MODEL_STORE_DIR + model_id
   }
 
 }
