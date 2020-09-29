@@ -25,13 +25,13 @@ trait DataMiningEndpoint {
     pathPrefix("dm" / Segment) { model_id =>
       pathEndOrSingleSlash {
         get {
-          complete { // Get the result of . This returns 404 if it is not ready yet.
+          complete { // Get the result of algorithm execution. This returns 404 if it is not ready yet.
             DataMiningController.getAlgorithmExecutionResult(model_id)
           }
         } ~
-          delete {
+          delete { // Delete the AlgorithmExecutionResult
             complete {
-              StatusCodes.OK
+              DataMiningController.deleteAlgorithmExecutionResult(model_id)
             }
           }
       }

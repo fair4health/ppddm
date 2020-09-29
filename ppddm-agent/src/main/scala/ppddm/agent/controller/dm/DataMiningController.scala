@@ -66,4 +66,22 @@ object DataMiningController {
           .extract[AlgorithmExecutionResult]
       }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
+
+  /**
+   * Deletes AlgorithmExecutionResult
+   *
+   * @param model_id The unique identifier of the model whose AlgorithmExecutionResult is to be deleted
+   * @return
+   */
+  def deleteAlgorithmExecutionResult(model_id: String): Option[Done] = {
+    // Delete the AlgorithmExecutionResult with the given model_id
+    val resulttDeleted = DataStoreManager.deleteDF(DataStoreManager.getModelPath(model_id))
+    if (resulttDeleted) {
+      logger.info(s"AlgorithmExecutionResult of model (with id: $model_id) have been deleted successfully")
+      Some(Done)
+    } else {
+      logger.info(s"AlgorithmExecutionResult of model (with id: $model_id) do not exist!")
+      Option.empty[Done]
+    }
+  }
 }
