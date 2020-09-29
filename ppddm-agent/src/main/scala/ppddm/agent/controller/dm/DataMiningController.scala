@@ -11,6 +11,7 @@ import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.Try
 
 object DataMiningController {
 
@@ -48,5 +49,21 @@ object DataMiningController {
           throw AlgorithmExecutionException(msg, e)
       }
     }
+  }
+
+  /**
+   * Retrieves the AlgorithmExecutionResult which includes the models and statistics for the algorithms that were executed
+   *
+   * @param model_id
+   * @return
+   */
+  def getAlgorithmExecutionResult(model_id: String): Option[AlgorithmExecutionResult] = {
+    Try(
+      DataStoreManager.getDF(DataStoreManager.getModelPath(model_id)) map { df =>
+        df // Dataframe consisting of a column named "value" that holds Json inside
+          .head() // Get the Array[Row]
+          .getString(0) // Get Json String
+          .extract[AlgorithmExecutionResult]
+      }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 }
