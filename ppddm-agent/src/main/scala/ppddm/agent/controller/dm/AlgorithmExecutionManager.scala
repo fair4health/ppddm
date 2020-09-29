@@ -4,8 +4,9 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics}
 import org.apache.spark.sql.DataFrame
-import ppddm.core.rest.model.{Agent, Algorithm, AlgorithmModel, AlgorithmName, AlgorithmParameterName, Parameter}
+import ppddm.core.rest.model.{Agent, Algorithm, AlgorithmModel, AlgorithmName, AlgorithmParameterName, AlgorithmStatisticsName, DataType, Parameter}
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -70,34 +71,33 @@ object AlgorithmExecutionManager {
     val predictionLabelsRDD = predictionDF.select("prediction", "label").rdd.map(r => (r.getDouble(0), r.getDouble(1)))
     logger.debug("LogisticRegressionModel has been tested.")
 
+    var trainingStatistics = new ListBuffer[Parameter]
+    var testStatistics = new ListBuffer[Parameter]
+
     // Calculate statistics
     if (lrModel.numClasses > 2) { // Multinomial Logistic Regression. Output has more than two classes
       // In multinomial, it does not make sense to see statistics by label. Instead, use weighted statistics
 
       logger.debug("Calculating training statistics for Multinomial Logistic Regression...")
       val trainingSummary = lrModel.summary
-      val trainingAccuracy = trainingSummary.accuracy
-      val trainingPrecision = trainingSummary.weightedPrecision
-      val trainingRecall = trainingSummary.weightedRecall
-      val trainingFalsePositiveRate = trainingSummary.weightedFalsePositiveRate
-      val trainingTruePositiveRate = trainingSummary.weightedTruePositiveRate
-      val trainingFMeasure = trainingSummary.weightedFMeasure
-      logger.debug(s"Accuracy: $trainingAccuracy\nPrecision: $trainingPrecision\nRecall: $trainingRecall\n" +
-          s"FPR: $trainingFalsePositiveRate\nTPR: $trainingTruePositiveRate\n" +
-          s"F-measure: $trainingFMeasure")
+      trainingStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, trainingSummary.accuracy)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, trainingSummary.weightedPrecision)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, trainingSummary.weightedRecall)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.FPR, DataType.DOUBLE, trainingSummary.weightedFalsePositiveRate)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.TPR, DataType.DOUBLE, trainingSummary.weightedTruePositiveRate)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, trainingSummary.weightedFMeasure)
+      trainingStatistics.foreach(parameter => logger.debug(s"${parameter.name}: ${parameter.value}\n"))
       logger.debug("Training statistics have been calculated for Multinomial Logistic Regression")
 
       logger.debug("Calculating test statistics for Multinomial Logistic Regression...")
       val metrics = new MulticlassMetrics(predictionLabelsRDD)
-      val testAccuracy = metrics.accuracy
-      val testPrecision = metrics.weightedPrecision
-      val testRecall = metrics.weightedRecall
-      val testFalsePositiveRate = metrics.weightedFalsePositiveRate
-      val testTruePositiveRate = metrics.weightedTruePositiveRate
-      val testFMeasure = metrics.weightedFMeasure
-      logger.debug(s"Accuracy: $testAccuracy\nPrecision: $testPrecision\nRecall: $testRecall\n" +
-        s"FPR: $testFalsePositiveRate\nTPR: $testTruePositiveRate\n" +
-        s"F-measure: $testFMeasure")
+      testStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, metrics.accuracy)
+      testStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.weightedPrecision)
+      testStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.weightedRecall)
+      testStatistics += Parameter(AlgorithmStatisticsName.FPR, DataType.DOUBLE, metrics.weightedFalsePositiveRate)
+      testStatistics += Parameter(AlgorithmStatisticsName.TPR, DataType.DOUBLE, metrics.weightedTruePositiveRate)
+      testStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.weightedFMeasure)
+      testStatistics.foreach(parameter => logger.debug(s"${parameter.name}: ${parameter.value}\n"))
       logger.debug("Test statistics have been calculated for Multinomial Logistic Regression")
 
     } else { // Binomial Logistic Regression. Output has two classes, i.e. 1 and 0
@@ -105,32 +105,28 @@ object AlgorithmExecutionManager {
 
       logger.debug("Calculating training statistics for Binomial Logistic Regression...")
       val trainingSummary = lrModel.binarySummary
-      val trainingAccuracy = trainingSummary.accuracy
-      val trainingPrecision = trainingSummary.weightedPrecision
-      val trainingRecall = trainingSummary.weightedRecall
-      val trainingFalsePositiveRate = trainingSummary.weightedFalsePositiveRate
-      val trainingTruePositiveRate = trainingSummary.weightedTruePositiveRate
-      val trainingFMeasure = trainingSummary.weightedFMeasure
-      logger.debug(s"Accuracy: $trainingAccuracy\nPrecision: $trainingPrecision\nRecall: $trainingRecall\n" +
-        s"FPR: $trainingFalsePositiveRate\nTPR: $trainingTruePositiveRate\n" +
-        s"F-measure: $trainingFMeasure")
+      trainingStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, trainingSummary.accuracy)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, trainingSummary.weightedPrecision)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, trainingSummary.weightedRecall)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.FPR, DataType.DOUBLE, trainingSummary.weightedFalsePositiveRate)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.TPR, DataType.DOUBLE, trainingSummary.weightedTruePositiveRate)
+      trainingStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, trainingSummary.weightedFMeasure)
+      trainingStatistics.foreach(parameter => logger.debug(s"${parameter.name}: ${parameter.value}\n"))
       logger.debug("Training statistics have been calculated for Binomial Logistic Regression")
 
       logger.debug("Calculating test statistics for Binomial Logistic Regression...")
       val metrics = new BinaryClassificationMetrics(predictionLabelsRDD) // TODO update here
-      val testPrecision = metrics.precisionByThreshold().collect().head._2
-      val testRecall = metrics.recallByThreshold().collect().head._2
-      val testFMeasure = metrics.fMeasureByThreshold().collect().head._2
-      val testAreaUnderPR = metrics.areaUnderPR
-      val testareaUnderROC = metrics.areaUnderROC
-      logger.debug(s"Precision: $testPrecision\nRecall: $testRecall\nF-measure: $testFMeasure\n" +
-        s"AreaUnderPR: $testAreaUnderPR\nAreaUnderROC: $testareaUnderROC\n")
+      testStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE,  metrics.precisionByThreshold().collect().head._2)
+      testStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.recallByThreshold().collect().head._2)
+      testStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.fMeasureByThreshold().collect().head._2)
+      testStatistics += Parameter(AlgorithmStatisticsName.AUROC, DataType.DOUBLE, metrics.areaUnderROC)
+      testStatistics += Parameter(AlgorithmStatisticsName.AUPR, DataType.DOUBLE, metrics.areaUnderPR)
+      testStatistics.foreach(parameter => logger.debug(s"${parameter.name}: ${parameter.value}\n"))
       logger.debug("Test statistics have been calculated for Binomial Logistic Regression")
-
     }
 
     logger.debug("## Finish executing logistic regression ##")
-    AlgorithmModel(algorithm, agent, null, null, null) // TODO return statistics and model
+    AlgorithmModel(algorithm, agent, trainingStatistics, testStatistics, null) // TODO return the model
 
   }
 

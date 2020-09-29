@@ -31,23 +31,22 @@ object DataMiningController {
     }
 
     // Save the AlgorithmExecutionResult containing the models into ppddm-store/models/:model_id
-    try {
-      Future.sequence(algorithmModelFutures) map { algorithm_models =>
-        val result = AlgorithmExecutionResult(algorithmExecutionRequest.model_id, algorithmExecutionRequest.dataset_id,
-          algorithmExecutionRequest.agent, algorithm_models)
+    Future.sequence(algorithmModelFutures) map { algorithm_models =>
+      val result = AlgorithmExecutionResult(algorithmExecutionRequest.model_id, algorithmExecutionRequest.dataset_id,
+        algorithmExecutionRequest.agent, algorithm_models)
+      try {
         DataStoreManager.saveDF(
           DataStoreManager.getModelPath(algorithmExecutionRequest.model_id),
           Seq(result.toJson).toDF())
+
+        Done
+      }
+      catch {
+        case e: Exception =>
+          val msg = s"Cannot save the AlgorithmExecutionResult of the model with id: ${algorithmExecutionRequest.model_id}."
+          logger.error(msg)
+          throw AlgorithmExecutionException(msg, e)
       }
     }
-    catch {
-      case e: Exception =>
-        val msg = s"Cannot save the AlgorithmExecutionResult of the model with id: ${algorithmExecutionRequest.model_id}."
-        logger.error(msg)
-        throw AlgorithmExecutionException(msg, e)
-    }
-
-    Future { Done } // TODO tamamını mı Future alacağız?
   }
-
 }
