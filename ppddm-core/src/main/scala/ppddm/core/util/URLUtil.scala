@@ -17,7 +17,7 @@ object URLUtil {
       paths(0)
     } else {
       paths.map(p => {
-        p.strip().stripPrefix("/").stripSuffix("/")
+        p.stripPrefix("/").stripSuffix("/")
       }).mkString("/")
     }
   }

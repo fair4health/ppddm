@@ -3,6 +3,7 @@ package ppddm.core.rest.model
 import java.time.LocalDateTime
 import java.util.UUID
 
+import ppddm.core.rest.model.AlgorithmName.AlgorithmName
 import ppddm.core.rest.model.SelectionStatus.SelectionStatus
 import ppddm.core.rest.model.DataType.DataType
 import ppddm.core.rest.model.ExecutionState.ExecutionState
@@ -165,12 +166,13 @@ final case class DataMiningSource(agent: Agent,
                                   execution_state: Option[ExecutionState]) extends ModelClass
 
 final case class Algorithm(id: String,
-                           name: String,
+                           name: AlgorithmName,
                            parameters: Seq[Parameter]) extends ModelClass
 
 final case class AlgorithmModel(algorithm: Algorithm,
                                 agent: Agent,
-                                statistics: Seq[Parameter],
+                                training_statistics: Seq[Parameter],
+                                test_statistics: Seq[Parameter],
                                 fitted_model: Any) extends ModelClass
 
 final case class Parameter(name: String,
