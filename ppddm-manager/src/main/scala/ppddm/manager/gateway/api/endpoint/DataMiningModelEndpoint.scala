@@ -23,18 +23,20 @@ trait DataMiningModelEndpoint {
             }
           }
         } ~
-          get {
-            complete {
-              Seq.empty[DataMiningModel] // Get all DataMiningModel for the 1st screen of the mockups (for Model Management)
+          get { // get all DataMiningModels of project
+            parameters('project_id) { project_id =>
+              complete {
+                DataMiningModelController.getAllDataMiningModels(project_id)
+              }
             }
           }
       }
     } ~
       pathPrefix("dm-model" / Segment) { model_id =>
         pathEndOrSingleSlash {
-          get {
+          get { // Retrieve the DataMiningModel
             complete {
-              null // Retrieve the DataMiningModel
+              DataMiningModelController.getDataMiningModel(model_id)
             }
           } ~
             put {
