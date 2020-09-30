@@ -26,38 +26,31 @@ object DataMiningModelController {
 
   /**
    * Creates a new DataMiningModel on the Platform Repository
-   * and orchestrates the agents to start their algorithm execution processes.
+   * and invokes the agents to start their algorithm execution processes.
    *
    * @param dataMiningModel The DataMiningModel to be created
    * @return The created DataMiningModel with a unique model_id in it
    */
   def createDataMiningModel(dataMiningModel: DataMiningModel): Future[DataMiningModel] = {
-//    // Create a new DataMiningModel object with a unique identifier
-//    val dataMiningModelWithId = dataMiningModel.withUniqueModelId
-//
-//    // Create "empty" AlgorithmExecutions for each Algorithm submitted by the client.
-//    val algorithmExecutions: Seq[AlgorithmExecution] = dataMiningModel.algorithms.map(algorithm => {
-//      AlgorithmExecution(algorithm, None, None, None)
-//    })
-//    val dataMiningModelWithExecutions = dataMiningModelWithId.withAlgorithmExecutions(algorithmExecutions)
-//
-//    db.getCollection[DataMiningModel](COLLECTION_NAME).insertOne(dataMiningModelWithExecutions).toFuture() // insert into the database
-//      .map { result =>
-//        val _id = result.getInsertedId.asObjectId().getValue.toString
-//        logger.debug("Inserted document _id:{} and model_id:{}", _id, dataMiningModelWithExecutions.model_id.get)
-//
-//        // Start the orchestration of Algorithm executions on the Agents (this is an asynchronous step, it will create
-//        // the Future thread so that it runs in the background and this function returns the created DataMiningModel.
-//        DistributedDataMiningManager.startOrchestrationForDistributedDataMining(dataMiningModelWithExecutions)
-//
-//        dataMiningModelWithExecutions
-//      }
-//      .recover {
-//        case e: Exception =>
-//          val msg = s"Error while inserting a DataMiningModel with model_id:${dataMiningModelWithExecutions.model_id.get} into the database."
-//          throw DBException(msg, e)
-//      }
-    null
+    // Create a new DataMiningModel object with a unique identifier
+    val dataMiningModelWithId = dataMiningModel.withUniqueModelId
+
+    // Invoke agents to start data mining (algorithm execution) processes
+    // Returns a new Dataset object with data sources and execution state "querying"
+    DistributedDataMiningManager.invokeAgentsDataMining(dataMiningModelWithId) flatMap { dataMiningModelWithDataMiningSources =>
+      logger.info("Algorithm execution (data mining) endpoints are invoked for the selected Agents (datasources) of the associated Dataset")
+      db.getCollection[DataMiningModel](COLLECTION_NAME).insertOne(dataMiningModelWithDataMiningSources).toFuture() // insert into the database
+        .map { result =>
+          val _id = result.getInsertedId.asObjectId().getValue.toString
+          logger.debug("Inserted document _id:{} and model_id:{}", _id, dataMiningModelWithDataMiningSources.model_id.get)
+          dataMiningModelWithDataMiningSources
+        }
+        .recover {
+          case e: Exception =>
+            val msg = s"Error while inserting a DataMiningModel with model_id:${dataMiningModelWithDataMiningSources.model_id.get} into the database."
+            throw DBException(msg, e)
+        }
+    }
   }
 
 }
