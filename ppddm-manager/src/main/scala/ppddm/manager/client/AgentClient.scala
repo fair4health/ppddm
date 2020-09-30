@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.{ContentTypes, HttpMethod, HttpRequest, MediaTyp
 import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{Agent, DataMiningModel, DataMiningSource, DataPreparationResult, DatasetSource, ExecutionState, ModelClass}
+import ppddm.core.rest.model.{Agent, AlgorithmExecutionResult, DataMiningModel, DataMiningSource, DataPreparationResult, DatasetSource, ExecutionState, ModelClass}
 import ppddm.manager.exception.AgentCommunicationException
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -43,6 +43,9 @@ object AgentClient {
   }
 
   def invokeHttpRequest[T: TypeTag](agentHttpRequest: AgentHttpRequest): Future[Try[T]] = {
+    /* So that we can Unmarshal to DataPreparationResult */
+    import ppddm.core.rest.model.Json4sSupport._
+
     Http().singleRequest(agentHttpRequest.httpRequest).map(Try(_)) flatMap {
       case Success(res) =>
         res.status match {
@@ -53,13 +56,15 @@ object AgentClient {
                 case t if t =:= typeOf[DatasetSource] =>
                   Future.apply(Success(DatasetSource(agentHttpRequest.agent, None, None, Some(ExecutionState.EXECUTING)).asInstanceOf[T]))
                 case t if t =:= typeOf[DataPreparationResult] =>
-                  /* So that we can Unmarshal to DataPreparationResult */
-                  import ppddm.core.rest.model.Json4sSupport._
                   Unmarshal(res.entity).to[DataPreparationResult] map { a=>
                     Success(a.asInstanceOf[T])
                   }
                 case t if t =:= typeOf[Done] =>
                   Future.apply(Success(Done.asInstanceOf[T]))
+                case t if t =:= typeOf[AlgorithmExecutionResult] =>
+                  Unmarshal(res.entity).to[AlgorithmExecutionResult] map { a=>
+                    Success(a.asInstanceOf[T])
+                  }
               }
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure

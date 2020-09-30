@@ -85,7 +85,70 @@ object DistributedDataMiningManager {
         agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
       result
     }
+  }
 
+  /**
+   * Asks the data mining (algorithm execution) results of the DataMiningModel to the Agents.
+   *
+   * @param dataMiningModel
+   * @return A new DataMiningModel which contains the new DataMiningSources based on the retrieved results
+   */
+  def askAgentsDataMiningResults(dataMiningModel: DataMiningModel): Future[DataMiningModel] = {
+    if (dataMiningModel.data_mining_sources.isEmpty || dataMiningModel.data_mining_sources.get.isEmpty) {
+      val msg = s"You want me to ask the data mining (algorithm execution) results of this DataMiningModel with " +
+        s"model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name} HOWEVER there are no DataMiningSources for this DataMiningModel"
+      throw DataIntegrityException(msg)
+    }
+
+    if (dataMiningModel.execution_state.get != ExecutionState.EXECUTING) {
+      // If the Dataset is not executing any queries, then it means all Agents returned their responses.
+      // There is no need to ask any questions to the Dataset sources (Agents)
+      logger.debug("There is no need to ask the AlgorithmExecutionResults of the DataMiningModel with id:{} and name:{}. Its state is {}",
+        dataMiningModel.model_id, dataMiningModel.name, dataMiningModel.execution_state.get)
+      Future.apply(dataMiningModel)
+    } else {
+      logger.debug("I will ask for the AlgorithmExecutionResults from {} DataMiningSources of the DataMiningModel with id:{} and name:{}",
+        dataMiningModel.data_mining_sources.get.size, dataMiningModel.model_id, dataMiningModel.name)
+
+      Future.sequence(
+        dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each dataMiningSource in this set (actually, for each Agent)
+          getAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Ask for the algorithm execution result (do this in parallel)
+        }
+      ) map { responses: Seq[Option[AlgorithmExecutionResult]] => // Join the responses coming from different Agents
+        logger.debug("AlgorithmExecutionResults have been retrieved from all {} Agents of the dataMiningMOdel.", responses.size)
+        responses.map(result => { // For each AlgorithmExecutionResult
+          result map { algorithmExecutionResult => // Create a corresponding DataMiningSource object
+            DataMiningSource(algorithmExecutionResult.agent, Some(algorithmExecutionResult.algorithm_models), Some(ExecutionState.FINAL))
+          }
+        })
+          .filter(_.isDefined) // Keep the the Agents which produced the results
+          .map(_.get) // Get rid of the Option since we eliminated the None elements above
+      } map { dataMiningSourcesWithResult: Seq[DataMiningSource] => // DataMiningSources which finished algorithm execution (data mining)
+        val updatedDataMiningSources = dataMiningModel.data_mining_sources.get map { existingDataMiningSource => // Iterate over the existing DataMiningSources of the dataMiningModel
+          // decide whether there is an algorithm execution result for the existingDataMiningSource
+          val finishedDataMiningSource = dataMiningSourcesWithResult.find(_.agent.agent_id == existingDataMiningSource.agent.agent_id)
+          // Return the DataMiningSource if that has a result, otherwise keep the existing DataMiningSource in the list
+          if (finishedDataMiningSource.isDefined) finishedDataMiningSource.get else existingDataMiningSource
+        }
+        dataMiningModel.withDataMiningSources(updatedDataMiningSources) // create a new DataMiningModel with the updatedDatasetSources
+      }
+    }
+  }
+
+  /**
+   * Asks the AlgorithmExecutionResult from the given Agent for the given dataMiningModel.
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return An Option[AlgorithmExecutionResult]. If the result is None, that means the model training has not completed yet.
+   */
+  private def getAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[AlgorithmExecutionResult]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getDataMiningURI(dataMiningModel.model_id))
+
+    logger.debug("Asking the algorithm execution result to the Agent on URI:{} for model_id: {} & model_name: {}",
+      agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[AlgorithmExecutionResult](agentRequest).map(_.toOption)
   }
 
 }

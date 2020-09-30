@@ -86,7 +86,6 @@ object DatasetController {
       Future.sequence(
         // Ask the data preparation results for each dataset to their DatasetSources
         // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
-        // FIXME: ASk only for not-final datasets
         datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset))
       )
     }

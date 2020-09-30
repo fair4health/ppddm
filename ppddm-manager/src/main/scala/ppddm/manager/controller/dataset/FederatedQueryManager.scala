@@ -135,7 +135,7 @@ object FederatedQueryManager {
    * @param dataset
    * @return An Option[DataPreparationResult]. If the result is None, that means the data has not been prepared yet.
    */
-  def getPreparedDataStatistics(agent: Agent, dataset: Dataset): Future[Option[DataPreparationResult]] = {
+  private def getPreparedDataStatistics(agent: Agent, dataset: Dataset): Future[Option[DataPreparationResult]] = {
     val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getDataPreparationURI(dataset.dataset_id))
 
     logger.debug("Asking the data preparation result to the Agent on URI:{} for dataset_id: {} & dataset_name: {}",
