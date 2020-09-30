@@ -7,7 +7,8 @@ import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
-import ppddm.manager.exception.AgentCommunicationException
+import ppddm.manager.client.AgentClient
+import ppddm.manager.exception.{AgentCommunicationException, DataIntegrityException}
 import ppddm.manager.registry.AgentRegistry
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -24,12 +25,6 @@ import ppddm.manager.config.ManagerExecutionContext._
 object FederatedQueryManager {
 
   private val logger: Logger = Logger(this.getClass)
-
-  // Default headers
-  private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
-
-  // TODO: How to obtain the access token? Discuss the authentication & authorization with ATOS.
-  private val accessToken: String = "token123"
 
   /**
    * This function retrieves the registered agents (datasources) from the AgentRegistry and then invokes the
@@ -70,40 +65,18 @@ object FederatedQueryManager {
    * @return
    */
   private def invokeDataPreparation(agent: Agent, dataset: Dataset): Future[Try[DatasetSource]] = {
-    val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, agent, dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
-    val uri = Uri(agent.getDataPreparationURI())
+    val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, agent,
+      dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
 
-    /* To use the toJson, toPrettyJson methods of the JsonFormatter */
-    import ppddm.core.util.JsonFormatter._
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getDataMiningURI(), Some(dataPreparationRequest))
 
-    val request = HttpRequest(
-      uri = uri,
-      method = HttpMethods.POST,
-      headers = defaultHeaders)
-      .withHeaders(Authorization(headers.OAuth2BearerToken(accessToken)))
-      .withEntity(ContentTypes.`application/json`, dataPreparationRequest.toJson)
+    logger.debug("Invoking agent data preparation on URI:{} for dataset_id: {} & dataset_name: {}",
+      agentRequest.httpRequest.getUri(), dataset.dataset_id.get, dataset.name)
 
-    logger.debug("Invoking agent data preparation on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
-
-    Http().singleRequest(request).map(Try(_)) flatMap {
-      case Success(res) =>
-        res.status match {
-          case StatusCodes.OK =>
-            logger.debug("Agent data preparation invocation successful on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
-            Future {
-              Success(DatasetSource(agent, None, None, Some(ExecutionState.EXECUTING)))
-            }
-          case _ =>
-            // I got status code I didn't expect so I wrap it along with body into Future failure
-            Unmarshal(res.entity).to[String].flatMap { body =>
-              throw AgentCommunicationException(agent.name, agent.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
-            }
-        }
-      case Failure(e) =>
-        throw e
-    } recover {
-      case e: Exception =>
-        Failure(AgentCommunicationException(agent.name, agent.endpoint, "Exception while connecting to the Agent for data preparation", e))
+    AgentClient.invokeHttpRequest[DatasetSource](agentRequest) map { result =>
+      logger.debug("Agent data preparation invocation successful on URI:{} for dataset_id: {} & dataset_name: {}",
+        agentRequest.httpRequest.getUri(), dataset.dataset_id.get, dataset.name)
+      result
     }
   }
 
@@ -114,11 +87,10 @@ object FederatedQueryManager {
    * @return A new Dataset which contains the new DatasetSources based on the retrieved results
    */
   def askAgentsDataPreparationResults(dataset: Dataset): Future[Dataset] = {
-    if (dataset.dataset_sources.isEmpty) {
+    if (dataset.dataset_sources.isEmpty || dataset.dataset_sources.get.isEmpty) {
       val msg = s"You want me to ask the data preparation results of this dataset with id:${dataset.dataset_id} and " +
         s"name:${dataset.name} HOWEVER there are no DatasetSources for this Dataset"
-      logger.error(msg)
-      throw new InternalError(msg)
+      throw DataIntegrityException(msg)
     }
 
     if (dataset.execution_state.get != ExecutionState.EXECUTING) {
@@ -164,39 +136,12 @@ object FederatedQueryManager {
    * @return An Option[DataPreparationResult]. If the result is None, that means the data has not been prepared yet.
    */
   def getPreparedDataStatistics(agent: Agent, dataset: Dataset): Future[Option[DataPreparationResult]] = {
-    val uri = Uri(agent.getDataPreparationURI(dataset.dataset_id))
-    val request = HttpRequest(
-      uri = uri,
-      method = HttpMethods.GET,
-      headers = defaultHeaders)
-      .withHeaders(Authorization(headers.OAuth2BearerToken(accessToken)))
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getDataPreparationURI(dataset.dataset_id))
 
-    logger.debug("Asking the data preparation result to the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
+    logger.debug("Asking the data preparation result to the Agent on URI:{} for dataset_id: {} & dataset_name: {}",
+      agentRequest.httpRequest.getUri(), dataset.dataset_id.get, dataset.name)
 
-    /* So that we can Unmarshal to DataPreparationResult */
-    import ppddm.core.rest.model.Json4sSupport._
-
-    Http().singleRequest(request).map(Try(_)) flatMap {
-      case Success(res) =>
-        res.status match {
-          case StatusCodes.OK =>
-            Unmarshal(res.entity).to[DataPreparationResult] map {
-              Some(_)
-            }
-          case StatusCodes.NotFound =>
-            Future.apply(Option.empty[DataPreparationResult])
-          case _ =>
-            Unmarshal(res.entity).to[String].map { body =>
-              throw AgentCommunicationException(agent.name, agent.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
-            }
-        }
-      case Failure(e) =>
-        throw e
-    } recover {
-      case e: Exception =>
-        throw AgentCommunicationException(agent.name, agent.endpoint, "Exception while connecting to the Agent for asking the data preparation result", e)
-    }
-
+    AgentClient.invokeHttpRequest[DataPreparationResult](agentRequest).map(_.toOption)
   }
 
   /**
@@ -207,33 +152,17 @@ object FederatedQueryManager {
    * @return
    */
   def deleteDatasetAndStatistics(agent: Agent, dataset: Dataset): Future[Done] = {
-    val uri = Uri(agent.getDataPreparationURI(dataset.dataset_id))
-    val request = HttpRequest(
-      uri = uri,
-      method = HttpMethods.DELETE,
-      headers = defaultHeaders)
-      .withHeaders(Authorization(headers.OAuth2BearerToken(accessToken)))
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getDataPreparationURI(dataset.dataset_id))
 
-    logger.debug("Deleting the extracted dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
+    logger.debug("Deleting the extracted dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}",
+      agentRequest.httpRequest.getUri(), dataset.dataset_id.get, dataset.name)
 
-    Http().singleRequest(request).map(Try(_)) flatMap {
-      case Success(res) =>
-        res.status match {
-          case StatusCodes.OK =>
-            Future {
-              logger.debug("Successfully deleted the dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}", uri, dataset.dataset_id.get, dataset.name)
-              Done
-            }
-          case _ =>
-            Unmarshal(res.entity).to[String].map { body =>
-              throw AgentCommunicationException(agent.name, agent.endpoint, s"The response status is ${res.status} [${request.uri}] and response body is $body")
-            }
-        }
-      case Failure(e) =>
-        throw e
-    } recover {
-      case e: Exception =>
-        throw AgentCommunicationException(agent.name, agent.endpoint, "Exception while connecting to the Agent for deleting the extracted dataset and statistics", e)
+    AgentClient.invokeHttpRequest[Done](agentRequest) map {
+      case Success(result) =>
+        logger.debug("Successfully deleted the dataset and statistics from the Agent on URI:{} for dataset_id: {} & dataset_name: {}",
+          agentRequest.httpRequest.getUri(), dataset.dataset_id.get, dataset.name)
+        result
+      case Failure(ex) => throw ex
     }
   }
 }

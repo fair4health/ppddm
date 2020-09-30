@@ -144,10 +144,25 @@ final case class DataMiningModel(model_id: Option[String],
     this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
   }
 
+  def withDataMiningSources(data_mining_sources: Seq[DataMiningSource]): DataMiningModel = {
+    if (data_mining_sources.isEmpty) {
+      this
+    } else {
+      // Find the ExecutionState for the newly created DataMiningModel
+      val areAllAgentsFinished = data_mining_sources
+        // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
+        .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
+        .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become READY
+      val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
+      this.copy(data_mining_sources = Some(data_mining_sources), execution_state = newExecutionState)
+    }
+  }
+
 }
 
 final case class DataMiningSource(agent: Agent,
-                                  algorithm_models: Option[Seq[AlgorithmModel]]) extends ModelClass
+                                  algorithm_models: Option[Seq[AlgorithmModel]],
+                                  execution_state: Option[ExecutionState]) extends ModelClass
 
 final case class Algorithm(id: String,
                            name: String,

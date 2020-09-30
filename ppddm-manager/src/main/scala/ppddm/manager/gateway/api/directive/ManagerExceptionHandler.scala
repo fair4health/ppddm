@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.ExceptionHandler
 import com.typesafe.scalalogging.Logger
 import ppddm.core.exception.{AuthException, DBException}
-import ppddm.manager.exception.AgentCommunicationException
+import ppddm.manager.exception.{AgentCommunicationException, DataIntegrityException}
 
 trait ManagerExceptionHandler {
   private val logger: Logger = Logger(this.getClass)
@@ -18,6 +18,9 @@ trait ManagerExceptionHandler {
     case e: DBException =>
       logger.error(s"DBException: ${e.getMessage}", e)
       complete(StatusCodes.InternalServerError -> s"Error with the MongoDB Database. ${e.getMessage}")
+    case e: DataIntegrityException =>
+      logger.error(s"DataIntegrityException: ${e.getMessage}", e)
+      complete(StatusCodes.InternalServerError -> s"Data integrity error. ${e.getMessage}")
     case e: AgentCommunicationException =>
       val msg = s"AgentCommunicationException while connecting to Agent on URI: ${e.url} whose name:${e.name}: ${e.getMessage}"
       logger.error(msg, e)
