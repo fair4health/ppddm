@@ -1,9 +1,11 @@
 package ppddm.manager.controller.dm
 
+import com.mongodb.client.model.ReturnDocument
 import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.FindOneAndReplaceOptions
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.DataMiningModel
+import ppddm.core.rest.model.{DataMiningModel, DataMiningSource}
 import ppddm.manager.Manager
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -89,6 +91,42 @@ object DataMiningModelController {
         // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
         dataMiningModels.map(dataMiningModel => DistributedDataMiningManager.askAgentsDataMiningResults(dataMiningModel))
       )
+    }
+  }
+
+  /**
+   * Updates the DataMiningModel by doing a replacement.
+   *
+   * @param dataMiningModel The DataMiningModel object to be updated.
+   * @return The updated DataMiningModel object if operation is successful, None otherwise.
+   */
+  def updateDataMiningModel(dataMiningModel: DataMiningModel): Future[Option[DataMiningModel]] = {
+    // TODO: Add some integrity checks before document replacement
+    // TODO: Check whether at least one Algorithm is selected
+    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
+      equal("model_id", dataMiningModel.model_id.get),
+      dataMiningModel.withUpdatedExecutionState(),
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
+  }
+
+  /**
+   * Deletes DataMiningModel from the Platform Repository.
+   *
+   * @param model_id The unique identifier of the DataMiningModel to be deleted.
+   * @return The deleted Dataset object if operation is successful, None otherwise.
+   */
+  def deleteDataMiningModel(model_id: String): Future[Option[DataMiningModel]] = {
+    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption() flatMap { dataMiningModelOption: Option[DataMiningModel] =>
+      if (dataMiningModelOption.isDefined) {
+        val dataMiningModel = dataMiningModelOption.get
+        Future.sequence(
+          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
+            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
+          }) map { _ => Some(dataMiningModel) }
+      }
+      else {
+        Future.apply(Option.empty[DataMiningModel])
+      }
     }
   }
 

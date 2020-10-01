@@ -1,5 +1,6 @@
 package ppddm.manager.controller.dm
 
+import akka.Done
 import akka.http.scaladsl.model._
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
@@ -149,6 +150,28 @@ object DistributedDataMiningManager {
       agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
     AgentClient.invokeHttpRequest[AlgorithmExecutionResult](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Deletes the trained AlgorithmExecutionResults from the Agents.
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return
+   */
+  def deleteAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Done] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getDataMiningURI(dataMiningModel.model_id))
+
+    logger.debug("Deleting the algorithm execution result from the Agent on URI:{} for model_id: {} & model_name: {}",
+      agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[Done](agentRequest) map {
+      case Success(result) =>
+        logger.debug("Successfully deleted the algorithm execution result from the Agent on URI:{} for model_id: {} & model_name: {}",
+          agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+        result
+      case Failure(ex) => throw ex
+    }
   }
 
 }
