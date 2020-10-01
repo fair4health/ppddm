@@ -41,14 +41,14 @@ trait DataMiningModelEndpoint {
           } ~
             put {
               entity(as[DataMiningModel]) { datamining_model =>
-                complete {
-                  datamining_model // Update the DataMiningModel (to select an AlgorithmExecution) and return the updated entity
+                complete { // Update the DataMiningModel (to select an AlgorithmExecution) and return the updated entity
+                  DataMiningModelController.updateDataMiningModel(datamining_model)
                 }
               }
             } ~
             delete {
-              complete {
-                null // Delete the DataMiningModel
+              complete { // Delete the DataMiningModel
+                DataMiningModelController.deleteDataMiningModel(model_id)
               }
             }
         }
