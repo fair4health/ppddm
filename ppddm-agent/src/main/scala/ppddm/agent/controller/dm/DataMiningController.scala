@@ -21,7 +21,7 @@ object DataMiningController {
   import sparkSession.implicits._
 
   def startAlgorithmExecution(algorithmExecutionRequest: AlgorithmExecutionRequest): Future[Done] = {
-    logger.debug("Algorithm execution request received.")
+    logger.debug("Algorithm execution request received on agent:{} for model:{}", algorithmExecutionRequest.agent.agent_id, algorithmExecutionRequest.model_id)
 
     // First prepare the data for algorithm execution, i.e. perform the exploratory data analysis which include categorical variable handling, null values handling etc.
     val df = DataAnalysisManager.performDataAnalysis(algorithmExecutionRequest.dataset_id)
@@ -33,18 +33,17 @@ object DataMiningController {
 
     // Save the AlgorithmExecutionResult containing the models into ppddm-store/models/:model_id
     Future.sequence(algorithmModelFutures) map { algorithm_models =>
-      val result = AlgorithmExecutionResult(algorithmExecutionRequest.model_id, algorithmExecutionRequest.dataset_id,
+      val algorithmExecutionResult = AlgorithmExecutionResult(algorithmExecutionRequest.model_id, algorithmExecutionRequest.dataset_id,
         algorithmExecutionRequest.agent, algorithm_models)
       try {
         DataStoreManager.saveDF(
           DataStoreManager.getModelPath(algorithmExecutionRequest.model_id),
-          Seq(result.toJson).toDF())
-
+          Seq(algorithmExecutionResult.toJson).toDF())
         Done
       }
       catch {
         case e: Exception =>
-          val msg = s"Cannot save the AlgorithmExecutionResult of the model with id: ${algorithmExecutionRequest.model_id}."
+          val msg = s"Cannot save the AlgorithmExecutionResult of the model with model_id: ${algorithmExecutionRequest.model_id}."
           logger.error(msg)
           throw AlgorithmExecutionException(msg, e)
       }

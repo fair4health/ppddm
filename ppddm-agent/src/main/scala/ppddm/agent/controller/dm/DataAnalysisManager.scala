@@ -4,6 +4,7 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
 import org.apache.spark.sql.DataFrame
 import ppddm.agent.controller.prepare.{DataPreparationController, DataStoreManager}
+import ppddm.agent.exception.AlgorithmExecutionException
 import ppddm.core.rest.model.VariableType
 
 /**
@@ -19,7 +20,7 @@ object DataAnalysisManager {
    * @return Updated DataFrame containing "features" and "label" column
    */
   def performDataAnalysis(dataset_id: String): DataFrame = {
-    logger.debug("Performing data analysis...")
+    logger.debug("Performing data analysis using the Dataset with id:{}...", dataset_id)
 
     // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
     val df = DataStoreManager.getDF(DataStoreManager.getDatasetPath(dataset_id))
@@ -38,11 +39,11 @@ object DataAnalysisManager {
         // Find independent and dependent variables
         // When there is no dependent variable, variable_type can be empty. Therefore, treat these variables as independent
         val independentVariables = dataPreperationResult.get.agent_data_statistics.variable_statistics.filter( v =>
-          v.variable.variable_type.isEmpty || v.variable.variable_type.get == VariableType.INDEPENDENT)
+          v.variable.variable_type == VariableType.INDEPENDENT)
 
         // There can only be one dependent variable, but filter returns a list, so name it as list here.
         val dependentVariables = dataPreperationResult.get.agent_data_statistics.variable_statistics.filter( v =>
-          v.variable.variable_type.isDefined && v.variable.variable_type.get == VariableType.DEPENDENT)
+          v.variable.variable_type == VariableType.DEPENDENT)
 
         // Introduce independent variables as Vector in "features" column
         dataFrame = new VectorAssembler()
@@ -51,7 +52,7 @@ object DataAnalysisManager {
           .transform(dataFrame)
 
         // Introduce the dependent variable
-        if (!dependentVariables.isEmpty) {
+        if (dependentVariables.nonEmpty) {
           dataFrame = new StringIndexer()
             .setInputCol(dependentVariables.head.variable.name)
             .setOutputCol("label")
@@ -69,10 +70,14 @@ object DataAnalysisManager {
         logger.debug("Data analysis has been performed. Returning updated data frame...")
         dataFrame
       } else {
-        df.get
+        val msg = s"The data source statistics (DataPreparationResult) for the Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
+        logger.error("msg")
+        throw AlgorithmExecutionException(msg)
       }
-    } else { // Otherwise return empty DataFrame
-      df.get
+    } else {
+      val msg = s"The Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
+      logger.error("msg")
+      throw AlgorithmExecutionException(msg)
     }
   }
 }
