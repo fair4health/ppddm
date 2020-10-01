@@ -44,7 +44,7 @@ case class Variable(name: String,
                     fhir_query: String,
                     fhir_path: String,
                     variable_data_type: VariableDataType,
-                    variable_type: Option[VariableType]) extends ModelClass
+                    variable_type: VariableType) extends ModelClass
 
 final case class Dataset(dataset_id: Option[String],
                          project_id: String,

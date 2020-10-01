@@ -29,14 +29,15 @@ object AlgorithmExecutionManager {
    * @return
    */
   def executeAlgorithm(agent: Agent, algorithm: Algorithm, dataFrame: DataFrame): Future[AlgorithmModel] = {
-
     Future {
       algorithm.name match {
         case AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION => executeLogisticRegression(agent, algorithm, dataFrame)
       }
     }
-
   }
+
+  // TODO: It will be better to create a parent AlgorithmExecutor class and then create a new class for each algorithm
+  // TODO: inheriting from that parent class.
 
   private def executeLogisticRegression(agent: Agent, algorithm: Algorithm, dataFrame: DataFrame): AlgorithmModel = {
     logger.debug("## Start executing logistic regression ##")
