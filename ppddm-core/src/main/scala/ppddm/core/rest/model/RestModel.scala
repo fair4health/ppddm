@@ -62,22 +62,34 @@ final case class Dataset(dataset_id: Option[String],
   }
 
   def withDatasetSources(dataset_sources: Seq[DatasetSource]): Dataset = {
-    if (dataset_sources.isEmpty) {
-      this
-    } else {
-      // Find the ExecutionState for the newly created Dataset
-      val areAllAgentsFinished = dataset_sources
-        // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
-        .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
-        .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become READY
-      val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
-      this.copy(dataset_sources = Some(dataset_sources), execution_state = newExecutionState)
-    }
+    this.copy(dataset_sources = Some(dataset_sources))
+    withUpdatedExecutionState()
   }
 
-  // TODO: Remove this method so that the execution_state always gets updated automatically by withDataSources method
-  def withExecutionState(execution_state: ExecutionState): Dataset = {
-    this.copy(execution_state = Some(execution_state))
+  def withUpdatedExecutionState(): Dataset = {
+    if (dataset_sources.isEmpty) {
+      // Do not do anything
+      this
+    } else {
+      val selectedDataSources = dataset_sources.get.filter(s => s.selection_status.isDefined && s.selection_status.get == SelectionStatus.SELECTED)
+      if(selectedDataSources.nonEmpty) {
+        // This means there are selected data sources, the state should be FINAL
+        if(!execution_state.contains(ExecutionState.FINAL)) {
+          this.copy(execution_state = Some(ExecutionState.FINAL))
+        } else {
+          // Do nothing if it is already in FINAL state
+          this
+        }
+      } else {
+        // Find the ExecutionState for the newly created Dataset
+        val areAllAgentsFinished = dataset_sources.get
+          // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
+          .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
+          .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's state can become READY
+        val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
+        this.copy(execution_state = newExecutionState)
+      }
+    }
   }
 
 }
@@ -146,16 +158,32 @@ final case class DataMiningModel(model_id: Option[String],
   }
 
   def withDataMiningSources(data_mining_sources: Seq[DataMiningSource]): DataMiningModel = {
+    this.copy(data_mining_sources = Some(data_mining_sources))
+    withUpdatedExecutionState()
+  }
+
+  def withUpdatedExecutionState(): DataMiningModel = {
     if (data_mining_sources.isEmpty) {
+      // Do not do anything
       this
     } else {
-      // Find the ExecutionState for the newly created DataMiningModel
-      val areAllAgentsFinished = data_mining_sources
-        // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
-        .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
-        .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's states can become READY
-      val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
-      this.copy(data_mining_sources = Some(data_mining_sources), execution_state = newExecutionState)
+      if(selected_algorithm_models_bag.nonEmpty) {
+        // This means the algorithm(s) are already selected, the state should be FINAL
+        if(!execution_state.contains(ExecutionState.FINAL)) {
+          this.copy(execution_state = Some(ExecutionState.FINAL))
+        } else {
+          // Do nothing if it is already in FINAL state
+          this
+        }
+      } else {
+        // Find the ExecutionState for the newly created DataMiningModel
+        val areAllAgentsFinished = data_mining_sources.get
+          // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
+          .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
+          .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then DataMiningModel's state can become READY
+        val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
+        this.copy(execution_state = newExecutionState)
+      }
     }
   }
 

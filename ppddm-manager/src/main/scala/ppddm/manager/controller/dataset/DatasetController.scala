@@ -100,13 +100,9 @@ object DatasetController {
   def updateDataset(dataset: Dataset): Future[Option[Dataset]] = {
     // TODO: Add some integrity checks before document replacement
     // TODO: Check whether at least one DatasetSource is selected
-    // Update the execution state of the dataset to "final"
-    // TODO: Set the ExecutionState within the withDataSources method of the Dataset
-    val datasetWithNewExecutionState = dataset.withExecutionState(ExecutionState.FINAL)
-
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
-      equal("dataset_id", datasetWithNewExecutionState.dataset_id.get),
-      datasetWithNewExecutionState,
+      equal("dataset_id", dataset.dataset_id.get),
+      dataset.withUpdatedExecutionState(),
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
