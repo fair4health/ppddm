@@ -204,7 +204,7 @@ final case class AlgorithmModel(algorithm: Algorithm,
 
 final case class Parameter(name: String,
                            data_type: DataType,
-                           value: Any) extends ModelClass
+                           value: String) extends ModelClass
 
 final case class AlgorithmExecutionRequest(model_id: String,
                                            dataset_id: String,
