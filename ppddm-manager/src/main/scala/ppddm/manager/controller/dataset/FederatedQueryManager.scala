@@ -68,7 +68,7 @@ object FederatedQueryManager {
     val dataPreparationRequest: DataPreparationRequest = DataPreparationRequest(dataset.dataset_id.get, agent,
       dataset.featureset, dataset.eligibility_criteria, dataset.created_by)
 
-    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getDataMiningURI(), Some(dataPreparationRequest))
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getDataPreparationURI(), Some(dataPreparationRequest))
 
     logger.debug("Invoking agent data preparation on URI:{} for dataset_id: {} & dataset_name: {}",
       agentRequest.httpRequest.getUri(), dataset.dataset_id.get, dataset.name)
