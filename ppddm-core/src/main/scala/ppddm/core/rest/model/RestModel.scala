@@ -206,6 +206,16 @@ final case class Parameter(name: String,
                            data_type: DataType,
                            value: String) extends ModelClass
 
+object Parameter {
+  def apply(name: String, data_type: DataType, value: Double): Parameter = {
+    Parameter(name, data_type, value.toString)
+  }
+  def apply(name: String, data_type: DataType, value: Int): Parameter = {
+    Parameter(name, data_type, value.toString)
+  }
+}
+
+
 final case class AlgorithmExecutionRequest(model_id: String,
                                            dataset_id: String,
                                            agent: Agent,
