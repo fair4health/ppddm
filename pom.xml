@@ -46,8 +46,7 @@
     <json4s.version>3.7.0-M4</json4s.version>
     <mongo.driver.version>4.0.4</mongo.driver.version>
     <mongo.embedded.version>2.2.0</mongo.embedded.version>
-    <hapi.version>5.1.0</hapi.version>
-    <hapi.dstu2-version>2.2</hapi.dstu2-version>
+    <onfhir.version>3.1-SNAPSHOT</onfhir.version>
   </properties>
 
   <build>
@@ -183,7 +182,7 @@
       <dependency>
         <groupId>io.onfhir</groupId>
         <artifactId>onfhir-path</artifactId>
-        <version>3.0</version>
+        <version>${onfhir.version}</version>
         <exclusions>
           <exclusion>
             <groupId>ch.qos.logback</groupId>
@@ -198,5 +197,18 @@
 
     </dependencies>
   </dependencyManagement>
+
+  <repositories>
+    <repository>
+      <id>oss-snapshots</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 
 </project>
