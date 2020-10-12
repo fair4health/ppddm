@@ -49,6 +49,7 @@ object ExecutionState extends Enumeration {
 object FHIRPathExpressionPrefix extends Enumeration {
   type FHIRPathExpressionPrefix = String
   val AGGREGATION = "aggr:"
+  val AGGREGATION_EXISTENCE = "aggr:exists:"
   val VALUE = "value:"
   val SATISFY = "satisfy:"
 }
