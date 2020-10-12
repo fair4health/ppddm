@@ -25,7 +25,7 @@ object SelectionStatus extends Enumeration {
 }
 
 /**
- * ExecutionState is being used by Dataset, DatasetSource, DataMiningModel and Algorithm classes of the rest model.
+ * ExecutionState is being used by Dataset, DatasetSource, DataMiningModel and DataMiningSource classes of the rest model.
  *
  * Dataset: When a Dataset is created, it will invoke Agents to prepare their data. The ExecutionState of the Dataset
  * will be EXECUTING at this point. Once all Agents prepare their data, th ExecutionState of the Dataset will be
@@ -43,6 +43,14 @@ object ExecutionState extends Enumeration {
   type ExecutionState = String
   val EXECUTING = "executing"
   val READY = "ready"
+  val FINAL = "final"
+}
+
+object DataMiningState extends Enumeration {
+  type DataMiningState = String
+  val TRAINING = "training"
+  val VALIDATING = "validating"
+  val TESTING = "testing"
   val FINAL = "final"
 }
 

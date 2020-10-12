@@ -38,6 +38,8 @@ object DistributedDataMiningManager {
       throw DataIntegrityException(msg)
     }
 
+    // FIXME: Check whether all dataset_sources have a selection_status or not before executing the following statements
+
     // Find the Agents to be connected for data mining (those are the SELECTED ones for the Dataset)
     val agents = dataMiningModel.dataset.dataset_sources.get
       .filter(_.selection_status.get == SelectionStatus.SELECTED)
@@ -73,10 +75,10 @@ object DistributedDataMiningManager {
    * @return
    */
   private def invokeAlgorithmExecution(agent: Agent, dataMiningModel: DataMiningModel): Future[Try[DataMiningSource]] = {
-    val algorithmExecutionRequest = AlgorithmExecutionRequest(dataMiningModel.model_id.get, dataMiningModel.dataset.dataset_id.get,
+    val algorithmExecutionRequest = ModelTrainingRequest(dataMiningModel.model_id.get, dataMiningModel.dataset.dataset_id.get,
       agent, dataMiningModel.algorithms, dataMiningModel.created_by)
 
-    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getDataMiningURI(), Some(algorithmExecutionRequest))
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getTrainingURI(), Some(algorithmExecutionRequest))
 
     logger.debug("Invoking agent data data mining (algorithm execution) on URI:{} for model_id: {} & model_name: {}",
       agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
@@ -115,7 +117,7 @@ object DistributedDataMiningManager {
         dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each dataMiningSource in this set (actually, for each Agent)
           getAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Ask for the algorithm execution result (do this in parallel)
         }
-      ) map { responses: Seq[Option[AlgorithmExecutionResult]] => // Join the responses coming from different Agents
+      ) map { responses: Seq[Option[ModelTrainingResult]] => // Join the responses coming from different Agents
         logger.debug("AlgorithmExecutionResults have been retrieved from all {} Agents of the dataMiningMOdel.", responses.size)
         responses.map(result => { // For each AlgorithmExecutionResult
           result map { algorithmExecutionResult => // Create a corresponding DataMiningSource object
@@ -143,13 +145,13 @@ object DistributedDataMiningManager {
    * @param dataMiningModel
    * @return An Option[AlgorithmExecutionResult]. If the result is None, that means the model training has not completed yet.
    */
-  private def getAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[AlgorithmExecutionResult]] = {
-    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getDataMiningURI(dataMiningModel.model_id))
+  private def getAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTrainingResult]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getTrainingURI(dataMiningModel.model_id))
 
     logger.debug("Asking the algorithm execution result to the Agent on URI:{} for model_id: {} & model_name: {}",
       agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
-    AgentClient.invokeHttpRequest[AlgorithmExecutionResult](agentRequest).map(_.toOption)
+    AgentClient.invokeHttpRequest[ModelTrainingResult](agentRequest).map(_.toOption)
   }
 
   /**
@@ -160,7 +162,7 @@ object DistributedDataMiningManager {
    * @return
    */
   def deleteAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Done] = {
-    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getDataMiningURI(dataMiningModel.model_id))
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getTrainingURI(dataMiningModel.model_id))
 
     logger.debug("Deleting the algorithm execution result from the Agent on URI:{} for model_id: {} & model_name: {}",
       agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)

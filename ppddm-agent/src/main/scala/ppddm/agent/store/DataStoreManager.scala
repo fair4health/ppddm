@@ -1,10 +1,13 @@
-package ppddm.agent.controller.prepare
+package ppddm.agent.store
 
 import java.io.File
+import java.util.UUID
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
+import ppddm.agent.controller.dm.DataMiningRequestType
+import ppddm.agent.controller.dm.DataMiningRequestType.DataMiningRequestType
 
 import scala.reflect.io.Directory
 import scala.util.Try
@@ -17,7 +20,10 @@ object DataStoreManager {
   final private val BASE_STORE_DIR: String = "ppddm-store/" + AgentConfig.agentID
   final private val DS_STORE_DIR: String = BASE_STORE_DIR + "/datasets/"
   final private val STAT_STORE_DIR: String = BASE_STORE_DIR + "/statistics/"
-  final private val MODEL_STORE_DIR: String = BASE_STORE_DIR + "/models/"
+  final private val MODEL_TRAIN_STORE_DIR: String = BASE_STORE_DIR + "/models/train/"
+  final private val MODEL_VALIDATE_STORE_DIR: String = BASE_STORE_DIR + "/models/validate/"
+  final private val MODEL_TEST_STORE_DIR: String = BASE_STORE_DIR + "/models/test/"
+  final private val TMP_STORE_DIR: String = BASE_STORE_DIR + "/tmp/"
 
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
@@ -25,10 +31,10 @@ object DataStoreManager {
    * Saves the DataFrame to the given file path
    *
    * @param path The filepath to save the DataFrame
-   * @param df The DataFrame to be saved
+   * @param df   The DataFrame to be saved
    * @return
    */
-  def saveDF(path: String, df: DataFrame): Unit = {
+  def saveDataFrame(path: String, df: DataFrame): Unit = {
     df.write.parquet(path)
   }
 
@@ -38,16 +44,16 @@ object DataStoreManager {
    * @param path The filepath of the DataFrame
    * @return the DataFrame if it is found
    */
-  def getDF(path: String): Option[DataFrame] = {
+  def getDataFrame(path: String): Option[DataFrame] = {
     Try(sparkSession.read.parquet(path)).toOption
   }
 
   /**
    * Deletes the files under the given path recursively.
    *
-   * @param path The filepath of the DataFrame
+   * @param path The path to the directory
    */
-  def deleteDF(path: String): Boolean = {
+  def deleteDirectory(path: String): Boolean = {
     new Directory(new File(path)).deleteRecursively()
   }
 
@@ -78,10 +84,36 @@ object DataStoreManager {
    * /ppddm-store/models/:model_id
    *
    * @param model_id
+   * @param dataMiningRequestType
    * @return
    */
-  def getModelPath(model_id: String): String = {
-    MODEL_STORE_DIR + model_id
+  def getModelPath(model_id: String, dataMiningRequestType: DataMiningRequestType): String = {
+    dataMiningRequestType match {
+      case DataMiningRequestType.TRAIN => MODEL_TRAIN_STORE_DIR + model_id
+      case DataMiningRequestType.VALIDATE => MODEL_VALIDATE_STORE_DIR + model_id
+      case DataMiningRequestType.TEST => MODEL_TEST_STORE_DIR + model_id
+    }
+  }
+
+  /**
+   * Returns the path to the location where the prepared data frame upon the Exploratory Data Analysis (by DataAnalysisManager)
+   * is kept.
+   * /ppddm-store/models/:model_id-eda
+   *
+   * @param model_id
+   * @return
+   */
+  def getEDAPath(model_id: String): String = {
+    MODEL_TRAIN_STORE_DIR + model_id + "-eda"
+  }
+
+  /**
+   * Generates and returns a unique path under the directory of temporary files.
+   *
+   * @return
+   */
+  def getTmpPath(): String = {
+    TMP_STORE_DIR + UUID.randomUUID().toString
   }
 
 }
