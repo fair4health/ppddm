@@ -47,14 +47,16 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
         }
       })
       val paramGrid = paramGridBuilder.build()
-
+      val binaryClassificationEvaluator = new BinaryClassificationEvaluator()
+        .setLabelCol("label")
+        .setRawPredictionCol("rawPrediction")
+          .setMetricName("areaUnderROC")
       val cv = new CrossValidator()
         .setEstimator(pipeline)
-        .setEvaluator(new BinaryClassificationEvaluator)
+        .setEvaluator(binaryClassificationEvaluator)
         .setEstimatorParamMaps(paramGrid)
         .setNumFolds(numberOfFolds)
         .setParallelism(maxParallelism)
-
 
       // Fit the model
       logger.debug("Fitting LogisticRegressionModel...")
@@ -64,15 +66,17 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
 
       // Test the model
       logger.debug("Testing the model with test data...")
-      val predictionDF = pipelineModel.transform(testData)
-      val predictionLabelsRDD = predictionDF.select("prediction", "label").rdd.map(r => (r.getDouble(0), r.getDouble(1)))
+      val testPredictionDF = pipelineModel.transform(testData)
       logger.debug("LogisticRegressionModel has been tested.")
-
-      var trainingStatistics = new ListBuffer[Parameter]
-      var testStatistics = new ListBuffer[Parameter]
 
       // We are sure that there is only one stage since we add only LinearRegression above
       val logisticRegressionModel = pipelineModel.stages.head.asInstanceOf[LogisticRegressionModel]
+
+      val trainingPredictionLabelsRDD = StatisticsUtil.generatePredictionsLabelRDD(logisticRegressionModel.summary.predictions)
+      val testPredictionLabelsRDD = StatisticsUtil.generatePredictionsLabelRDD(testPredictionDF)
+
+      var trainingStatistics = StatisticsUtil.generateConfusionMatrixStatistics(trainingPredictionLabelsRDD)
+      var testStatistics = StatisticsUtil.generateConfusionMatrixStatistics(testPredictionLabelsRDD)
 
       // Calculate statistics
       if (logisticRegressionModel.numClasses > 2) { // Multinomial Logistic Regression. Output has more than two classes
@@ -90,7 +94,7 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
         logger.debug("Training statistics have been calculated for Multinomial Logistic Regression")
 
         logger.debug("Calculating test statistics for Multinomial Logistic Regression...")
-        val metrics = new MulticlassMetrics(predictionLabelsRDD)
+        val metrics = new MulticlassMetrics(testPredictionLabelsRDD)
         testStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, metrics.accuracy)
         testStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.weightedPrecision)
         testStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.weightedRecall)
@@ -101,8 +105,6 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
         logger.debug("Test statistics have been calculated for Multinomial Logistic Regression")
 
       } else { // Binomial Logistic Regression. Output has two classes, i.e. 1 and 0
-        // In binomial, it does make sense to see statistics by label. Hence, use label statistics
-
         logger.debug("Calculating training statistics for Binomial Logistic Regression...")
         val trainingSummary = logisticRegressionModel.binarySummary
         trainingStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, trainingSummary.accuracy)
@@ -111,18 +113,19 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
         trainingStatistics += Parameter(AlgorithmStatisticsName.FPR, DataType.DOUBLE, trainingSummary.weightedFalsePositiveRate)
         trainingStatistics += Parameter(AlgorithmStatisticsName.TPR, DataType.DOUBLE, trainingSummary.weightedTruePositiveRate)
         trainingStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, trainingSummary.weightedFMeasure)
+        trainingStatistics += Parameter(AlgorithmStatisticsName.AUROC, DataType.DOUBLE, trainingSummary.areaUnderROC)
         trainingStatistics.foreach(parameter => logger.debug(s"${parameter.name}: ${parameter.value}\n"))
         logger.debug("Training statistics have been calculated for Binomial Logistic Regression")
 
         logger.debug("Calculating test statistics for Binomial Logistic Regression...")
-        val metrics = new BinaryClassificationMetrics(predictionLabelsRDD) // TODO update here
+        val metrics = new BinaryClassificationMetrics(testPredictionLabelsRDD)
+        testStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsUtil.calculateAccuracy(testStatistics))
         testStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.precisionByThreshold().collect().head._2)
         testStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.recallByThreshold().collect().head._2)
         testStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.fMeasureByThreshold().collect().head._2)
         testStatistics += Parameter(AlgorithmStatisticsName.AUROC, DataType.DOUBLE, metrics.areaUnderROC)
         testStatistics += Parameter(AlgorithmStatisticsName.AUPR, DataType.DOUBLE, metrics.areaUnderPR)
         testStatistics.foreach(parameter => logger.debug(s"${parameter.name}: ${parameter.value}\n"))
-        logger.debug("Test statistics have been calculated for Binomial Logistic Regression")
       }
 
       logger.debug("## Finish executing logistic regression ##")
