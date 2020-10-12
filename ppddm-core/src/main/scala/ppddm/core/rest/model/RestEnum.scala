@@ -101,6 +101,8 @@ object AlgorithmParameterName extends Enumeration {
   val MAX_ITER = "max_iter" // Maximum number of iterations [Integer]
   val REG_PARAM = "reg_param" // Regularization parameter [Double]
   val ELASTIC_NET_PARAM = "elasticnet_param" // ElasticNet mixing parameter [Double]
+  val NUMBER_OF_FOLDS = "num_folds" // Value of k in k-fold Cross validation
+  val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
 }
 
 object AlgorithmStatisticsName extends Enumeration {

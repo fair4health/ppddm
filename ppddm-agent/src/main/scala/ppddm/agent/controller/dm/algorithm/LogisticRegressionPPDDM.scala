@@ -1,7 +1,9 @@
 package ppddm.agent.controller.dm.algorithm
 
-import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressionModel}
+import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
+import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics}
 import org.apache.spark.sql.DataFrame
 import ppddm.core.rest.model._
@@ -17,30 +19,47 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
     Future {
       logger.debug("## Start executing LogisticRegression ##")
 
+      // TODO we can also perform Train-Validation Split here if we parameters as array from the client.
+
       // Create the LogisticRegression object
       val logisticRegression = new LogisticRegression()
-      algorithm.parameters.foreach(parameter => {
-        val value = parameter.value
-        parameter.name match {
-          case AlgorithmParameterName.THRESHOLD => logisticRegression.setThreshold(value.toDouble) // TODO check with DataType of Parameter?
-          case AlgorithmParameterName.MAX_ITER => logisticRegression.setMaxIter(value.toInt)
-          case AlgorithmParameterName.REG_PARAM => logisticRegression.setRegParam(value.toDouble)
-          case AlgorithmParameterName.ELASTIC_NET_PARAM => logisticRegression.setElasticNetParam(value.toDouble)
-          // TODO Add others here
-        }
-      })
-
-      // TODO we can also perform Cross-Validation and Train-Validation Split here if we parameters as array from the client.
-      // TODO However, in such a case, we need to update the return type.
 
       // Split the data into training and test
       val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
       val pipeline = new Pipeline().setStages(Array(logisticRegression))
 
+      // ### Apply k-fold cross validation ###
+      logger.debug("Applying k-fold cross-validation...")
+
+      var numberOfFolds = 3 // Use 3+ in practice
+      var maxParallelism = 2 // Evaluate up to 2 parameter settings in parallel
+      val paramGridBuilder = new ParamGridBuilder()
+      algorithm.parameters.foreach( p => {
+        p.name match {
+          case AlgorithmParameterName.THRESHOLD => paramGridBuilder.addGrid(logisticRegression.threshold, p.getValueAsDoubleArray())
+          case AlgorithmParameterName.MAX_ITER => paramGridBuilder.addGrid(logisticRegression.maxIter, p.getValueAsIntArray())
+          case AlgorithmParameterName.REG_PARAM => paramGridBuilder.addGrid(logisticRegression.regParam, p.getValueAsDoubleArray())
+          case AlgorithmParameterName.ELASTIC_NET_PARAM => paramGridBuilder.addGrid(logisticRegression.elasticNetParam, p.getValueAsDoubleArray())
+          case AlgorithmParameterName.NUMBER_OF_FOLDS => numberOfFolds = p.value.toInt
+          case AlgorithmParameterName.MAX_PARALLELISM => maxParallelism = p.value.toInt
+          // Add others here
+        }
+      })
+      val paramGrid = paramGridBuilder.build()
+
+      val cv = new CrossValidator()
+        .setEstimator(pipeline)
+        .setEvaluator(new BinaryClassificationEvaluator)
+        .setEstimatorParamMaps(paramGrid)
+        .setNumFolds(numberOfFolds)
+        .setParallelism(maxParallelism)
+
+
       // Fit the model
       logger.debug("Fitting LogisticRegressionModel...")
-      val pipelineModel = pipeline.fit(trainingData)
+      val cvModel = cv.fit(trainingData)
+      val pipelineModel = cvModel.bestModel.asInstanceOf[PipelineModel]
       logger.debug("LogisticRegressionModel has been fit.")
 
       // Test the model
