@@ -1,12 +1,13 @@
 package ppddm.agent.controller.dm
 
 import com.typesafe.scalalogging.Logger
-import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.ml.feature.{OneHotEncoder, StringIndexer, VectorAssembler}
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import ppddm.agent.Agent
 import ppddm.agent.controller.prepare.DataPreparationController
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
-import ppddm.core.rest.model.VariableType
+import ppddm.core.rest.model.{VariableDataType, VariableType}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -17,6 +18,9 @@ import scala.concurrent.Future
 object DataAnalysisManager {
 
   private val logger: Logger = Logger(this.getClass)
+  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
+
+  import sparkSession.implicits._
 
   /**
    * Perform data analysis on the DataFrame previously saved with the given dataset_id which was prepared by the DataPreparationController.
@@ -51,6 +55,48 @@ object DataAnalysisManager {
       // TODO if you don't want to do this, arrange threshold in classification
       // TODO however, this cannot be the case always. For example, in cancer case, if %98 is not cancer, %2 is cancer, synthetic or removing would not be meaningful
 
+      // TODO handle null values
+      // TODO consider dropping columns with large number of missing values
+      // TODO consider removing rows with a null value for an important variable
+
+      // TODO consider dropping columns in which all the records have the same value
+
+      // ### Handle categorical variables ###
+      logger.debug("Handling categorical variables...")
+
+      // We need to introduce new columns while using OneHotEncoder to introduce dummy variables.
+      // Hence keep the column names of the DataFrame in a variable.
+      val dataFrameColumns: Array[String] = dataFrame.columns
+
+      // Find categorical variables and their column names
+      val categoricalVariables = dataPreparationResult.agent_data_statistics.variable_statistics.filter( v =>
+        v.variable.variable_data_type == VariableDataType.CATEGORICAL)
+      val categoricalColumns = categoricalVariables.map(cv => cv.variable.name)
+
+      // For string type input data, first we need to encode categorical features into numbers using StringIndexer first
+      categoricalVariables.foreach(v => {
+        val indexer = new StringIndexer()
+          .setInputCol(v.variable.name)
+          .setOutputCol(s"${v.variable.name}_INDEX")
+          .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
+        dataFrame = indexer.fit(dataFrame).transform(dataFrame) // Now, DataFrame contains new columns with "_INDEX" at the end of column name
+      })
+
+      // After all categorical values are in numeric format, apply OneHotEncoder to introduce dummy variables
+      val encoder = new OneHotEncoder()
+        .setInputCols(categoricalVariables.map(cv => s"${cv.variable.name}_INDEX").toArray)
+        .setOutputCols(categoricalVariables.map(cv => s"${cv.variable.name}_VEC").toArray)
+      dataFrame = encoder.fit(dataFrame).transform(dataFrame) // Now, DataFrame contains new columns with "_VEC" at the end of column name
+
+      // Put the encoded values to their original position so that dataFrame still has the same StructType as the initial one
+      val newColumns: Array[String] = dataFrameColumns.map(column => if (categoricalColumns.contains(column)) s"${column}_VEC" else column)
+      dataFrame = dataFrame.select(newColumns.head, newColumns.tail: _*) // Reposition columns
+        .toDF(dataFrameColumns:_*) // Update their names
+      logger.debug("Categorical variables have been handled...")
+
+      // ### Create "features" and "label" columns ###
+      logger.debug("Creating features and label columns...")
+
       // Find independent and dependent variables
       val independentVariables = dataPreparationResult.agent_data_statistics.variable_statistics
         .filter(_.variable.variable_type == VariableType.INDEPENDENT)
@@ -59,7 +105,7 @@ object DataAnalysisManager {
       val dependentVariableOption = dataPreparationResult.agent_data_statistics.variable_statistics
         .find(_.variable.variable_type == VariableType.DEPENDENT)
 
-      // Introduce independent variables as Vector in "features" column
+      // Introduce independent variables as Vector in "features" column. We will later convert it to "features" column.
       dataFrame = new VectorAssembler()
         .setInputCols(independentVariables.map(iv => iv.variable.name).toArray) // columns that need to added to feature column
         .setOutputCol("features")
@@ -73,9 +119,7 @@ object DataAnalysisManager {
           .fit(dataFrame).transform(dataFrame)
       }
 
-      // TODO handle categorical variables
-
-      // TODO handle null values
+      logger.debug("Features and label columns have been created...")
 
       // TODO handle feature scaling (here or somewhere else?)
 
