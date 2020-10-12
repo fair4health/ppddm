@@ -1,7 +1,7 @@
 package ppddm.agent.controller.dm
 
 import com.typesafe.scalalogging.Logger
-import org.apache.spark.ml.feature.{OneHotEncoder, StringIndexer, VectorAssembler}
+import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
 import ppddm.agent.controller.prepare.DataPreparationController
@@ -105,10 +105,10 @@ object DataAnalysisManager {
       val dependentVariableOption = dataPreparationResult.agent_data_statistics.variable_statistics
         .find(_.variable.variable_type == VariableType.DEPENDENT)
 
-      // Introduce independent variables as Vector in "features" column. We will later convert it to "features" column.
+      // Introduce independent variables as Vector in "nonScaledFeatures" column. We will later convert it to "features" column.
       dataFrame = new VectorAssembler()
         .setInputCols(independentVariables.map(iv => iv.variable.name).toArray) // columns that need to added to feature column
-        .setOutputCol("features")
+        .setOutputCol("nonScaledFeatures")
         .transform(dataFrame)
 
       // Introduce the dependent variable
@@ -119,9 +119,30 @@ object DataAnalysisManager {
           .fit(dataFrame).transform(dataFrame)
       }
 
-      logger.debug("Features and label columns have been created...")
+      // ### Handle feature scaling ###
+      logger.debug("Handling feature scaling...")
 
-      // TODO handle feature scaling (here or somewhere else?)
+      /**
+       * Keep this comment here, in case we change the scaler to StandardScaler.
+       * When using StandardScaler, first convert the sparse vector in features column to a dense vector as a fail safe
+       * Because, there is a caveat with standardization in spark. Unfortunately, standard scaler does not internally convert the sparse vector to a dense vector
+       * Here is the code:
+              val sparseToDense = udf((v : SparseVector) => v.toDense)
+              dataFrame = dataFrame.withColumn("notScaledFeatures", sparseToDense($"notScaledFeatures"))
+              val scaler = new StandardScaler()
+                .setInputCol("notScaledFeatures")
+                .setOutputCol("features")
+       */
+
+      val scaler = new MinMaxScaler()
+        .setInputCol("nonScaledFeatures")
+        .setOutputCol("features")
+
+      dataFrame = scaler.fit(dataFrame).transform(dataFrame) // Scale features to [0,1]
+        .drop("nonScaledFeatures") // Remove the column containing non-scaled features, because we don't need it anymore
+      logger.debug("Features have been scaled...")
+
+      logger.debug("Features and label columns have been created...")
 
       // TODO handle others
 
