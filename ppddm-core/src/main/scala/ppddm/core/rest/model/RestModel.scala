@@ -151,7 +151,24 @@ final case class DataPreparationResult(dataset_id: String,
 
 final case class Parameter(name: String,
                            data_type: DataType,
-                           value: String) extends ModelClass
+                           value: String) extends ModelClass {
+
+  def getValueAsDoubleArray(): Array[Double] = {
+    if (value.contains(",")) { // It is provided as Array
+      value.split(",").map(_.toDouble)
+    } else {
+      Array(value.toDouble)
+    }
+  }
+
+  def getValueAsIntArray(): Array[Int] = {
+    if (value.contains(",")) { // It is provided as Array
+      value.split(",").map(_.toInt)
+    } else {
+      Array(value.toInt)
+    }
+  }
+}
 
 object Parameter {
   def apply(name: String, data_type: DataType, value: Double): Parameter = {
