@@ -87,7 +87,7 @@ object DataMiningController {
    */
   def getTrainingResult(model_id: String): Option[ModelTrainingResult] = {
     Try(
-      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id)) map { df =>
+      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
@@ -102,7 +102,7 @@ object DataMiningController {
    * @return
    */
   def deleteTrainingResult(model_id: String): Option[Done] = {
-    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id))) {
+    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
     } else {

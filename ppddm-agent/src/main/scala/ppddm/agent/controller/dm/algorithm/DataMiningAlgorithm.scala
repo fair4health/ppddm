@@ -12,13 +12,14 @@ import ppddm.agent.store.DataStoreManager
 import ppddm.core.rest.model.{Agent, Algorithm, AlgorithmName, WeakModel}
 
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 trait DataMiningAlgorithm {
 
   protected val logger: Logger = Logger(this.getClass)
 
-  protected var agent: Agent // on which aAgent this DataMiningAlgorithm is running now
-  protected var algorithm: Algorithm // The Algoritm that this DataMiningAlgorithm is training/validating/testing
+  protected val agent: Agent // on which aAgent this DataMiningAlgorithm is running now
+  protected val algorithm: Algorithm // The Algoritm that this DataMiningAlgorithm is training/validating/testing
 
   /**
    * Train a model using the DataMiningAlgorithm on the given DataFrame of this Agent
