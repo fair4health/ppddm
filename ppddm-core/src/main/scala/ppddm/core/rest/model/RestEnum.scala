@@ -108,6 +108,11 @@ object AlgorithmParameterName extends Enumeration {
 
 object AlgorithmStatisticsName extends Enumeration {
   type AlgorithmStatisticsName = String
+  val TRUE_POSITIVE = "true_positive"
+  val TRUE_NEGATIVE = "true_negative"
+  val FALSE_POSITIVE = "false_positive"
+  val FALSE_NEGATIVE = "false_negative"
+  val TOTAL = "total"
   val ACCURACY = "accuracy"
   val PRECISION = "precision"
   val RECALL = "recall"
