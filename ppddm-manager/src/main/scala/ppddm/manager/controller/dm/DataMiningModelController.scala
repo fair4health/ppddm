@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.FindOneAndReplaceOptions
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{DataMiningModel, DataMiningSource}
+import ppddm.core.rest.model.DataMiningModel
 import ppddm.manager.Manager
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -66,16 +66,6 @@ object DataMiningModelController {
     db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("model_id", model_id))
       .first()
       .headOption()
-      .flatMap { dataMiningModelOption =>
-        if (dataMiningModelOption.isDefined) { // If the dataMiningModelOption is found with the given model_id
-          // Ask the algorithm execution results to its DataMiningSources
-          DistributedDataMiningManager.askAgentsDataMiningResults(dataMiningModelOption.get) map (Some(_))
-        } else {
-          Future {
-            None
-          }
-        }
-      }
   }
 
   /**
@@ -85,13 +75,7 @@ object DataMiningModelController {
    * @return The list of all DataMiningModels for the given project, empty list if there are no DataMiningModels.
    */
   def getAllDataMiningModels(project_id: String): Future[Seq[DataMiningModel]] = {
-    db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() flatMap { dataMiningModels =>
-      Future.sequence(
-        // Ask the data preparation results for each dataset to their DatasetSources
-        // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
-        dataMiningModels.map(dataMiningModel => DistributedDataMiningManager.askAgentsDataMiningResults(dataMiningModel))
-      )
-    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
   }
 
   /**

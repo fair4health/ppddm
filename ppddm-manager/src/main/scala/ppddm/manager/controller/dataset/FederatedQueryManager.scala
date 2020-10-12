@@ -104,9 +104,11 @@ object FederatedQueryManager {
         dataset.dataset_sources.get.size, dataset.dataset_id, dataset.name)
 
       Future.sequence(
-        dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each datasetSource in this set (actually, for each DataSource)
-          getPreparedDataStatistics(datasetSource.agent, dataset) // Ask for the data preparation results (do this in parallel)
-        }
+        dataset.dataset_sources.get // For each datasetSource in this set (actually, for each DataSource)
+          .filter(_.execution_state.get == ExecutionState.EXECUTING) // Keep which are already Executing (do not ask again to the FINALized ones)
+          .map { datasetSource: DatasetSource =>
+            getPreparedDataStatistics(datasetSource.agent, dataset) // Ask for the data preparation results (do this in parallel)
+          }
       ) map { responses: Seq[Option[DataPreparationResult]] => // Join the responses coming from different data sources (Agents)
         logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
         responses.map(result => { // For each DataPreparationResult

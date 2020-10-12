@@ -14,6 +14,7 @@ import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 import ppddm.agent.exception.DataPreparationException
 import ppddm.agent.spark.NodeExecutionContext._
+import ppddm.agent.store.DataStoreManager
 import ppddm.core.fhir.{FHIRClient, FHIRQuery}
 import ppddm.core.rest.model._
 import ppddm.core.util.JsonFormatter._
@@ -50,7 +51,7 @@ object DataPreparationController {
   def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Done] = {
     logger.debug("Data preparation request received.")
 
-    if (DataStoreManager.getDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
+    if (DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
       // Check data store whether the Dataset with given dataset_id is already created and saved
       Future {
         logger.warn(s"Dataset with id: ${dataPreparationRequest.dataset_id} already exists. Why do you want to prepare it again?")
@@ -126,13 +127,13 @@ object DataPreparationController {
 
           try {
             // Save the dataFrame which includes the prepared data into ppddm-store/datasets/:dataset_id
-            DataStoreManager.saveDF(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
+            DataStoreManager.saveDataFrame(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
             logger.info(s"Prepared data has been successfully saved with id: ${dataPreparationRequest.dataset_id}")
           }
           catch {
             case e: Exception =>
               val msg = s"Cannot save the Dataframe of the prepared data with id: ${dataPreparationRequest.dataset_id}."
-              logger.error(msg)
+              logger.error(msg, e)
               throw DataPreparationException(msg, e)
           }
 
@@ -141,7 +142,7 @@ object DataPreparationController {
             if (variablesOption.isDefined) {
               val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variablesOption.get)
               val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent, agentDataStatistics)
-              DataStoreManager.saveDF(
+              DataStoreManager.saveDataFrame(
                 DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
                 Seq(dataPreparationResult.toJson).toDF())
               logger.info("Calculated statistics have been successfully saved.")
@@ -151,11 +152,12 @@ object DataPreparationController {
           } catch {
             case e: Exception =>
               val msg = s"Cannot save Dataframe with id: ${dataPreparationRequest.dataset_id}."
-              logger.error(msg)
+              logger.error(msg, e)
               throw DataPreparationException(msg, e)
           }
 
           // We print the schema and the data only for debugging purposes. Will be removed in the future.
+          // TODO: Remove
           dataFrame.printSchema()
           dataFrame.show(false)
 
@@ -543,7 +545,7 @@ object DataPreparationController {
   def getDataSourceStatistics(dataset_id: String): Option[DataPreparationResult] = {
     logger.debug("DataSourceStatistics is requested for the Dataset:{}", dataset_id)
     Try(
-      DataStoreManager.getDF(DataStoreManager.getStatisticsPath(dataset_id)) map { df =>
+      DataStoreManager.getDataFrame(DataStoreManager.getStatisticsPath(dataset_id)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
@@ -559,9 +561,9 @@ object DataPreparationController {
    */
   def deleteData(dataset_id: String): Option[Done] = {
     // Delete the dataset with the given dataset_id
-    val datasetDeleted = DataStoreManager.deleteDF(DataStoreManager.getDatasetPath(dataset_id))
+    val datasetDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getDatasetPath(dataset_id))
     // Delete the statistics related with the given dataset_id
-    val statisticsDeleted = DataStoreManager.deleteDF(DataStoreManager.getStatisticsPath(dataset_id))
+    val statisticsDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getStatisticsPath(dataset_id))
     if (datasetDeleted && statisticsDeleted) {
       logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
       Some(Done)

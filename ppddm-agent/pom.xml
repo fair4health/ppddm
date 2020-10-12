@@ -127,6 +127,11 @@
             <artifactId>onfhir-path</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.zeroturnaround</groupId>
+            <artifactId>zt-zip</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

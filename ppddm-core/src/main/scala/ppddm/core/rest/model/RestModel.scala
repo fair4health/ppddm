@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 import ppddm.core.rest.model.AlgorithmName.AlgorithmName
+import ppddm.core.rest.model.DataMiningState.DataMiningState
 import ppddm.core.rest.model.SelectionStatus.SelectionStatus
 import ppddm.core.rest.model.DataType.DataType
 import ppddm.core.rest.model.ExecutionState.ExecutionState
@@ -72,9 +73,9 @@ final case class Dataset(dataset_id: Option[String],
       dataset
     } else {
       val selectedDataSources = dataset.dataset_sources.get.filter(s => s.selection_status.isDefined && s.selection_status.get == SelectionStatus.SELECTED)
-      if(selectedDataSources.nonEmpty) {
+      if (selectedDataSources.nonEmpty) {
         // This means there are selected data sources, the state should be FINAL
-        if(!dataset.execution_state.contains(ExecutionState.FINAL)) {
+        if (!dataset.execution_state.contains(ExecutionState.FINAL)) {
           dataset.copy(execution_state = Some(ExecutionState.FINAL))
         } else {
           // Do nothing if it is already in FINAL state
@@ -117,8 +118,16 @@ final case class Agent(agent_id: String,
     getURI("prepare", dataset_id)
   }
 
-  def getDataMiningURI(model_id: Option[String] = None): String = {
-    getURI("dm", model_id)
+  def getTrainingURI(model_id: Option[String] = None): String = {
+    getURI("dm/train", model_id)
+  }
+
+  def getValidationURI(model_id: Option[String] = None): String = {
+    getURI("dm/validate", model_id)
+  }
+
+  def getTestURI(model_id: Option[String] = None): String = {
+    getURI("dm/test", model_id)
   }
 }
 
@@ -140,68 +149,6 @@ final case class DataPreparationResult(dataset_id: String,
                                        agent: Agent,
                                        agent_data_statistics: AgentDataStatistics) extends ModelClass
 
-final case class DataMiningModel(model_id: Option[String],
-                                 project_id: String,
-                                 dataset: Dataset,
-                                 name: String,
-                                 description: String,
-                                 algorithms: Seq[Algorithm],
-                                 data_mining_sources: Option[Seq[DataMiningSource]],
-                                 selected_algorithm_models_bag: Option[Seq[AlgorithmModel]],
-                                 execution_state: Option[ExecutionState],
-                                 created_by: String,
-                                 created_on: Option[LocalDateTime]) extends ModelClass {
-
-  def withUniqueModelId: DataMiningModel = {
-    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
-  }
-
-  def withDataMiningSources(data_mining_sources: Seq[DataMiningSource]): DataMiningModel = {
-    val newDataMiningModel = this.copy(data_mining_sources = Some(data_mining_sources))
-    withUpdatedExecutionState(newDataMiningModel)
-  }
-
-  def withUpdatedExecutionState(dataMiningModel: DataMiningModel = this): DataMiningModel = {
-    if (dataMiningModel.data_mining_sources.isEmpty) {
-      // Do not do anything
-      this
-    } else {
-      if(dataMiningModel.selected_algorithm_models_bag.nonEmpty) {
-        // This means the algorithm(s) are already selected, the state should be FINAL
-        if(!dataMiningModel.execution_state.contains(ExecutionState.FINAL)) {
-          this.copy(execution_state = Some(ExecutionState.FINAL))
-        } else {
-          // Do nothing if it is already in FINAL state
-          dataMiningModel
-        }
-      } else {
-        // Find the ExecutionState for the newly created DataMiningModel
-        val areAllAgentsFinished = dataMiningModel.data_mining_sources.get
-          // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
-          .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
-          .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then DataMiningModel's state can become READY
-        val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
-        dataMiningModel.copy(execution_state = newExecutionState)
-      }
-    }
-  }
-
-}
-
-final case class DataMiningSource(agent: Agent,
-                                  algorithm_models: Option[Seq[AlgorithmModel]],
-                                  execution_state: Option[ExecutionState]) extends ModelClass
-
-final case class Algorithm(id: String,
-                           name: AlgorithmName,
-                           parameters: Seq[Parameter]) extends ModelClass
-
-final case class AlgorithmModel(algorithm: Algorithm,
-                                agent: Agent,
-                                training_statistics: Seq[Parameter],
-                                test_statistics: Seq[Parameter],
-                                fitted_model: Any) extends ModelClass
-
 final case class Parameter(name: String,
                            data_type: DataType,
                            value: String) extends ModelClass
@@ -210,19 +157,79 @@ object Parameter {
   def apply(name: String, data_type: DataType, value: Double): Parameter = {
     Parameter(name, data_type, value.toString)
   }
+
   def apply(name: String, data_type: DataType, value: Int): Parameter = {
     Parameter(name, data_type, value.toString)
   }
 }
 
+final case class DataMiningModel(model_id: Option[String],
+                                 project_id: String,
+                                 dataset: Dataset,
+                                 name: String,
+                                 description: String,
+                                 algorithms: Seq[Algorithm],
+                                 algorithm_models: Option[Seq[BoostedModel]],
+                                 data_mining_state: Option[DataMiningState],
+                                 created_by: String,
+                                 created_on: Option[LocalDateTime]) extends ModelClass {
 
-final case class AlgorithmExecutionRequest(model_id: String,
-                                           dataset_id: String,
-                                           agent: Agent,
-                                           algorithms: Seq[Algorithm],
-                                           submitted_by: String) extends ModelClass
+  def withUniqueModelId: DataMiningModel = {
+    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+  }
 
-final case class AlgorithmExecutionResult(model_id: String,
-                                          dataset_id: String,
-                                          agent: Agent,
-                                          algorithm_models: Seq[AlgorithmModel]) extends ModelClass
+}
+
+final case class BoostedModel(algorithm: Algorithm,
+                              weak_models: Seq[WeakModel],
+                              training_statistics: Seq[Parameter], // Will be calculated bu using the calculated_training_statistics and weight of each WeakModel
+                              test_statistics: Option[Seq[Parameter]],
+                              data_mining_state: DataMiningState) extends ModelClass
+
+final case class WeakModel(algorithm: Algorithm,
+                           agent: Agent,
+                           fitted_model: String,
+                           training_statistics: Seq[AgentAlgorithmStatistics], // Includes its Agent's training statistics + other Agents' validation statistics
+                           calculated_training_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
+                           weight: Option[Double],
+                           data_mining_state: Option[DataMiningState]) extends ModelClass
+
+final case class Algorithm(name: AlgorithmName,
+                           parameters: Seq[Parameter]) extends ModelClass
+
+final case class AgentAlgorithmStatistics(agent_model: Agent,
+                                          agent_statistics: Agent,
+                                          algorithm: Algorithm,
+                                          statistics: Seq[Parameter]) extends ModelClass
+
+final case class ModelTrainingRequest(model_id: String,
+                                      dataset_id: String,
+                                      agent: Agent,
+                                      algorithms: Seq[Algorithm],
+                                      submitted_by: String) extends ModelClass
+
+final case class ModelTrainingResult(model_id: String,
+                                     dataset_id: String,
+                                     agent: Agent,
+                                     algorithm_training_models: Seq[WeakModel]) extends ModelClass
+
+final case class ModelValidationRequest(model_id: String,
+                                        dataset_id: String,
+                                        agent: Agent,
+                                        weak_models: Seq[WeakModel],
+                                        submitted_by: String) extends ModelClass
+
+final case class ModelValidationResult(model_id: String,
+                                       dataset_id: String,
+                                       agent: Agent,
+                                       validation_statistics: Seq[AgentAlgorithmStatistics]) extends ModelClass
+
+final case class ModelTestRequest(model_id: String,
+                                  dataset_id: String,
+                                  agent: Agent,
+                                  boosted_models: Seq[BoostedModel]) extends ModelClass
+
+final case class ModelTestResult(model_id: String,
+                                 dataset_id: String,
+                                 agent: Agent,
+                                 test_statistics: Seq[AgentAlgorithmStatistics]) extends ModelClass

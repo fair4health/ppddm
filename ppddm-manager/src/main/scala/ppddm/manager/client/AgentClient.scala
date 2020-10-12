@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.{ContentTypes, HttpMethod, HttpRequest, MediaTyp
 import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{Agent, AlgorithmExecutionResult, DataMiningModel, DataMiningSource, DataPreparationResult, DatasetSource, ExecutionState, ModelClass}
+import ppddm.core.rest.model._
 import ppddm.manager.exception.AgentCommunicationException
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -61,8 +61,8 @@ object AgentClient {
                   }
                 case t if t =:= typeOf[Done] =>
                   Future.apply(Success(Done.asInstanceOf[T]))
-                case t if t =:= typeOf[AlgorithmExecutionResult] =>
-                  Unmarshal(res.entity).to[AlgorithmExecutionResult] map { a=>
+                case t if t =:= typeOf[ModelTrainingResult] =>
+                  Unmarshal(res.entity).to[ModelTrainingResult] map { a=>
                     Success(a.asInstanceOf[T])
                   }
               }
