@@ -449,27 +449,39 @@ object DataPreparationController {
     val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> initialValue)).toMap
 
     if (resources.nonEmpty) {
-      // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
-      val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
-      // Evaluate FHIR Path on the resource list
-      val result = Try(fhirPathEvaluator.evaluate(fhirPathExpression, JArray(resources.toList))).getOrElse(Seq.empty)
-      val extractedValues = result.map { item =>
+      if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION_EXISTENCE)) {
+        // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION_EXISTENCE'
+        val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION_EXISTENCE.length)
+        // Evaluate FHIR Path on the resource list
+        val result = fhirPathEvaluator.evaluateString(fhirPathExpression, JArray(resources.toList))
+        val extractedValues = result.map { item =>
+          item -> 1.toDouble // Fill with 1 for existing resources
+        }.toMap
 
-        /**
-         * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
-         * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
-         */
-        val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
-          .json.obj // Access to the List[(String, JValue)]
+        Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+      } else {
+        // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
+        val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
+        // Evaluate FHIR Path on the resource list
+        val result = fhirPathEvaluator.evaluate(fhirPathExpression, JArray(resources.toList))
+        val extractedValues = result.map { item =>
 
-        import ppddm.core.util.JsonFormatter._
+          /**
+           * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
+           * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
+           */
+          val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
+            .json.obj // Access to the List[(String, JValue)]
 
-        val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
-        val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
-        patientID -> aggrResult // Patient ID -> count
-      }.toMap
+          import ppddm.core.util.JsonFormatter._
 
-      Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+          val patientID: String = complexResult.filter(_._1 == "bucket").head._2.extract[String]
+          val aggrResult: Double = complexResult.filter(_._1 == "agg").head._2.extract[Double]
+          patientID -> aggrResult // Patient ID -> count
+        }.toMap
+
+        Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+      }
     } else {
       Map(variable.name -> initialValuesForAllPatients)
     }
