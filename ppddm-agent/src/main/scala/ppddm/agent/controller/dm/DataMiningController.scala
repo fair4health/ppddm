@@ -127,7 +127,7 @@ object DataMiningController {
     val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getEDAPath(modelValidationRequest.model_id))
     if (dataFrameOption.isEmpty) {
       val msg = s"ML-ready DataFrame of the model_id with id:${modelValidationRequest.model_id} does not exist in the data store. This should not have happened!!"
-      logger.error("msg")
+      logger.error(msg)
       throw DataMiningException(msg)
     }
 

@@ -195,6 +195,10 @@ final case class DataMiningModel(model_id: Option[String],
     this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
   }
 
+  def withDataMiningState(dataMiningState: DataMiningState): DataMiningModel = {
+    this.copy(data_mining_state = Some(dataMiningState))
+  }
+
 }
 
 final case class BoostedModel(algorithm: Algorithm,

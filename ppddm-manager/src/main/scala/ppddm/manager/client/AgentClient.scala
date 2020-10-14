@@ -2,17 +2,16 @@ package ppddm.manager.client
 
 import akka.Done
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{ContentTypes, HttpMethod, HttpRequest, MediaTypes, StatusCodes, Uri, headers}
 import akka.http.scaladsl.model.headers.{Accept, Authorization}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
 import ppddm.manager.exception.AgentCommunicationException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.reflect.runtime.universe._
 import scala.util.{Failure, Success, Try}
-import reflect.runtime.universe._
 
 /* Import the ActorSystem */
 import ppddm.manager.config.ManagerExecutionContext._
@@ -35,7 +34,7 @@ object AgentClient {
     /* To use the toJson, toPrettyJson methods of the JsonFormatter */
     import ppddm.core.util.JsonFormatter._
 
-    if(entity.isDefined) {
+    if (entity.isDefined) {
       request = request.withEntity(ContentTypes.`application/json`, entity.get.toJson)
     }
 
@@ -50,22 +49,20 @@ object AgentClient {
       case Success(res) =>
         res.status match {
           case StatusCodes.OK =>
-              typeOf[T] match {
-                case t if t =:= typeOf[DataMiningSource] =>
-                  Future.apply(Success(DataMiningSource(agentHttpRequest.agent, None, Some(ExecutionState.EXECUTING)).asInstanceOf[T]))
-                case t if t =:= typeOf[DatasetSource] =>
-                  Future.apply(Success(DatasetSource(agentHttpRequest.agent, None, None, Some(ExecutionState.EXECUTING)).asInstanceOf[T]))
-                case t if t =:= typeOf[DataPreparationResult] =>
-                  Unmarshal(res.entity).to[DataPreparationResult] map { a=>
-                    Success(a.asInstanceOf[T])
-                  }
-                case t if t =:= typeOf[Done] =>
-                  Future.apply(Success(Done.asInstanceOf[T]))
-                case t if t =:= typeOf[ModelTrainingResult] =>
-                  Unmarshal(res.entity).to[ModelTrainingResult] map { a=>
-                    Success(a.asInstanceOf[T])
-                  }
-              }
+            typeOf[T] match {
+              case t if t =:= typeOf[Done] =>
+                Future.apply(Success(Done.asInstanceOf[T]))
+              case t if t =:= typeOf[DatasetSource] =>
+                Future.apply(Success(DatasetSource(agentHttpRequest.agent, None, None, Some(ExecutionState.EXECUTING)).asInstanceOf[T]))
+              case t if t =:= typeOf[DataPreparationResult] =>
+                Unmarshal(res.entity).to[DataPreparationResult] map { a =>
+                  Success(a.asInstanceOf[T])
+                }
+              case t if t =:= typeOf[ModelTrainingResult] =>
+                Unmarshal(res.entity).to[ModelTrainingResult] map { a =>
+                  Success(a.asInstanceOf[T])
+                }
+            }
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure
             Unmarshal(res.entity).to[String].flatMap { body =>

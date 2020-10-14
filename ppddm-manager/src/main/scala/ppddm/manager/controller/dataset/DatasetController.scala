@@ -36,7 +36,7 @@ object DatasetController {
     val datasetWithId = dataset.withUniqueDatasetId
 
     // Invoke agents to start data preparation processes
-    // Returns a new Dataset object with data sources and execution state "querying"
+    // Returns a new Dataset object with data sources and execution state "EXECUTING"
     FederatedQueryManager.invokeAgentsDataPreparation(datasetWithId) flatMap { datasetWithDataSources =>
       logger.info("Data preparation endpoints are invoked for all registered Agents (datasources)")
       db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database

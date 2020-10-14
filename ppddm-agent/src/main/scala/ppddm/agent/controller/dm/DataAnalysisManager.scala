@@ -44,7 +44,7 @@ object DataAnalysisManager {
       val dataPreperationResultOption = DataPreparationController.getDataSourceStatistics(dataset_id)
       if (dataPreperationResultOption.isEmpty) {
         val msg = s"The data source statistics (DataPreparationResult) for the Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
-        logger.error("msg")
+        logger.error(msg)
         throw DataMiningException(msg)
       }
 

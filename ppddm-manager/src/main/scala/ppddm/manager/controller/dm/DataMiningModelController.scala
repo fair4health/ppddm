@@ -5,8 +5,9 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.FindOneAndReplaceOptions
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.DataMiningModel
+import ppddm.core.rest.model.{Agent, DataMiningModel, SelectionStatus}
 import ppddm.manager.Manager
+import ppddm.manager.exception.DataIntegrityException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -28,8 +29,40 @@ object DataMiningModelController {
   private val db = Manager.mongoDB.getDatabase
 
   /**
+   * Returns a list of the SelectionStatus.SELECTED Agents of the Dataset of the given dataMiningModel.
+   *
+   * Before returning the list of Agents, this function performs a number of integrity checks and throws
+   * DataIntegrityException accordingly.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getSelectedAgents(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    if (dataMiningModel.dataset.dataset_sources.isEmpty || dataMiningModel.dataset.dataset_sources.get.isEmpty) {
+      // This is a data integrity problem. This should not happen!
+      val msg = s"You want to get the selected Agents for this DataMiningModel with model_id:${dataMiningModel.model_id} and " +
+        s"name:${dataMiningModel.name} HOWEVER there are no DatasetSources in the Dataset of this DataMiningModel. " +
+        s"dataset_id:${dataMiningModel.dataset.dataset_id.get} and dataset_name:${dataMiningModel.dataset.name}"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // FIXME: Check whether all dataset_sources have a selection_status or not before executing the following statements
+    if(dataMiningModel.dataset.dataset_sources.get.exists(_.selection_status.isEmpty)) {
+      val msg = ""
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // Find the Agents to be connected for data mining (those are the SELECTED ones for the Dataset)
+    dataMiningModel.dataset.dataset_sources.get
+      .filter(_.selection_status.get == SelectionStatus.SELECTED)
+      .map(_.agent)
+  }
+
+  /**
    * Creates a new DataMiningModel on the Platform Repository
-   * and invokes the agents to start their algorithm execution processes.
+   * and starts the distributed data mining orchestration for the created DataMiningModel.
    *
    * @param dataMiningModel The DataMiningModel to be created
    * @return The created DataMiningModel with a unique model_id in it
@@ -38,22 +71,17 @@ object DataMiningModelController {
     // Create a new DataMiningModel object with a unique identifier
     val dataMiningModelWithId = dataMiningModel.withUniqueModelId
 
-    // Invoke agents to start data mining (algorithm execution) processes
-    // Returns a new Dataset object with data sources and execution state "querying"
-    DistributedDataMiningManager.invokeAgentsDataMining(dataMiningModelWithId) flatMap { dataMiningModelWithDataMiningSources =>
-      logger.info("Algorithm execution (data mining) endpoints are invoked for the selected Agents (datasources) of the associated Dataset")
-      db.getCollection[DataMiningModel](COLLECTION_NAME).insertOne(dataMiningModelWithDataMiningSources).toFuture() // insert into the database
-        .map { result =>
-          val _id = result.getInsertedId.asObjectId().getValue.toString
-          logger.debug("Inserted document _id:{} and model_id:{}", _id, dataMiningModelWithDataMiningSources.model_id.get)
-          dataMiningModelWithDataMiningSources
-        }
-        .recover {
-          case e: Exception =>
-            val msg = s"Error while inserting a DataMiningModel with model_id:${dataMiningModelWithDataMiningSources.model_id.get} into the database."
-            throw DBException(msg, e)
-        }
-    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).insertOne(dataMiningModelWithId).toFuture() // insert into the database
+      .map { result =>
+        val _id = result.getInsertedId.asObjectId().getValue.toString
+        logger.debug("Inserted document _id:{} and model_id:{}", _id, dataMiningModelWithId.model_id.get)
+        dataMiningModelWithId
+      }
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while inserting a DataMiningModel with model_id:${dataMiningModelWithId.model_id.get} into the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -85,11 +113,9 @@ object DataMiningModelController {
    * @return The updated DataMiningModel object if operation is successful, None otherwise.
    */
   def updateDataMiningModel(dataMiningModel: DataMiningModel): Future[Option[DataMiningModel]] = {
-    // TODO: Add some integrity checks before document replacement
-    // TODO: Check whether at least one Algorithm is selected
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
-      dataMiningModel.withUpdatedExecutionState(),
+      dataMiningModel,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
@@ -100,18 +126,19 @@ object DataMiningModelController {
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
   def deleteDataMiningModel(model_id: String): Future[Option[DataMiningModel]] = {
-    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption() flatMap { dataMiningModelOption: Option[DataMiningModel] =>
-      if (dataMiningModelOption.isDefined) {
-        val dataMiningModel = dataMiningModelOption.get
-        Future.sequence(
-          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
-            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
-          }) map { _ => Some(dataMiningModel) }
-      }
-      else {
-        Future.apply(Option.empty[DataMiningModel])
-      }
-    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption()
+//    flatMap { dataMiningModelOption: Option[DataMiningModel] =>
+//      if (dataMiningModelOption.isDefined) {
+//        val dataMiningModel = dataMiningModelOption.get
+//        Future.sequence(
+//          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
+//            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
+//          }) map { _ => Some(dataMiningModel) }
+//      }
+//      else {
+//        Future.apply(Option.empty[DataMiningModel])
+//      }
+//    }
   }
 
 }
