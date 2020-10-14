@@ -3,7 +3,7 @@ package ppddm.manager.controller.dm
 import java.time.Duration
 
 import akka.Done
-import akka.actor.{Cancellable, Scheduler}
+import akka.actor.Cancellable
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model.{DataMiningModel, DataMiningState}
 import ppddm.manager.exception.DataIntegrityException
@@ -82,6 +82,7 @@ object DataMiningOrchestrator {
           Future.apply(Done)
       }
     }
+
   }
 
 }

@@ -141,22 +141,7 @@ object DistributedDataMiningManager {
     //        dataMiningModel.withDataMiningSources(updatedDataMiningSources) // create a new DataMiningModel with the updatedDatasetSources
     //      }
     //    }
-  }
 
-  /**
-   * Asks the AlgorithmExecutionResult from the given Agent for the given dataMiningModel.
-   *
-   * @param agent
-   * @param dataMiningModel
-   * @return An Option[AlgorithmExecutionResult]. If the result is None, that means the model training has not completed yet.
-   */
-  private def getAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTrainingResult]] = {
-    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getTrainingURI(dataMiningModel.model_id))
-
-    logger.debug("Asking the algorithm execution result to the Agent on URI:{} for model_id: {} & model_name: {}",
-      agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
-
-    AgentClient.invokeHttpRequest[ModelTrainingResult](agentRequest).map(_.toOption)
   }
 
   /**

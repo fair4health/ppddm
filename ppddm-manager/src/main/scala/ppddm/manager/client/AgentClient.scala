@@ -5,6 +5,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
+
 import ppddm.core.rest.model._
 import ppddm.manager.exception.AgentCommunicationException
 
@@ -55,13 +56,9 @@ object AgentClient {
               case t if t =:= typeOf[DatasetSource] =>
                 Future.apply(Success(DatasetSource(agentHttpRequest.agent, None, None, Some(ExecutionState.EXECUTING)).asInstanceOf[T]))
               case t if t =:= typeOf[DataPreparationResult] =>
-                Unmarshal(res.entity).to[DataPreparationResult] map { a =>
-                  Success(a.asInstanceOf[T])
-                }
+                Unmarshal(res.entity).to[DataPreparationResult] map { r => Success(r.asInstanceOf[T]) }
               case t if t =:= typeOf[ModelTrainingResult] =>
-                Unmarshal(res.entity).to[ModelTrainingResult] map { a =>
-                  Success(a.asInstanceOf[T])
-                }
+                Unmarshal(res.entity).to[ModelTrainingResult] map { r => Success(r.asInstanceOf[T]) }
             }
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure
