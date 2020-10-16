@@ -24,10 +24,11 @@ trait DataMiningAlgorithm {
   /**
    * Train a model using the DataMiningAlgorithm on the given DataFrame of this Agent
    *
+   * @param dataset_id
    * @param dataFrame
    * @return
    */
-  def train(dataFrame: DataFrame): Future[WeakModel]
+  def train(dataset_id: String, dataFrame: DataFrame): Future[WeakModel]
 
   /**
    * Validate a model on the given dataFrame

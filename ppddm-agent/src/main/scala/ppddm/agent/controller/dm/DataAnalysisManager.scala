@@ -1,14 +1,14 @@
 package ppddm.agent.controller.dm
 
 import com.typesafe.scalalogging.Logger
+import org.apache.spark.ml.PipelineStage
 import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import ppddm.agent.Agent
+import org.apache.spark.sql.DataFrame
 import ppddm.agent.controller.prepare.DataPreparationController
 import ppddm.agent.exception.DataMiningException
-import ppddm.agent.store.DataStoreManager
 import ppddm.core.rest.model.{VariableDataType, VariableType}
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -16,29 +16,18 @@ import scala.concurrent.Future
  * This object handles the exploratory data analysis (EDA) to prepare the data for Spark's machine learning algorithms.
  */
 object DataAnalysisManager {
-
   private val logger: Logger = Logger(this.getClass)
-  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
-
-  import sparkSession.implicits._
 
   /**
    * Perform data analysis on the DataFrame previously saved with the given dataset_id which was prepared by the DataPreparationController.
    *
    * @param dataset_id The id of the Dataset prepared and stored in the data store previously
-   * @return A new DataFrame containing "features" and "label" column which is ready for machine learning algorithms
+   * @param dataFrame The original DataFrame retrieved from DataStore
+   * @return Array of "PipelineStage"s of several Feature Transformers like StringIndexer, OneHotEncoder, Vector Assembler which create "features" and "label" columns for machine learning algorithms
    */
-  def performDataAnalysis(dataset_id: String): Future[DataFrame] = {
+  def performDataAnalysis(dataset_id: String, dataFrame: DataFrame): Future[Array[PipelineStage]] = {
     Future {
-      logger.debug("Performing data analysis using the Dataset with id:{}...", dataset_id)
-
-      // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
-      val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(dataset_id))
-      if (dataFrameOption.isEmpty) {
-        val msg = s"The Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
-        logger.error(msg)
-        throw DataMiningException(msg)
-      }
+      logger.debug("Performing data analysis...")
 
       // Retrieve the previously saved DataPreparationResult object including variable information
       val dataPreperationResultOption = DataPreparationController.getDataSourceStatistics(dataset_id)
@@ -47,9 +36,9 @@ object DataAnalysisManager {
         logger.error(msg)
         throw DataMiningException(msg)
       }
-
-      var dataFrame = dataFrameOption.get
       val dataPreparationResult = dataPreperationResultOption.get
+
+      var pipelineStages = new ListBuffer[PipelineStage]()
 
       // TODO handle imbalanced data here: either remove from balanced or inject synthetic.
       // TODO if you don't want to do this, arrange threshold in classification
@@ -61,12 +50,10 @@ object DataAnalysisManager {
 
       // TODO consider dropping columns in which all the records have the same value
 
-      // ### Handle categorical variables ###
+      /**
+       * Handle categorical variables
+       */
       logger.debug("Handling categorical variables...")
-
-      // We need to introduce new columns while using OneHotEncoder to introduce dummy variables.
-      // Hence keep the column names of the DataFrame in a variable.
-      val dataFrameColumns: Array[String] = dataFrame.columns
 
       // Find categorical variables and their column names
       val categoricalVariables = dataPreparationResult.agent_data_statistics.variable_statistics.filter( v =>
@@ -74,28 +61,24 @@ object DataAnalysisManager {
       val categoricalColumns = categoricalVariables.map(cv => cv.variable.name)
 
       // For string type input data, first we need to encode categorical features into numbers using StringIndexer first
-      categoricalVariables.foreach(v => {
-        val indexer = new StringIndexer()
+      val stringIndexerSeq = categoricalVariables.map(v => {
+        new StringIndexer()
           .setInputCol(v.variable.name)
           .setOutputCol(s"${v.variable.name}_INDEX")
           .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
-        dataFrame = indexer.fit(dataFrame).transform(dataFrame) // Now, DataFrame contains new columns with "_INDEX" at the end of column name
       })
+      stringIndexerSeq.foreach(i => pipelineStages += i) // Now, DataFrame contains new columns with "_INDEX" at the end of column name
 
       // After all categorical values are in numeric format, apply OneHotEncoder to introduce dummy variables
       val encoder = new OneHotEncoder()
         .setInputCols(categoricalVariables.map(cv => s"${cv.variable.name}_INDEX").toArray)
         .setOutputCols(categoricalVariables.map(cv => s"${cv.variable.name}_VEC").toArray)
-      dataFrame = encoder.fit(dataFrame).transform(dataFrame) // Now, DataFrame contains new columns with "_VEC" at the end of column name
+      pipelineStages += encoder // Now, DataFrame contains new columns with "_VEC" at the end of column name
 
-      // Put the encoded values to their original position so that dataFrame still has the same StructType as the initial one
-      val newColumns: Array[String] = dataFrameColumns.map(column => if (categoricalColumns.contains(column)) s"${column}_VEC" else column)
-      dataFrame = dataFrame.select(newColumns.head, newColumns.tail: _*) // Reposition columns
-        .toDF(dataFrameColumns:_*) // Update their names
-      logger.debug("Categorical variables have been handled...")
-
-      // ### Create "features" and "label" columns ###
-      logger.debug("Creating features and label columns...")
+      /**
+       * Create "features" and "label" columns
+       */
+      logger.debug("Introducing new \"features\" and \"label\" columns...")
 
       // Find independent and dependent variables
       val independentVariables = dataPreparationResult.agent_data_statistics.variable_statistics
@@ -106,20 +89,22 @@ object DataAnalysisManager {
         .find(_.variable.variable_type == VariableType.DEPENDENT)
 
       // Introduce independent variables as Vector in "nonScaledFeatures" column. We will later convert it to "features" column.
-      dataFrame = new VectorAssembler()
-        .setInputCols(independentVariables.map(iv => iv.variable.name).toArray) // columns that need to added to feature column
+      val vectorAssembler = new VectorAssembler()
+        .setInputCols(independentVariables.map(iv => if (categoricalColumns.contains(iv.variable.name)) s"${iv.variable.name}_VEC" else iv.variable.name).toArray) // columns that need to added to feature column
         .setOutputCol("nonScaledFeatures")
-        .transform(dataFrame)
+      pipelineStages += vectorAssembler
 
       // Introduce the dependent variable
       if (dependentVariableOption.nonEmpty) {
-        dataFrame = new StringIndexer()
+        val labelStringIndexer = new StringIndexer()
           .setInputCol(dependentVariableOption.get.variable.name)
           .setOutputCol("label")
-          .fit(dataFrame).transform(dataFrame)
+        pipelineStages += labelStringIndexer
       }
 
-      // ### Handle feature scaling ###
+      /**
+       * Handle feature scaling
+       */
       logger.debug("Handling feature scaling...")
 
       /**
@@ -134,20 +119,15 @@ object DataAnalysisManager {
                 .setOutputCol("features")
        */
 
-      val scaler = new MinMaxScaler()
+      val scaler = new MinMaxScaler() // Scale features to [0,1]
         .setInputCol("nonScaledFeatures")
         .setOutputCol("features")
-
-      dataFrame = scaler.fit(dataFrame).transform(dataFrame) // Scale features to [0,1]
-        .drop("nonScaledFeatures") // Remove the column containing non-scaled features, because we don't need it anymore
-      logger.debug("Features have been scaled...")
-
-      logger.debug("Features and label columns have been created...")
+      pipelineStages += scaler
 
       // TODO handle others
 
-      logger.debug("Exploratory Data Analysis has been performed on Dataset with id:{}. Returning the machine-learning-ready DataFrame...", dataset_id)
-      dataFrame
+      logger.debug("Exploratory Data Analysis has been performed...")
+      pipelineStages.toArray
     }
   }
 }

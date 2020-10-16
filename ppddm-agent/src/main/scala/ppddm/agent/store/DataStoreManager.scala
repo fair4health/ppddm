@@ -96,18 +96,6 @@ object DataStoreManager {
   }
 
   /**
-   * Returns the path to the location where the prepared data frame upon the Exploratory Data Analysis (by DataAnalysisManager)
-   * is kept.
-   * /ppddm-store/models/:model_id-eda
-   *
-   * @param model_id
-   * @return
-   */
-  def getEDAPath(model_id: String): String = {
-    MODEL_TRAIN_STORE_DIR + model_id + "-eda"
-  }
-
-  /**
    * Generates and returns a unique path under the directory of temporary files.
    *
    * @return
