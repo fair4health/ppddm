@@ -7,9 +7,10 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.PipelineModel
 import org.apache.spark.sql.DataFrame
 import org.zeroturnaround.zip.ZipUtil
+import ppddm.agent.controller.dm.StatisticsManager
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
-import ppddm.core.rest.model.{Agent, Algorithm, AlgorithmName, WeakModel}
+import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, Parameter, WeakModel}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -33,17 +34,19 @@ trait DataMiningAlgorithm {
   /**
    * Validate a model on the given dataFrame
    *
-   * @param fitted_model_string Base64 encoded string representation of a PipelineModel
+   * @param weakModel The WeakModel on which validation is to be performed
    * @param dataFrame The DataFrame which will be used for validation on the .transform method
    * @return
    */
-  def validate(fitted_model_string: String, dataFrame: DataFrame): Future[DataFrame] = {
+  def validate(weakModel: WeakModel, dataFrame: DataFrame): Future[AgentAlgorithmStatistics] = {
     Future {
-      val pipelineModel = fromString(fitted_model_string)
-      pipelineModel.transform(dataFrame)
+      val pipelineModel = fromString(weakModel.fitted_model)
+      val testPredictionDF = pipelineModel.transform(dataFrame)
 
-      // TODO: Calculate the statistics
-      // TODO: Return an appropriate object so that the DataMiningController can save a ModelValidationResult
+      // Calculate statistics
+      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+
+      AgentAlgorithmStatistics(weakModel.agent, agent, algorithm, statistics)
     }
   }
 

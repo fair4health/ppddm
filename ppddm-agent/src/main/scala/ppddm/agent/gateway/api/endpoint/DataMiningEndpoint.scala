@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ppddm.agent.controller.dm.DataMiningController
 import ppddm.core.rest.model.Json4sSupport._
-import ppddm.core.rest.model.{ModelTestRequest, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest}
+import ppddm.core.rest.model.{ModelTestRequest, ModelTrainingRequest, ModelValidationRequest}
 
 trait DataMiningEndpoint {
 
@@ -53,6 +53,11 @@ trait DataMiningEndpoint {
           get {
             complete { // Get the result of model validation. This returns 404 if it is not ready yet.
               DataMiningController.getValidationResult(model_id)
+            }
+          } ~
+          delete { // Delete the ModelValidationResult
+            complete {
+              DataMiningController.deleteValidationResult(model_id)
             }
           }
         }

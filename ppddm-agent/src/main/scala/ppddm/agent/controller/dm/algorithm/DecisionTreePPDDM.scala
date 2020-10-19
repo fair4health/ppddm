@@ -4,11 +4,10 @@ import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.ml.classification.DecisionTreeClassifier
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
-import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.sql.DataFrame
-import ppddm.agent.controller.dm.DataAnalysisManager
+import ppddm.agent.controller.dm.{DataAnalysisManager, StatisticsManager}
 import ppddm.agent.controller.dm.DataMiningController.{SEED, TEST_SIZE, TRAINING_SIZE}
-import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmParameterName, AlgorithmStatisticsName, DataType, Parameter, WeakModel}
+import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmParameterName, WeakModel}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -71,28 +70,12 @@ private case class DecisionTreePPDDM(override val agent: Agent, override val alg
       val testPredictionDF = pipelineModel.transform(testData)
       logger.debug("DecisionTreeClassificationModel has been tested.")
 
-      val testPredictionLabelsRDD = StatisticsUtil.generatePredictionsLabelRDD(testPredictionDF)
-      var testStatistics = StatisticsUtil.generateConfusionMatrixStatistics(testPredictionLabelsRDD)
-
       // Calculate statistics
-      logger.debug("Calculating statistics...")
-
-      val metrics = new BinaryClassificationMetrics(testPredictionLabelsRDD)
-      testStatistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsUtil.calculateAccuracy(testStatistics))
-      testStatistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.precisionByThreshold().collect().head._2)
-      testStatistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.recallByThreshold().collect().head._2)
-      testStatistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.fMeasureByThreshold().collect().head._2)
-      testStatistics += Parameter(AlgorithmStatisticsName.AUROC, DataType.DOUBLE, metrics.areaUnderROC)
-      testStatistics += Parameter(AlgorithmStatisticsName.AUPR, DataType.DOUBLE, metrics.areaUnderPR)
-
-      logger.debug("Test statistics: ")
-      testStatistics.foreach(parameter => logger.debug(s"--- ${parameter.name}: ${parameter.value}"))
-
-      logger.debug("Statistics have been calculated.")
+      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
 
       logger.debug("## Finish executing logistic regression ##")
 
-      WeakModel(algorithm, agent, toString(pipelineModel), Seq(AgentAlgorithmStatistics(agent, agent, algorithm, Seq.empty)), None, None, None)
+      WeakModel(algorithm, agent, toString(pipelineModel), Seq(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)), None, None, None)
     }
   }
 }
