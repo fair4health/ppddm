@@ -24,10 +24,11 @@ trait DataMiningAlgorithm {
   /**
    * Train a model using the DataMiningAlgorithm on the given DataFrame of this Agent
    *
+   * @param dataset_id
    * @param dataFrame
    * @return
    */
-  def train(dataFrame: DataFrame): Future[WeakModel]
+  def train(dataset_id: String, dataFrame: DataFrame): Future[WeakModel]
 
   /**
    * Validate a model on the given dataFrame
@@ -98,6 +99,7 @@ object DataMiningAlgorithm {
   def apply(agent: Agent, algorithm: Algorithm): DataMiningAlgorithm = {
     algorithm.name match {
       case AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION => LogisticRegressionPPDDM(agent, algorithm)
+      case AlgorithmName.CLASSIFICATION_DECISION_TREE => DecisionTreePPDDM(agent, algorithm)
       case _ =>
         val msg = s"Unknown Algorithm:${algorithm.name}"
         throw DataMiningException(msg)

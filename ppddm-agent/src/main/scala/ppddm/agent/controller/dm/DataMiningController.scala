@@ -21,7 +21,7 @@ object DataMiningController {
 
   val TRAINING_SIZE = 0.8 // TODO get these values from client in the future
   val TEST_SIZE = 0.2 // TODO get these values from client in the future
-  val SEED = 11L // TODO why do we need this?
+  val SEED = 11L // We need a seed value to be the same so that, the data that is split into training and test will always be the same
 
   private val logger: Logger = Logger(this.getClass)
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
@@ -39,42 +39,35 @@ object DataMiningController {
     logger.debug("ModelTrainingRequest received on agent:{} for model:{} for a total of {} Algorithms",
       modelTrainingRequest.agent.agent_id, modelTrainingRequest.model_id, modelTrainingRequest.algorithms.length)
 
-    // First prepare the data for execution of the data mining algorithms,
-    // i.e. perform the exploratory data analysis which include categorical variable handling, null values handling etc.
-    DataAnalysisManager.performDataAnalysis(modelTrainingRequest.dataset_id) flatMap { mlReadyDataFrame =>
-      // Then execute the algorithms one by one on the same data to train ML models
-      val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
-        DataMiningAlgorithm(modelTrainingRequest.agent, algorithm).train(mlReadyDataFrame)
-      }
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(modelTrainingRequest.dataset_id))
+    if (dataFrameOption.isEmpty) {
+      val msg = s"The Dataset with id:${modelTrainingRequest.dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
+      logger.error(msg)
+      throw DataMiningException(msg)
+    }
+    val dataFrame = dataFrameOption.get
 
-      Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
-        try {
-          // After the models are trained (fitted_models are ready within the WeakModels then save the ML-ready DataFrame
-          // which was used to train the algorithms of the WeakModels so that it is
-          DataStoreManager.saveDataFrame(
-            DataStoreManager.getEDAPath(modelTrainingRequest.model_id),
-            mlReadyDataFrame)
-        } catch {
-          case e: Exception =>
-            val msg = s"Cannot save the ML-ready DataFrame as a result of the Exploratory Data Analysis for the model with model_id: ${modelTrainingRequest.model_id}."
-            logger.error(msg)
-            throw DataMiningException(msg, e)
-        }
+    // Then, train and generate weak models on the dataFrame
+    val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
+      DataMiningAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
+    }
 
-        val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
-          modelTrainingRequest.agent, algorithm_models)
-        try {
-          // Save the ModelTrainingResult containing the models into ppddm-store/models/:model_id
-          DataStoreManager.saveDataFrame(
-            DataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
-            Seq(modelTrainingResult.toJson).toDF())
-          Done
-        } catch {
-          case e: Exception =>
-            val msg = s"Cannot save the ModelTrainingResult of the model with model_id: ${modelTrainingRequest.model_id}."
-            logger.error(msg)
-            throw DataMiningException(msg, e)
-        }
+    Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
+
+      val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
+        modelTrainingRequest.agent, algorithm_models)
+      try {
+        // Save the ModelTrainingResult containing the models into ppddm-store/models/:model_id
+        DataStoreManager.saveDataFrame(
+          DataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
+          Seq(modelTrainingResult.toJson).toDF())
+        Done
+      } catch {
+        case e: Exception =>
+          val msg = s"Cannot save the ModelTrainingResult of the model with model_id: ${modelTrainingRequest.model_id}."
+          logger.error(msg)
+          throw DataMiningException(msg, e)
       }
     }
   }
@@ -122,18 +115,17 @@ object DataMiningController {
     logger.debug("ModelValidationRequest received on agent:{} for model:{} for a total of {} WeakModels",
       modelValidationRequest.agent.agent_id, modelValidationRequest.model_id, modelValidationRequest.weak_models.length)
 
-    // Retrieve the DataFrame which was saved while generating the fittedModels so that we can transform again and validate
-    // the given WeakModel (fitted_models) on this DataFrame
-    val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getEDAPath(modelValidationRequest.model_id))
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(modelValidationRequest.dataset_id))
     if (dataFrameOption.isEmpty) {
-      val msg = s"ML-ready DataFrame of the model_id with id:${modelValidationRequest.model_id} does not exist in the data store. This should not have happened!!"
+      val msg = s"The Dataset with id:${modelValidationRequest.dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
       logger.error(msg)
       throw DataMiningException(msg)
     }
+    val dataFrame = dataFrameOption.get
 
-    val mlReadyDataFrame = dataFrameOption.get
     // Split the data into training and test
-    val Array(trainingData, testData) = mlReadyDataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+    val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
     val validationFutures = modelValidationRequest.weak_models.map { weakModel =>
       DataMiningAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel.fitted_model, trainingData)
