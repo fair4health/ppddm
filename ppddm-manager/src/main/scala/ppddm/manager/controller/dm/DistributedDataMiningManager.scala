@@ -5,7 +5,7 @@ import akka.http.scaladsl.model._
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
 import ppddm.manager.client.AgentClient
-import ppddm.manager.exception.{AgentCommunicationException, DataIntegrityException}
+import ppddm.manager.exception.AgentCommunicationException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -52,23 +52,20 @@ object DistributedDataMiningManager {
    * @return
    */
   def invokeAgentsModelTraining(dataMiningModel: DataMiningModel): Future[Done] = {
+    // Get all Agents of this DataMiningModel to which model training requests will be POSTed
     val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
 
-    logger.debug("I will invoke the data mining endpoints of the agents with agent-ids: {}",
-      agents.map(_.agent_id).mkString(","))
+    logger.debug("I will invoke the model training endpoints of {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
 
     Future.sequence(agents.map(invokeModelTraining(_, dataMiningModel))) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }
       if (failedAgents.nonEmpty) {
-        logger.error("There are {} Agents out of {} which returned error on model training request.", failedAgents.size, responses.size)
-        failedAgents.foreach(logger.error("Error during Agent communication for model training request", _))
+        val msg = s"There are ${failedAgents.size} Agents out of ${responses.size} which returned error on model training request."
+        logger.error(msg)
+        throw AgentCommunicationException(reason = msg)
       }
 
-      val successfulAgents = responses.collect { case Success(x) => x }
-      if (successfulAgents.isEmpty) {
-        val msg = "No Agents are communicated for model training!!"
-        throw AgentCommunicationException("Model Training Request: No Agents are communicated.", "", msg)
-      }
       Done
     }
   }
@@ -80,7 +77,7 @@ object DistributedDataMiningManager {
    * @param dataMiningModel
    * @return An Option[ModelTrainingResult]. If the result is None, that means the model training has not completed yet.
    */
-  private def getModelTrainingResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTrainingResult]] = {
+  private def getModelTrainingResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTrainingResult]] = {
     val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getTrainingURI(dataMiningModel.model_id))
 
     logger.debug("Asking the ModelTrainingResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
@@ -89,59 +86,25 @@ object DistributedDataMiningManager {
     AgentClient.invokeHttpRequest[ModelTrainingResult](agentRequest).map(_.toOption)
   }
 
-  def askAgentsModelTrainingResults(dataMiningModel: DataMiningModel): Future[Seq[ModelTrainingResult]] = {
-    // TODO: Implement
-    null
-  }
-
   /**
-   * Asks the data mining (algorithm execution) results of the DataMiningModel to the Agents.
+   * Asks the model training results of the DataMiningModel to the Agents. These Agents were previously POSTed to
+   * start the trainings on their datasets. And only the Agents whose results were not received yet are POSTed.
    *
    * @param dataMiningModel
-   * @return A new DataMiningModel which contains the new DataMiningSources based on the retrieved results
+   * @return Returns a sequence of ModelTrainingResult. Only the results of Agents which finished their model trainings will be returned by this function.
    */
-  def askAgentsDataMiningResults(dataMiningModel: DataMiningModel): Future[DataMiningModel] = {
-    Future.apply(dataMiningModel)
-    //    if (dataMiningModel.data_mining_sources.isEmpty || dataMiningModel.data_mining_sources.get.isEmpty) {
-    //      val msg = s"You want me to ask the data mining (algorithm execution) results of this DataMiningModel with " +
-    //        s"model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name} HOWEVER there are no DataMiningSources for this DataMiningModel"
-    //      throw DataIntegrityException(msg)
-    //    }
-    //
-    //    if (dataMiningModel.execution_state.get != ExecutionState.EXECUTING) {
-    //      // If the Dataset is not executing any queries, then it means all Agents returned their responses.
-    //      // There is no need to ask any questions to the Dataset sources (Agents)
-    //      logger.debug("There is no need to ask the AlgorithmExecutionResults of the DataMiningModel with id:{} and name:{}. Its state is {}",
-    //        dataMiningModel.model_id, dataMiningModel.name, dataMiningModel.execution_state.get)
-    //      Future.apply(dataMiningModel)
-    //    } else {
-    //      logger.debug("I will ask for the AlgorithmExecutionResults from {} DataMiningSources of the DataMiningModel with id:{} and name:{}",
-    //        dataMiningModel.data_mining_sources.get.size, dataMiningModel.model_id, dataMiningModel.name)
-    //
-    //      Future.sequence(
-    //        dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each dataMiningSource in this set (actually, for each Agent)
-    //          getAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Ask for the algorithm execution result (do this in parallel)
-    //        }
-    //      ) map { responses: Seq[Option[ModelTrainingResult]] => // Join the responses coming from different Agents
-    //        logger.debug("AlgorithmExecutionResults have been retrieved from all {} Agents of the dataMiningMOdel.", responses.size)
-    //        responses.map(result => { // For each AlgorithmExecutionResult
-    //          result map { algorithmExecutionResult => // Create a corresponding DataMiningSource object
-    //            DataMiningSource(algorithmExecutionResult.agent, Some(algorithmExecutionResult.algorithm_models), Some(ExecutionState.FINAL))
-    //          }
-    //        })
-    //          .filter(_.isDefined) // Keep the the Agents which produced the results
-    //          .map(_.get) // Get rid of the Option since we eliminated the None elements above
-    //      } map { dataMiningSourcesWithResult: Seq[DataMiningSource] => // DataMiningSources which finished algorithm execution (data mining)
-    //        val updatedDataMiningSources = dataMiningModel.data_mining_sources.get map { existingDataMiningSource => // Iterate over the existing DataMiningSources of the dataMiningModel
-    //          // decide whether there is an algorithm execution result for the existingDataMiningSource
-    //          val finishedDataMiningSource = dataMiningSourcesWithResult.find(_.agent.agent_id == existingDataMiningSource.agent.agent_id)
-    //          // Return the DataMiningSource if that has a result, otherwise keep the existing DataMiningSource in the list
-    //          if (finishedDataMiningSource.isDefined) finishedDataMiningSource.get else existingDataMiningSource
-    //        }
-    //        dataMiningModel.withDataMiningSources(updatedDataMiningSources) // create a new DataMiningModel with the updatedDatasetSources
-    //      }
-    //    }
+  def askAgentsModelTrainingResults(dataMiningModel: DataMiningModel): Future[Seq[ModelTrainingResult]] = {
+    // Get the Agents whose ModelTrainingResults have not been received yet
+    val agents = DataMiningModelController.getAgentsWaitedForTrainingResults(dataMiningModel)
 
+    logger.debug("I will ask the model training results to {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(getModelTrainingResultFromAgent(_, dataMiningModel))) map { responses =>
+      responses
+        .filter(_.isDefined) // keep only ready ModelTrainingResults
+        .map(_.get) // get rid of Option
+    }
   }
 
   /**

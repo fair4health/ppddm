@@ -63,7 +63,7 @@ object AgentClient {
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure
             Unmarshal(res.entity).to[String].flatMap { body =>
-              throw AgentCommunicationException(agentHttpRequest.agent.name, agentHttpRequest.agent.endpoint,
+              throw AgentCommunicationException(Some(agentHttpRequest.agent.name), Some(agentHttpRequest.agent.endpoint),
                 s"The response status is ${res.status} [${agentHttpRequest.httpRequest.getUri()}] and response body is $body")
             }
         }
@@ -71,7 +71,7 @@ object AgentClient {
         throw e
     } recover {
       case e: Exception =>
-        Failure(AgentCommunicationException(agentHttpRequest.agent.name, agentHttpRequest.agent.endpoint, "Exception while connecting to the Agent", e))
+        Failure(AgentCommunicationException(Some(agentHttpRequest.agent.name), Some(agentHttpRequest.agent.endpoint), "Exception while connecting to the Agent", e))
     }
   }
 
