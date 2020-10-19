@@ -75,7 +75,7 @@ private case class DecisionTreePPDDM(override val agent: Agent, override val alg
 
       logger.debug("## Finish executing logistic regression ##")
 
-      WeakModel(algorithm, agent, toString(pipelineModel), Seq(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)), None, None, None)
+      WeakModel(algorithm, agent, toString(pipelineModel), Seq(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)), None, None)
     }
   }
 }

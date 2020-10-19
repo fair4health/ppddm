@@ -4,7 +4,6 @@ import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressionModel}
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
-import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics}
 import org.apache.spark.sql.DataFrame
 import ppddm.agent.controller.dm.{DataAnalysisManager, StatisticsManager}
 import ppddm.core.rest.model._
@@ -86,7 +85,7 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
 
       logger.debug("## Finish executing logistic regression ##")
 
-      WeakModel(algorithm, agent, toString(pipelineModel), Seq(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)), None, None, None)
+      WeakModel(algorithm, agent, toString(pipelineModel), Seq(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)), None, None)
     }
   }
 }

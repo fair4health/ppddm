@@ -5,10 +5,10 @@ import java.util.UUID
 
 import ppddm.core.rest.model.AlgorithmName.AlgorithmName
 import ppddm.core.rest.model.DataMiningState.DataMiningState
-import ppddm.core.rest.model.SelectionStatus.SelectionStatus
 import ppddm.core.rest.model.DataType.DataType
 import ppddm.core.rest.model.ExecutionState.ExecutionState
 import ppddm.core.rest.model.ProjectType.ProjectType
+import ppddm.core.rest.model.SelectionStatus.SelectionStatus
 import ppddm.core.rest.model.VariableDataType.VariableDataType
 import ppddm.core.rest.model.VariableType.VariableType
 import ppddm.core.util.URLUtil
@@ -194,7 +194,7 @@ final case class DataMiningModel(model_id: Option[String],
                                  name: String,
                                  description: String,
                                  algorithms: Seq[Algorithm],
-                                 algorithm_models: Option[Seq[BoostedModel]],
+                                 boosted_models: Option[Seq[BoostedModel]],
                                  data_mining_state: Option[DataMiningState],
                                  created_by: String,
                                  created_on: Option[LocalDateTime]) extends ModelClass {
@@ -206,21 +206,51 @@ final case class DataMiningModel(model_id: Option[String],
   def withDataMiningState(dataMiningState: DataMiningState): DataMiningModel = {
     this.copy(data_mining_state = Some(dataMiningState))
   }
+
+  def withBoostedModels(boostedModels: Seq[BoostedModel]): DataMiningModel = {
+    this.copy(boosted_models = Some(boostedModels))
+  }
+
 }
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
-                              training_statistics: Seq[Parameter], // Will be calculated bu using the calculated_training_statistics and weight of each WeakModel
-                              test_statistics: Option[Seq[Parameter]],
-                              data_mining_state: DataMiningState) extends ModelClass
+                              training_statistics: Option[Seq[Parameter]], // Will be calculated bu using the calculated_training_statistics and weight of each WeakModel
+                              test_statistics: Option[Seq[Parameter]]) extends ModelClass {
+
+  def withNewWeakModels(weakModels: Seq[WeakModel]): BoostedModel = {
+    // Let's perform some integrity checks
+
+    val illegalAlgorithm = weakModels.find(_.algorithm.name != algorithm.name)
+    if(illegalAlgorithm.nonEmpty) {
+      // Ooops! We have a problem  Houston.
+      val msg = s"Given Algorithm with name ${illegalAlgorithm.get.algorithm.name} cannot be added to this BoostedModel " +
+        s"because this BoostedModel is for Algorithm with name ${this.algorithm.name}"
+      throw new IllegalArgumentException(msg)
+    }
+
+    val existingAgents = this.weak_models.map(_.agent).toSet
+    val newAgents = weakModels.map(_.agent).toSet
+    val illegalAgents = existingAgents.intersect(newAgents)
+    if(illegalAgents.nonEmpty) {
+      // We have another problem Houston!
+      val msg = s"You send new WeakModels, but they already exist in this BoostedModel of algorithm:${this.algorithm.name}. " +
+        s"Agent names are ${illegalAgents.map(_.name).mkString(",")}"
+      throw new IllegalArgumentException(msg)
+    }
+
+    // We are good to go!
+    this.copy(weak_models = this.weak_models ++ weakModels)
+  }
+
+}
 
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
                            fitted_model: String,
                            training_statistics: Seq[AgentAlgorithmStatistics], // Includes its Agent's training statistics + other Agents' validation statistics
                            calculated_training_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
-                           weight: Option[Double],
-                           data_mining_state: Option[DataMiningState]) extends ModelClass
+                           weight: Option[Double]) extends ModelClass
 
 final case class Algorithm(name: AlgorithmName,
                            parameters: Seq[Parameter]) extends ModelClass

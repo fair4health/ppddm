@@ -47,9 +47,9 @@ object DataMiningModelController {
       throw DataIntegrityException(msg)
     }
 
-    // FIXME: Check whether all dataset_sources have a selection_status or not before executing the following statements
-    if(dataMiningModel.dataset.dataset_sources.get.exists(_.selection_status.isEmpty)) {
-      val msg = ""
+    if (dataMiningModel.dataset.dataset_sources.get.exists(_.selection_status.isEmpty)) {
+      val msg = s"There is at least one DatasetSource within the Dataset of this DataMiningModel whose selection_status is None! " +
+        s"model_id:${dataMiningModel.model_id} model_name:${dataMiningModel.name} dataset_id:${dataMiningModel.dataset.dataset_id}"
       logger.error(msg)
       throw DataIntegrityException(msg)
     }
@@ -58,6 +58,25 @@ object DataMiningModelController {
     dataMiningModel.dataset.dataset_sources.get
       .filter(_.selection_status.get == SelectionStatus.SELECTED)
       .map(_.agent)
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose training results have not received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForTrainingResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    val agentsWhoseTrainingResultsAlreadyReceieved =
+      if (dataMiningModel.boosted_models.isDefined) {
+        dataMiningModel.boosted_models.get
+          .head // Use the first BoostedModel since we are sure! that all BoostedModels have results from the same Agents at any time
+          .weak_models.map(_.agent) // Get the Agent of each existing WeakModel
+          .toSet // Convert to Set
+      } else {
+        Set.empty[Agent]
+      }
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseTrainingResultsAlreadyReceieved).toSeq
   }
 
   /**
@@ -127,18 +146,18 @@ object DataMiningModelController {
    */
   def deleteDataMiningModel(model_id: String): Future[Option[DataMiningModel]] = {
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption()
-//    flatMap { dataMiningModelOption: Option[DataMiningModel] =>
-//      if (dataMiningModelOption.isDefined) {
-//        val dataMiningModel = dataMiningModelOption.get
-//        Future.sequence(
-//          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
-//            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
-//          }) map { _ => Some(dataMiningModel) }
-//      }
-//      else {
-//        Future.apply(Option.empty[DataMiningModel])
-//      }
-//    }
+    //    flatMap { dataMiningModelOption: Option[DataMiningModel] =>
+    //      if (dataMiningModelOption.isDefined) {
+    //        val dataMiningModel = dataMiningModelOption.get
+    //        Future.sequence(
+    //          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
+    //            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
+    //          }) map { _ => Some(dataMiningModel) }
+    //      }
+    //      else {
+    //        Future.apply(Option.empty[DataMiningModel])
+    //      }
+    //    }
   }
 
 }

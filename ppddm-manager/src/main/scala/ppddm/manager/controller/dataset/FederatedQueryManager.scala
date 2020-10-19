@@ -43,15 +43,11 @@ object FederatedQueryManager {
     ) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }
       if (failedAgents.nonEmpty) {
-        logger.error("There are {} agents (data sources) out of {} which returned error on data preparation request.", failedAgents.size, responses.size)
-        failedAgents.foreach(logger.error("Error during Agent communication for data preparation", _))
+        val msg = s"There are ${failedAgents.size} agents (data sources) out of ${responses.size} which returned error on data preparation request."
+        throw AgentCommunicationException(reason = msg)
       }
 
       val successfulAgents = responses.collect { case Success(x) => x }
-      if (successfulAgents.isEmpty) {
-        val msg = "No Agents are communicated, hence I cannot create a Dataset!!"
-        throw AgentCommunicationException("All Agents", "", msg)
-      }
       dataset
         .withDatasetSources(successfulAgents) // create a new Dataset with the DatasetSources which are EXECUTING
     }
