@@ -98,12 +98,21 @@ object AlgorithmName extends Enumeration {
 
 object AlgorithmParameterName extends Enumeration {
   type AlgorithmParameterName = String
+  val NUMBER_OF_FOLDS = "num_folds" // Value of k in k-fold Cross validation
+  val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
+
+  // Logistic Regression
   val THRESHOLD = "threshold" // Threshold [Double]
   val MAX_ITER = "max_iter" // Maximum number of iterations [Integer]
   val REG_PARAM = "reg_param" // Regularization parameter [Double]
   val ELASTIC_NET_PARAM = "elasticnet_param" // ElasticNet mixing parameter [Double]
-  val NUMBER_OF_FOLDS = "num_folds" // Value of k in k-fold Cross validation
-  val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
+
+
+  // Decision Tree
+  val MAX_DEPTH = "max_depth" // Maximum depth of a tree. Deeper trees are more expressive (potentially allowing higher accuracy), but they are also more costly to train and are more likely to overfit.
+  val MIN_INFO_GAIN = "min_info_gain" // For a node to be split further, the split must improve at least this much (in terms of information gain).
+  val MAX_BINS = "max_bins" // TODO Consider using this if you will not perform categorical handling or feature scaling for decision tree
+  val IMPURITY = "impurity" // The node impurity is a measure of the homogeneity of the labels at the node
 }
 
 object AlgorithmStatisticsName extends Enumeration {

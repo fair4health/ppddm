@@ -99,6 +99,7 @@ object DataMiningAlgorithm {
   def apply(agent: Agent, algorithm: Algorithm): DataMiningAlgorithm = {
     algorithm.name match {
       case AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION => LogisticRegressionPPDDM(agent, algorithm)
+      case AlgorithmName.CLASSIFICATION_DECISION_TREE => DecisionTreePPDDM(agent, algorithm)
       case _ =>
         val msg = s"Unknown Algorithm:${algorithm.name}"
         throw DataMiningException(msg)

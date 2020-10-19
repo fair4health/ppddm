@@ -168,6 +168,14 @@ final case class Parameter(name: String,
       Array(value.toInt)
     }
   }
+
+  def getValueAsStringArray(): Array[String] = {
+    if (value.contains(",")) { // It is provided as Array
+      value.split(",")
+    } else {
+      Array(value)
+    }
+  }
 }
 
 object Parameter {
