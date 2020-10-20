@@ -7,7 +7,7 @@ import ppddm.agent.Agent
 import ppddm.agent.controller.dm.algorithm.DataMiningAlgorithm
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
-import ppddm.core.rest.model.{ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest, ModelValidationResult}
+import ppddm.core.rest.model.{ModelTestRequest, ModelTestResult, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest, ModelValidationResult}
 import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -167,6 +167,78 @@ object DataMiningController {
       Some(Done)
     } else {
       logger.debug(s"ModelTrainingResult of model (with id: $model_id) do not exist!")
+      Option.empty[Done]
+    }
+  }
+
+  /**
+   * Start the test of the given BoostedModels within the ModelTestRequest against the Dataset of the Model
+   * indicated with model_id.
+   *
+   * @param modelTestRequest
+   * @return
+   */
+  def startTesting(modelTestRequest: ModelTestRequest): Future[Done] = {
+    logger.debug("ModelTestRequest received on agent:{} for model:{} for a total of {} BoostedModels",
+      modelTestRequest.agent.agent_id, modelTestRequest.model_id, modelTestRequest.boosted_models.length)
+
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrame = retrieveDataFrame(modelTestRequest.dataset_id)
+
+    // Split the data into training and test. Only testData will be used.
+    val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+
+    // Test each boosted model on dataFrame, and calculate statistics for each
+    val testFutures = modelTestRequest.boosted_models.map { boostedModel =>
+      DataMiningAlgorithm(modelTestRequest.agent, boostedModel.algorithm).test(boostedModel, testData)
+    }
+
+    Future.sequence(testFutures) map { testResults => // Join the Futures
+      val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, testResults)
+
+      try {
+        // Save the ModelTestResult containing the models into ppddm-store/models/:model_id
+        DataStoreManager.saveDataFrame(
+          DataStoreManager.getModelPath(modelTestResult.model_id, DataMiningRequestType.TEST),
+          Seq(modelTestResult.toJson).toDF())
+        Done
+      } catch {
+        case e: Exception =>
+          val msg = s"Cannot save the ModelTestResult of the model with model_id: ${modelTestResult.model_id}."
+          logger.error(msg)
+          throw DataMiningException(msg, e)
+      }
+    }
+  }
+
+  /**
+   * Retrieves the ModelTestResult which includes the test statistics for the BoostedModels
+   *
+   * @param model_id
+   * @return
+   */
+  def getTestResult(model_id: String): Option[ModelTestResult] = {
+    Try(
+      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
+        df // Dataframe consisting of a column named "value" that holds Json inside
+          .head() // Get the Array[Row]
+          .getString(0) // Get Json String
+          .extract[ModelTestResult]
+      }).getOrElse(None) // Returns None if an error occurs within the Try block
+  }
+
+  /**
+   * Deletes ModelTestResult
+   *
+   * @param model_id The unique identifier of the model whose ModelTestResult is to be deleted
+   * @return
+   */
+  def deleteTestResult(model_id: String): Option[Done] = {
+    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST))) {
+      logger.info(s"ModelTestResult of model (with id: $model_id) have been deleted successfully")
+      Some(Done)
+    } else {
+      logger.debug(s"ModelTestResult of model (with id: $model_id) do not exist!")
       Option.empty[Done]
     }
   }

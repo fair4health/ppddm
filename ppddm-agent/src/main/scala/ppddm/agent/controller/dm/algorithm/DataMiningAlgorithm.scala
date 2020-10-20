@@ -7,10 +7,10 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.PipelineModel
 import org.apache.spark.sql.DataFrame
 import org.zeroturnaround.zip.ZipUtil
-import ppddm.agent.controller.dm.StatisticsManager
+import ppddm.agent.controller.dm.{BoostedModelManager, StatisticsManager}
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
-import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, Parameter, WeakModel}
+import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, BoostedModel, WeakModel}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -47,6 +47,29 @@ trait DataMiningAlgorithm {
       val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
 
       AgentAlgorithmStatistics(weakModel.agent, agent, algorithm, statistics)
+    }
+  }
+
+  /**
+   * Validate a boosted model on the given dataFrame
+   *
+   * @param boostedModel The BoostedModel on which test is to be performed
+   * @param dataFrame The DataFrame which will be used for test on the .transform method
+   * @return
+   */
+  def test(boostedModel: BoostedModel, dataFrame: DataFrame): Future[AgentAlgorithmStatistics] = {
+    Future {
+      val testPredictionTuples = boostedModel.weak_models.map { weakModel =>
+        val pipelineModel = fromString(weakModel.fitted_model)
+        (weakModel.weight.get, pipelineModel.transform(dataFrame))
+      }
+
+      val testPredictionDF = BoostedModelManager.predictWithWeightedAverageOfPredictions(testPredictionTuples)
+
+      // Calculate statistics
+      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+
+      AgentAlgorithmStatistics(null, agent, algorithm, statistics) // TODO what is first parameter?
     }
   }
 

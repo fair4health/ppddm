@@ -67,7 +67,7 @@ trait DataMiningEndpoint {
           post { // Submit a test request so that the BoostedModel can be tested on this Agent
             entity(as[ModelTestRequest]) { modelTestRequest =>
               complete {
-                // TODO: Call the controller
+                DataMiningController.startTesting(modelTestRequest)
                 StatusCodes.OK
               }
             }
@@ -78,10 +78,14 @@ trait DataMiningEndpoint {
         pathEndOrSingleSlash {
           get {
             complete { // Get the result of model testing. This returns 404 if it is not ready yet.
-              // TODO: Call the controller
-              StatusCodes.OK
+              DataMiningController.getTestResult(model_id)
             }
-          }
+          } ~
+            delete { // Delete the ModelTestResult
+              complete {
+                DataMiningController.deleteTestResult(model_id)
+              }
+            }
         }
       }
   }
