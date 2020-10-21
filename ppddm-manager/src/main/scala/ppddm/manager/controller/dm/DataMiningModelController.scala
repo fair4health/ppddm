@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.FindOneAndReplaceOptions
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{Agent, DataMiningModel, SelectionStatus}
+import ppddm.core.rest.model.{Agent, DataMiningModel, SelectionStatus, WeakModel}
 import ppddm.manager.Manager
 import ppddm.manager.exception.DataIntegrityException
 
@@ -61,7 +61,7 @@ object DataMiningModelController {
   }
 
   /**
-   * Given the dataMiningModel, returns the sequence of Agents whose training results have not received yet.
+   * Given the dataMiningModel, returns the sequence of Agents whose training results have not been received yet.
    *
    * @param dataMiningModel
    * @return
@@ -77,6 +77,78 @@ object DataMiningModelController {
         Set.empty[Agent]
       }
     (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseTrainingResultsAlreadyReceieved).toSeq
+  }
+
+  /**
+   * Given the dataMiningModel, returns a sequence of tuples in the form of (_1, _2) where:
+   * _1 is the Agent
+   * _2 is the sequence of WeakModels to be validated on the Agent (_1). These are the WeakModels which were trained on
+   * the other Agents.
+   *
+   * When a WeakModel is trained on an Agent, it should be validated on the *other* Agents.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentValidationModelPairs(dataMiningModel: DataMiningModel): Seq[(Agent, Seq[WeakModel])] = {
+    if (dataMiningModel.boosted_models.isEmpty) {
+      val msg = s"Hey boy, there are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get} and you want me to " +
+        s"extract the Agent-ValidationWeakModels pairs. I cannot do it."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // Get the Agents from whom WeakModels should already have been received.
+    getSelectedAgents(dataMiningModel).map { agent => // For each Agent
+      val weakModelsToBeValidatedOnAgent = dataMiningModel.boosted_models.get.flatMap { boostedModel => // Loop through the BoostedModels of this DataMiningModel
+        boostedModel.weak_models.filterNot(_.agent == agent) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
+      }
+      agent -> weakModelsToBeValidatedOnAgent
+    }
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose validation results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForValidationResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    if (dataMiningModel.boosted_models.isEmpty) {
+      val msg = s"Hey boy, there are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get} and you want me to " +
+        s"find the Agents whose validation results are being waited. I cannot do it."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // If there were no data inconsistency, all BoostedModels of this dataMiningModel should have the WeakModels from the
+    // very same Agents at any instant in time.
+    val illegalWeakModels = dataMiningModel.boosted_models.get
+      .map(_.weak_models.map(wm=>wm.algorithm -> wm.agent).toSet)
+      .reduce((a,b) => if(a.equals(b)) a else Set.empty)
+    if(illegalWeakModels.isEmpty) {
+      val msg = s"Ooops! All the WeakModels of the BoostedModels within a DataMiningModel:${dataMiningModel.model_id.get} should be the SAME " +
+        s"at any instant in time. It seems this is not the case!!!"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // And if we are calling this function, then we are sure that a BoostedModel is there for each Algorithm
+    val boostedModelsAlgorithms = dataMiningModel.boosted_models.get.map(_.algorithm).toSet
+    if(!boostedModelsAlgorithms.equals(dataMiningModel.algorithms.toSet)) {
+      val msg = s"There must be one BoostedModel for each Algorithm of this DataMiningModel:${dataMiningModel.model_id.get}"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    val agentsWhoseValidationResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all will have the results from the same Agents at any instant in time
+      .weak_models.flatMap { weakModel => // for each WeakModel of this BoostedModel
+      weakModel.training_statistics
+        .map(trainingStatistics => trainingStatistics.agent_statistics) // Collect the Agents from whom statistics are received
+        .toSet // Convert to a Set
+    }
+
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseValidationResultsAlreadyReceieved).toSeq
   }
 
   /**

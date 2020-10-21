@@ -59,6 +59,8 @@ object AgentClient {
                 Unmarshal(res.entity).to[DataPreparationResult] map { r => Success(r.asInstanceOf[T]) }
               case t if t =:= typeOf[ModelTrainingResult] =>
                 Unmarshal(res.entity).to[ModelTrainingResult] map { r => Success(r.asInstanceOf[T]) }
+              case t if t =:= typeOf[ModelValidationResult] =>
+                Unmarshal(res.entity).to[ModelValidationResult] map { r => Success(r.asInstanceOf[T]) }
             }
           case _ =>
             // I got status code I didn't expect so I wrap it along with body into Future failure
