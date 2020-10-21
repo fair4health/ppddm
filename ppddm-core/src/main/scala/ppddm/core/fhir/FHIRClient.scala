@@ -51,13 +51,17 @@ class FHIRClient(host: String,
 
   def searchByUrl(query: String): Future[JObject] = {
     logger.debug("Querying FHIR with {}", query)
+    //Separate the resource type and parameters
+    val resourceTypeAndParams = query.split("\\?")
+    val resourceType = Try(resourceTypeAndParams(0)).getOrElse("")
+    val params = Try(resourceTypeAndParams(1)).getOrElse("")
 
     // Prepare http request
     val request = HttpRequest(
-      uri = Uri(s"$fhirServerBaseURI$query"),
-      method = HttpMethods.GET,
+      uri = Uri(s"$fhirServerBaseURI$resourceType" + "/_search"), // use /_search endpoint to expand query size
+      method = HttpMethods.POST,
       headers = defaultHeaders
-    ).withEntity(ContentTypes.`application/json`, "{}")
+    ).withEntity(ContentTypes.`application/x-www-form-urlencoded`, params)
 
     // This is actually queue request but cant call it to prevent infinite loop
     val responsePromise = Promise[HttpResponse]()
