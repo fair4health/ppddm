@@ -7,10 +7,9 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.PipelineModel
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.zeroturnaround.zip.ZipUtil
-import ppddm.agent.controller.dm.StatisticsManager
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
-import ppddm.core.ai.Predictor
+import ppddm.core.ai.{Predictor, StatisticsCalculator}
 import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, BoostedModel, WeakModel}
 
 import scala.concurrent.Future
@@ -46,7 +45,7 @@ trait DataMiningAlgorithm {
       val testPredictionDF = pipelineModel.transform(dataFrame)
 
       // Calculate statistics
-      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+      val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
       AgentAlgorithmStatistics(weakModel.agent, agent, algorithm, statistics)
     }
@@ -69,7 +68,7 @@ trait DataMiningAlgorithm {
       val testPredictionDF = Predictor.predictWithWeightedAverageOfPredictions(testPredictionTuples)
 
       // Calculate statistics
-      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+      val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
       AgentAlgorithmStatistics(null, agent, algorithm, statistics) // TODO what is first parameter?
     }

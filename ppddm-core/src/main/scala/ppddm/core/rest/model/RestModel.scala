@@ -313,6 +313,14 @@ final case class WeakModel(algorithm: Algorithm,
     this.copy(training_statistics = this.training_statistics ++ validationStatistics)
   }
 
+  def withCalculatedTrainingStatistics(calculated_training_statistics: Seq[Parameter]): WeakModel = {
+    this.copy(calculated_training_statistics = Some(calculated_training_statistics))
+  }
+
+  def withWeight(weight: Double): WeakModel = {
+    this.copy(weight = Some(weight))
+  }
+
 }
 
 final case class Algorithm(name: AlgorithmName,

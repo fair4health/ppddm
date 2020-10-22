@@ -9,8 +9,9 @@ import ppddm.manager.exception.DataIntegrityException
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-
 import java.util.concurrent.TimeUnit
+
+import ppddm.core.ai.Aggregator
 
 /**
  * Handles the orchestration of Distributed Data Mining between the Agents.
@@ -235,7 +236,8 @@ object DataMiningOrchestrator {
         // We can calculate the calculated_training_statistics and weights of the WeakModels.
         // Then we can call the model testing endpoints of the Agents and advance to the TESTING state
 
-        // TODO: Implement the mechanism to calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
+        // Calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
+        newDataMiningModel = Aggregator.aggregate(newDataMiningModel)
 
         val f = DistributedDataMiningManager.invokeAgentsModelTesting(newDataMiningModel)
         try { // Wait for the testing invocations finish for all Agents

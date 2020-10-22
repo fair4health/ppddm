@@ -5,8 +5,9 @@ import org.apache.spark.ml.classification.DecisionTreeClassifier
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.sql.DataFrame
-import ppddm.agent.controller.dm.{DataAnalysisManager, StatisticsManager}
+import ppddm.agent.controller.dm.DataAnalysisManager
 import ppddm.agent.controller.dm.DataMiningController.{SEED, TEST_SIZE, TRAINING_SIZE}
+import ppddm.core.ai.StatisticsCalculator
 import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmParameterName, WeakModel}
 
 import scala.concurrent.Future
@@ -71,7 +72,7 @@ private case class DecisionTreePPDDM(override val agent: Agent, override val alg
       logger.debug("DecisionTreeClassificationModel has been tested.")
 
       // Calculate statistics
-      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+      val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
       logger.debug("## Finish executing logistic regression ##")
 
