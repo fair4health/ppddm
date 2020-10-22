@@ -215,13 +215,13 @@ final case class DataMiningModel(model_id: Option[String],
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
-                              training_statistics: Option[Seq[Parameter]], // Will be calculated bu using the calculated_training_statistics and weight of each WeakModel
-                              test_statistics: Option[Seq[Parameter]]) extends ModelClass {
+                              test_statistics: Option[Seq[AgentAlgorithmStatistics]],
+                              calculated_test_statistics: Option[Seq[Parameter]]) extends ModelClass {
 
   def replaceWeakModels(weakModels: Seq[WeakModel]): BoostedModel = {
     val existingWeakModels = this.weak_models.map(wm => (wm.algorithm, wm.agent)).toSet
     val newWeakModels = weakModels.map(wm => (wm.algorithm, wm.agent)).toSet
-    if(!existingWeakModels.equals(newWeakModels)) {
+    if (!existingWeakModels.equals(newWeakModels)) {
       val msg = s"You are trying to replace the whole WeakModels of this BoostedModel for Algorithm:${this.algorithm}, but they do not MATCH!! " +
         s"You can only replace the WeakModels if you already pass the new WeakModels for all existing WeakModels with respect to Algorithm and Agent."
       throw new IllegalArgumentException(msg)
@@ -253,6 +253,21 @@ final case class BoostedModel(algorithm: Algorithm,
 
     // We are good to go!
     this.copy(weak_models = this.weak_models ++ weakModels)
+  }
+
+  def addNewTestStatistics(testStatistics: Seq[AgentAlgorithmStatistics]): BoostedModel = {
+    val existingAgents = this.test_statistics.getOrElse(Seq.empty).map(_.agent_statistics)
+    val newAgents = testStatistics.map(_.agent_statistics)
+    val illegalAgents = existingAgents.intersect(newAgents)
+    if (illegalAgents.nonEmpty) {
+      val msg = s"You send new AgentAlgorithmResults from some Agents, but they already exist in this BoostedModel of algorithm:${this.algorithm.name}. " +
+        s"Agent names are ${illegalAgents.map(_.name).mkString(",")}"
+      throw new IllegalArgumentException(msg)
+    }
+
+    // We are good to go!
+    val updatedStatistics = if (this.test_statistics.isEmpty) Some(testStatistics) else Some(this.test_statistics.get ++ testStatistics)
+    this.copy(test_statistics = updatedStatistics)
   }
 
 }

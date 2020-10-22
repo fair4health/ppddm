@@ -50,7 +50,7 @@ object DistributedDataMiningManager {
    *
    * The call on the Agents are in parallel for the given dataMiningModel.
    *
-   * @param dataMiningModel The DataMiningModel for which the algorithm execution endpoint of the agents will be invoked
+   * @param dataMiningModel
    * @return
    */
   def invokeAgentsModelTraining(dataMiningModel: DataMiningModel): Future[Done] = {
@@ -222,9 +222,94 @@ object DistributedDataMiningManager {
 
   // ******* TESTING *******
 
+  /**
+   * Invokes the model testing endpoint of the given Agent for the given DataMiningModel
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return
+   */
+  private def invokeModelTesting(agent: Agent, dataMiningModel: DataMiningModel): Future[Try[Done]] = {
+    val modelTestRequest = ModelTestRequest(dataMiningModel.model_id.get, dataMiningModel.dataset.dataset_id.get,
+      agent, dataMiningModel.boosted_models.get)
+
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getTestURI(), Some(modelTestRequest))
+
+    logger.debug("Invoking agent model testing on URI:{} for model_id: {} & model_name: {}",
+      agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[Done](agentRequest) map { result =>
+      logger.debug("Agent model test invocation successful on URI:{} for model_id: {} & model_name: {}",
+        agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+      result
+    }
+  }
+
+  /**
+   * This function invokes the model testing endpoint of each Agent corresponding to the selected
+   * Agents (DatasetSources) of the Dataset by sending all BoostedModels for testing of the trained and validated models.
+   *
+   * The call on the Agents are in parallel for the given dataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
   def invokeAgentsModelTesting(dataMiningModel: DataMiningModel): Future[Done] = {
-    // FIXME: Implement
-    Future.apply(Done)
+    // Get all Agents of this DataMiningModel to which model test requests will be POSTed
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+    logger.debug("I will invoke the model test endpoints of {} agents with agent-ids: {} for {} number of BoostedModels " +
+      "where the Algorithms are {}",
+      agents.length, agents.map(_.agent_id).mkString(","), dataMiningModel.boosted_models.get.length, dataMiningModel.boosted_models.get.map(_.algorithm.name).mkString(","))
+
+    Future.sequence(agents.map(invokeModelTesting(_, dataMiningModel))) map { responses =>
+      val failedAgents = responses.collect { case Failure(x) => x }
+      if (failedAgents.nonEmpty) {
+        val msg = s"There are ${failedAgents.size} Agents out of ${responses.size} which returned error on model test request."
+        logger.error(msg)
+        throw AgentCommunicationException(reason = msg)
+      }
+
+      Done
+    }
+  }
+
+  /**
+   * Asks the ModelTestResult from the given Agent for the given dataMiningModel.
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return An Option[ModelTestResult]. If the result is None, that means the model testing has not completed yet.
+   */
+  private def getModelTestResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTestResult]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getValidationURI(dataMiningModel.model_id))
+
+    logger.debug("Asking the ModelTestResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[ModelTestResult](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Asks the model test results of the DataMiningModel to the Agents. These Agents were previously POSTed to
+   * start testing the BoostedModels on their datasets.
+   * And only the Agents whose results were not received yet are POSTed.
+   *
+   * @param dataMiningModel
+   * @return Returns a sequence of ModelTestResult. Only the results of Agents which finished their model testing will be returned by this function.
+   */
+  def askAgentsModelTestResults(dataMiningModel: DataMiningModel): Future[Seq[ModelTestResult]] = {
+    // Get the Agents whose ModelTestResults have not been received yet
+    val agents = DataMiningModelController.getAgentsWaitedForTestResults(dataMiningModel)
+
+    logger.debug("I will ask the model test results to {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(getModelTestResultFromAgent(_, dataMiningModel))) map { responses =>
+      responses
+        .filter(_.isDefined) // keep only ready ModelTestResult
+        .map(_.get) // get rid of Option
+    }
   }
 
 }

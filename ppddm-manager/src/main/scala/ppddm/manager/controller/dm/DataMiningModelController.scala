@@ -114,29 +114,16 @@ object DataMiningModelController {
    * @return
    */
   def getAgentsWaitedForValidationResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
-    if (dataMiningModel.boosted_models.isEmpty) {
-      val msg = s"Hey boy, there are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get} and you want me to " +
-        s"find the Agents whose validation results are being waited. I cannot do it."
-      logger.error(msg)
-      throw DataIntegrityException(msg)
-    }
+    checkBoostedModelIntegrity(dataMiningModel)
 
     // If there were no data inconsistency, all BoostedModels of this dataMiningModel should have the WeakModels from the
     // very same Agents at any instant in time.
     val illegalWeakModels = dataMiningModel.boosted_models.get
-      .map(_.weak_models.map(wm=>wm.algorithm -> wm.agent).toSet)
-      .reduce((a,b) => if(a.equals(b)) a else Set.empty)
-    if(illegalWeakModels.isEmpty) {
+      .map(_.weak_models.map(wm => wm.algorithm -> wm.agent).toSet)
+      .reduce((a, b) => if (a.equals(b)) a else Set.empty)
+    if (illegalWeakModels.isEmpty) {
       val msg = s"Ooops! All the WeakModels of the BoostedModels within a DataMiningModel:${dataMiningModel.model_id.get} should be the SAME " +
         s"at any instant in time. It seems this is not the case!!!"
-      logger.error(msg)
-      throw DataIntegrityException(msg)
-    }
-
-    // And if we are calling this function, then we are sure that a BoostedModel is there for each Algorithm
-    val boostedModelsAlgorithms = dataMiningModel.boosted_models.get.map(_.algorithm).toSet
-    if(!boostedModelsAlgorithms.equals(dataMiningModel.algorithms.toSet)) {
-      val msg = s"There must be one BoostedModel for each Algorithm of this DataMiningModel:${dataMiningModel.model_id.get}"
       logger.error(msg)
       throw DataIntegrityException(msg)
     }
@@ -144,11 +131,44 @@ object DataMiningModelController {
     val agentsWhoseValidationResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all will have the results from the same Agents at any instant in time
       .weak_models.flatMap { weakModel => // for each WeakModel of this BoostedModel
       weakModel.training_statistics
-        .map(trainingStatistics => trainingStatistics.agent_statistics) // Collect the Agents from whom statistics are received
+        .map(_.agent_statistics) // Collect the Agents from whom statistics are received
         .toSet // Convert to a Set
     }
 
     (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseValidationResultsAlreadyReceieved).toSeq
+  }
+
+  private def checkBoostedModelIntegrity(dataMiningModel: DataMiningModel): Unit = {
+    if (dataMiningModel.boosted_models.isEmpty) {
+      val msg = s"Hey boy, there are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get} and you want me to " +
+        s"find the Agents whose validation/test results are being waited. I cannot do it."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // And if we are calling this function, then we are sure that a BoostedModel is there for each Algorithm
+    val boostedModelsAlgorithms = dataMiningModel.boosted_models.get.map(_.algorithm).toSet
+    if (!boostedModelsAlgorithms.equals(dataMiningModel.algorithms.toSet)) {
+      val msg = s"There must be one BoostedModel for each Algorithm of this DataMiningModel:${dataMiningModel.model_id.get}"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose test results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForTestResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    checkBoostedModelIntegrity(dataMiningModel)
+
+    val agentsWhoseTestResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all BoostedModels will contain results from the very same Agents at any instant in time.
+      .test_statistics.getOrElse(Seq.empty)
+      .map(_.agent_statistics) // Collect the Agents from whom statistics are received
+
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseTestResultsAlreadyReceieved).toSeq
   }
 
   /**
