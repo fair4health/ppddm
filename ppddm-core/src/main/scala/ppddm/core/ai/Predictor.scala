@@ -1,23 +1,22 @@
-package ppddm.agent.controller.dm
+package ppddm.core.ai
 
+import org.apache.spark.sql.functions.{col, udf, when}
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import ppddm.agent.Agent
-import org.apache.spark.sql.functions.{when, _}
 
 /**
  * This object handles the calculation of prediction of BoostedModel consisting of a number of WeakModels
  */
-object BoostedModelManager {
+object Predictor {
 
-  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
-  import sparkSession.implicits._
 
   /**
    * Predict values by taking weighted average of predictions of each weak model
    * @param testPredictionTuples
    * @return
    */
-  def predictWithWeightedAverageOfPredictions(testPredictionTuples: Seq[(Double, DataFrame)]): DataFrame = {
+  def predictWithWeightedAverageOfPredictions(testPredictionTuples: Seq[(Double, DataFrame)])(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
     } else { // Predict with weighted average of predictions
@@ -54,7 +53,9 @@ object BoostedModelManager {
    * @param testPredictionTuples
    * @return
    */
-  def predictWithWeightedProbability(testPredictionTuples: Seq[(Double, DataFrame)]): DataFrame = {
+  def predictWithWeightedProbability(testPredictionTuples: Seq[(Double, DataFrame)])(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
     } else { // Predict with weighted probability
@@ -96,7 +97,9 @@ object BoostedModelManager {
    * @param testPredictionTuples
    * @return
    */
-  def predictWithMajorityVoting(testPredictionTuples: Seq[(Double, DataFrame)]): DataFrame = {
+  def predictWithMajorityVoting(testPredictionTuples: Seq[(Double, DataFrame)])(implicit sparkSession: SparkSession): DataFrame = {
+    import sparkSession.implicits._
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
     } else { // Predict with majority voting
