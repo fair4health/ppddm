@@ -5,8 +5,9 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.FindOneAndReplaceOptions
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{DataMiningModel, DataMiningSource}
+import ppddm.core.rest.model.{Agent, DataMiningModel, SelectionStatus, WeakModel}
 import ppddm.manager.Manager
+import ppddm.manager.exception.DataIntegrityException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -28,8 +29,151 @@ object DataMiningModelController {
   private val db = Manager.mongoDB.getDatabase
 
   /**
+   * Returns a list of the SelectionStatus.SELECTED Agents of the Dataset of the given dataMiningModel.
+   *
+   * Before returning the list of Agents, this function performs a number of integrity checks and throws
+   * DataIntegrityException accordingly.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getSelectedAgents(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    if (dataMiningModel.dataset.dataset_sources.isEmpty || dataMiningModel.dataset.dataset_sources.get.isEmpty) {
+      // This is a data integrity problem. This should not happen!
+      val msg = s"You want to get the selected Agents for this DataMiningModel with model_id:${dataMiningModel.model_id} and " +
+        s"name:${dataMiningModel.name} HOWEVER there are no DatasetSources in the Dataset of this DataMiningModel. " +
+        s"dataset_id:${dataMiningModel.dataset.dataset_id.get} and dataset_name:${dataMiningModel.dataset.name}"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    if (dataMiningModel.dataset.dataset_sources.get.exists(_.selection_status.isEmpty)) {
+      val msg = s"There is at least one DatasetSource within the Dataset of this DataMiningModel whose selection_status is None! " +
+        s"model_id:${dataMiningModel.model_id} model_name:${dataMiningModel.name} dataset_id:${dataMiningModel.dataset.dataset_id}"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // Find the Agents to be connected for data mining (those are the SELECTED ones for the Dataset)
+    dataMiningModel.dataset.dataset_sources.get
+      .filter(_.selection_status.get == SelectionStatus.SELECTED)
+      .map(_.agent)
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose training results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForTrainingResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    val agentsWhoseTrainingResultsAlreadyReceieved =
+      if (dataMiningModel.boosted_models.isDefined) {
+        dataMiningModel.boosted_models.get
+          .head // Use the first BoostedModel since we are sure! that all BoostedModels have results from the same Agents at any time
+          .weak_models.map(_.agent) // Get the Agent of each existing WeakModel
+          .toSet // Convert to Set
+      } else {
+        Set.empty[Agent]
+      }
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseTrainingResultsAlreadyReceieved).toSeq
+  }
+
+  /**
+   * Given the dataMiningModel, returns a sequence of tuples in the form of (_1, _2) where:
+   * _1 is the Agent
+   * _2 is the sequence of WeakModels to be validated on the Agent (_1). These are the WeakModels which were trained on
+   * the other Agents.
+   *
+   * When a WeakModel is trained on an Agent, it should be validated on the *other* Agents.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentValidationModelPairs(dataMiningModel: DataMiningModel): Seq[(Agent, Seq[WeakModel])] = {
+    if (dataMiningModel.boosted_models.isEmpty) {
+      val msg = s"Hey boy, there are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get} and you want me to " +
+        s"extract the Agent-ValidationWeakModels pairs. I cannot do it."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // Get the Agents from whom WeakModels should already have been received.
+    getSelectedAgents(dataMiningModel).map { agent => // For each Agent
+      val weakModelsToBeValidatedOnAgent = dataMiningModel.boosted_models.get.flatMap { boostedModel => // Loop through the BoostedModels of this DataMiningModel
+        boostedModel.weak_models.filterNot(_.agent == agent) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
+      }
+      agent -> weakModelsToBeValidatedOnAgent
+    }
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose validation results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForValidationResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    checkBoostedModelIntegrity(dataMiningModel)
+
+    // If there were no data inconsistency, all BoostedModels of this dataMiningModel should have the WeakModels from the
+    // very same Agents at any instant in time.
+    val illegalWeakModels = dataMiningModel.boosted_models.get
+      .map(_.weak_models.map(wm => wm.algorithm -> wm.agent).toSet)
+      .reduce((a, b) => if (a.equals(b)) a else Set.empty)
+    if (illegalWeakModels.isEmpty) {
+      val msg = s"Ooops! All the WeakModels of the BoostedModels within a DataMiningModel:${dataMiningModel.model_id.get} should be the SAME " +
+        s"at any instant in time. It seems this is not the case!!!"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    val agentsWhoseValidationResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all will have the results from the same Agents at any instant in time
+      .weak_models.flatMap { weakModel => // for each WeakModel of this BoostedModel
+      weakModel.training_statistics
+        .map(_.agent_statistics) // Collect the Agents from whom statistics are received
+        .toSet // Convert to a Set
+    }
+
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseValidationResultsAlreadyReceieved).toSeq
+  }
+
+  private def checkBoostedModelIntegrity(dataMiningModel: DataMiningModel): Unit = {
+    if (dataMiningModel.boosted_models.isEmpty) {
+      val msg = s"Hey boy, there are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get} and you want me to " +
+        s"find the Agents whose validation/test results are being waited. I cannot do it."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    // And if we are calling this function, then we are sure that a BoostedModel is there for each Algorithm
+    val boostedModelsAlgorithms = dataMiningModel.boosted_models.get.map(_.algorithm).toSet
+    if (!boostedModelsAlgorithms.equals(dataMiningModel.algorithms.toSet)) {
+      val msg = s"There must be one BoostedModel for each Algorithm of this DataMiningModel:${dataMiningModel.model_id.get}"
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose test results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForTestResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    checkBoostedModelIntegrity(dataMiningModel)
+
+    val agentsWhoseTestResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all BoostedModels will contain results from the very same Agents at any instant in time.
+      .test_statistics.getOrElse(Seq.empty)
+      .map(_.agent_statistics) // Collect the Agents from whom statistics are received
+
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseTestResultsAlreadyReceieved).toSeq
+  }
+
+  /**
    * Creates a new DataMiningModel on the Platform Repository
-   * and invokes the agents to start their algorithm execution processes.
+   * and starts the distributed data mining orchestration for the created DataMiningModel.
    *
    * @param dataMiningModel The DataMiningModel to be created
    * @return The created DataMiningModel with a unique model_id in it
@@ -38,22 +182,17 @@ object DataMiningModelController {
     // Create a new DataMiningModel object with a unique identifier
     val dataMiningModelWithId = dataMiningModel.withUniqueModelId
 
-    // Invoke agents to start data mining (algorithm execution) processes
-    // Returns a new Dataset object with data sources and execution state "querying"
-    DistributedDataMiningManager.invokeAgentsDataMining(dataMiningModelWithId) flatMap { dataMiningModelWithDataMiningSources =>
-      logger.info("Algorithm execution (data mining) endpoints are invoked for the selected Agents (datasources) of the associated Dataset")
-      db.getCollection[DataMiningModel](COLLECTION_NAME).insertOne(dataMiningModelWithDataMiningSources).toFuture() // insert into the database
-        .map { result =>
-          val _id = result.getInsertedId.asObjectId().getValue.toString
-          logger.debug("Inserted document _id:{} and model_id:{}", _id, dataMiningModelWithDataMiningSources.model_id.get)
-          dataMiningModelWithDataMiningSources
-        }
-        .recover {
-          case e: Exception =>
-            val msg = s"Error while inserting a DataMiningModel with model_id:${dataMiningModelWithDataMiningSources.model_id.get} into the database."
-            throw DBException(msg, e)
-        }
-    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).insertOne(dataMiningModelWithId).toFuture() // insert into the database
+      .map { result =>
+        val _id = result.getInsertedId.asObjectId().getValue.toString
+        logger.debug("Inserted document _id:{} and model_id:{}", _id, dataMiningModelWithId.model_id.get)
+        dataMiningModelWithId
+      }
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while inserting a DataMiningModel with model_id:${dataMiningModelWithId.model_id.get} into the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -66,16 +205,6 @@ object DataMiningModelController {
     db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("model_id", model_id))
       .first()
       .headOption()
-      .flatMap { dataMiningModelOption =>
-        if (dataMiningModelOption.isDefined) { // If the dataMiningModelOption is found with the given model_id
-          // Ask the algorithm execution results to its DataMiningSources
-          DistributedDataMiningManager.askAgentsDataMiningResults(dataMiningModelOption.get) map (Some(_))
-        } else {
-          Future {
-            None
-          }
-        }
-      }
   }
 
   /**
@@ -85,13 +214,7 @@ object DataMiningModelController {
    * @return The list of all DataMiningModels for the given project, empty list if there are no DataMiningModels.
    */
   def getAllDataMiningModels(project_id: String): Future[Seq[DataMiningModel]] = {
-    db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() flatMap { dataMiningModels =>
-      Future.sequence(
-        // Ask the data preparation results for each dataset to their DatasetSources
-        // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
-        dataMiningModels.map(dataMiningModel => DistributedDataMiningManager.askAgentsDataMiningResults(dataMiningModel))
-      )
-    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
   }
 
   /**
@@ -101,11 +224,9 @@ object DataMiningModelController {
    * @return The updated DataMiningModel object if operation is successful, None otherwise.
    */
   def updateDataMiningModel(dataMiningModel: DataMiningModel): Future[Option[DataMiningModel]] = {
-    // TODO: Add some integrity checks before document replacement
-    // TODO: Check whether at least one Algorithm is selected
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
-      dataMiningModel.withUpdatedExecutionState(),
+      dataMiningModel,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
   }
 
@@ -116,18 +237,19 @@ object DataMiningModelController {
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
   def deleteDataMiningModel(model_id: String): Future[Option[DataMiningModel]] = {
-    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption() flatMap { dataMiningModelOption: Option[DataMiningModel] =>
-      if (dataMiningModelOption.isDefined) {
-        val dataMiningModel = dataMiningModelOption.get
-        Future.sequence(
-          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
-            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
-          }) map { _ => Some(dataMiningModel) }
-      }
-      else {
-        Future.apply(Option.empty[DataMiningModel])
-      }
-    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption()
+    //    flatMap { dataMiningModelOption: Option[DataMiningModel] =>
+    //      if (dataMiningModelOption.isDefined) {
+    //        val dataMiningModel = dataMiningModelOption.get
+    //        Future.sequence(
+    //          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
+    //            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
+    //          }) map { _ => Some(dataMiningModel) }
+    //      }
+    //      else {
+    //        Future.apply(Option.empty[DataMiningModel])
+    //      }
+    //    }
   }
 
 }

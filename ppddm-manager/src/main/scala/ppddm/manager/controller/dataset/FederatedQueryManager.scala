@@ -43,15 +43,11 @@ object FederatedQueryManager {
     ) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }
       if (failedAgents.nonEmpty) {
-        logger.error("There are {} agents (data sources) out of {} which returned error on data preparation request.", failedAgents.size, responses.size)
-        failedAgents.foreach(logger.error("Error during Agent communication for data preparation", _))
+        val msg = s"There are ${failedAgents.size} agents (data sources) out of ${responses.size} which returned error on data preparation request."
+        throw AgentCommunicationException(reason = msg)
       }
 
       val successfulAgents = responses.collect { case Success(x) => x }
-      if (successfulAgents.isEmpty) {
-        val msg = "No Agents are communicated, hence I cannot create a Dataset!!"
-        throw AgentCommunicationException("All Agents", "", msg)
-      }
       dataset
         .withDatasetSources(successfulAgents) // create a new Dataset with the DatasetSources which are EXECUTING
     }
@@ -104,9 +100,11 @@ object FederatedQueryManager {
         dataset.dataset_sources.get.size, dataset.dataset_id, dataset.name)
 
       Future.sequence(
-        dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each datasetSource in this set (actually, for each DataSource)
-          getPreparedDataStatistics(datasetSource.agent, dataset) // Ask for the data preparation results (do this in parallel)
-        }
+        dataset.dataset_sources.get // For each datasetSource in this set (actually, for each DataSource)
+          .filter(_.execution_state.get == ExecutionState.EXECUTING) // Keep which are already Executing (do not ask again to the FINALized ones)
+          .map { datasetSource: DatasetSource =>
+            getPreparedDataStatistics(datasetSource.agent, dataset) // Ask for the data preparation results (do this in parallel)
+          }
       ) map { responses: Seq[Option[DataPreparationResult]] => // Join the responses coming from different data sources (Agents)
         logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
         responses.map(result => { // For each DataPreparationResult

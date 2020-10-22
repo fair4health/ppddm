@@ -25,7 +25,7 @@ object SelectionStatus extends Enumeration {
 }
 
 /**
- * ExecutionState is being used by Dataset, DatasetSource, DataMiningModel and Algorithm classes of the rest model.
+ * ExecutionState is being used by Dataset and DatasetSource classes of the rest model.
  *
  * Dataset: When a Dataset is created, it will invoke Agents to prepare their data. The ExecutionState of the Dataset
  * will be EXECUTING at this point. Once all Agents prepare their data, th ExecutionState of the Dataset will be
@@ -36,13 +36,27 @@ object SelectionStatus extends Enumeration {
  * EXECUTING. When the data is ready at the Agent, then the ExecutionState will be FINAL. Hence, DatasetSource uses only
  * two of the available ExecutionState enumeration values.
  *
- * DataMiningModel:
- *
  */
 object ExecutionState extends Enumeration {
   type ExecutionState = String
   val EXECUTING = "executing"
   val READY = "ready"
+  val FINAL = "final"
+}
+
+/**
+ * DataMiningState is being used by DataMiningModel and WeakModel classes of the rest model.
+ *
+ * DataMiningModel: TODO
+ *
+ * WeakModel: TODO
+ *
+ */
+object DataMiningState extends Enumeration {
+  type DataMiningState = String
+  val TRAINING = "training"
+  val VALIDATING = "validating"
+  val TESTING = "testing"
   val FINAL = "final"
 }
 
@@ -90,14 +104,30 @@ object AlgorithmName extends Enumeration {
 
 object AlgorithmParameterName extends Enumeration {
   type AlgorithmParameterName = String
+  val NUMBER_OF_FOLDS = "num_folds" // Value of k in k-fold Cross validation
+  val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
+
+  // Logistic Regression
   val THRESHOLD = "threshold" // Threshold [Double]
   val MAX_ITER = "max_iter" // Maximum number of iterations [Integer]
   val REG_PARAM = "reg_param" // Regularization parameter [Double]
   val ELASTIC_NET_PARAM = "elasticnet_param" // ElasticNet mixing parameter [Double]
+
+
+  // Decision Tree
+  val MAX_DEPTH = "max_depth" // Maximum depth of a tree. Deeper trees are more expressive (potentially allowing higher accuracy), but they are also more costly to train and are more likely to overfit.
+  val MIN_INFO_GAIN = "min_info_gain" // For a node to be split further, the split must improve at least this much (in terms of information gain).
+  val MAX_BINS = "max_bins" // TODO Consider using this if you will not perform categorical handling or feature scaling for decision tree
+  val IMPURITY = "impurity" // The node impurity is a measure of the homogeneity of the labels at the node
 }
 
 object AlgorithmStatisticsName extends Enumeration {
   type AlgorithmStatisticsName = String
+  val TRUE_POSITIVE = "true_positive"
+  val TRUE_NEGATIVE = "true_negative"
+  val FALSE_POSITIVE = "false_positive"
+  val FALSE_NEGATIVE = "false_negative"
+  val TOTAL = "total"
   val ACCURACY = "accuracy"
   val PRECISION = "precision"
   val RECALL = "recall"

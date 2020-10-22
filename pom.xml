@@ -47,6 +47,7 @@
     <mongo.driver.version>4.0.4</mongo.driver.version>
     <mongo.embedded.version>2.2.0</mongo.embedded.version>
     <onfhir.version>3.1-SNAPSHOT</onfhir.version>
+    <zt.zip.version>1.14</zt.zip.version>
   </properties>
 
   <build>
@@ -193,6 +194,12 @@
             <artifactId>logback-core</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+
+      <dependency>
+        <groupId>org.zeroturnaround</groupId>
+        <artifactId>zt-zip</artifactId>
+        <version>${zt.zip.version}</version>
       </dependency>
 
     </dependencies>

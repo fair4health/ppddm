@@ -2,85 +2,259 @@ package ppddm.agent.controller.dm
 
 import akka.Done
 import com.typesafe.scalalogging.Logger
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
-import ppddm.agent.controller.prepare.DataStoreManager
-import ppddm.agent.exception.AlgorithmExecutionException
-import ppddm.core.rest.model.{AlgorithmExecutionRequest, AlgorithmExecutionResult}
+import ppddm.agent.controller.dm.algorithm.DataMiningAlgorithm
+import ppddm.agent.exception.DataMiningException
+import ppddm.agent.store.DataStoreManager
+import ppddm.core.rest.model.{ModelTestRequest, ModelTestResult, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest, ModelValidationResult}
 import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
 
+/**
+ * Controller object for Data Mining Algorithm Execution
+ */
 object DataMiningController {
+
+  val TRAINING_SIZE = 0.8 // TODO get these values from client in the future
+  val TEST_SIZE = 0.2 // TODO get these values from client in the future
+  val SEED = 11L // We need a seed value to be the same so that, the data that is split into training and test will always be the same
 
   private val logger: Logger = Logger(this.getClass)
   private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
   import sparkSession.implicits._
 
-  def startAlgorithmExecution(algorithmExecutionRequest: AlgorithmExecutionRequest): Future[Done] = {
-    logger.debug("Algorithm execution request received on agent:{} for model:{}", algorithmExecutionRequest.agent.agent_id, algorithmExecutionRequest.model_id)
+  /**
+   * Start the training of the data mining algorithm. This function returns if the training is started successfully.
+   * Model training will continue in the background and the manager will ask about the status through a separate HTTP GET call.
+   *
+   * @param modelTrainingRequest
+   * @return
+   */
+  def startTraining(modelTrainingRequest: ModelTrainingRequest): Future[Done] = {
+    logger.debug("ModelTrainingRequest received on agent:{} for model:{} for a total of {} Algorithms",
+      modelTrainingRequest.agent.agent_id, modelTrainingRequest.model_id, modelTrainingRequest.algorithms.length)
 
-    // First prepare the data for algorithm execution, i.e. perform the exploratory data analysis which include categorical variable handling, null values handling etc.
-    val df = DataAnalysisManager.performDataAnalysis(algorithmExecutionRequest.dataset_id)
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrame = retrieveDataFrame(modelTrainingRequest.dataset_id)
 
-    // Then execute the algorithms one by one on the same data
-    val algorithmModelFutures = algorithmExecutionRequest.algorithms map { algorithm =>
-      AlgorithmExecutionManager.executeAlgorithm(algorithmExecutionRequest.agent, algorithm, df)
+    // Train and generate weak models on the dataFrame
+    val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
+      DataMiningAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
     }
 
-    // Save the AlgorithmExecutionResult containing the models into ppddm-store/models/:model_id
-    Future.sequence(algorithmModelFutures) map { algorithm_models =>
-      val algorithmExecutionResult = AlgorithmExecutionResult(algorithmExecutionRequest.model_id, algorithmExecutionRequest.dataset_id,
-        algorithmExecutionRequest.agent, algorithm_models)
+    Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
+
+      val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
+        modelTrainingRequest.agent, algorithm_models)
       try {
-        DataStoreManager.saveDF(
-          DataStoreManager.getModelPath(algorithmExecutionRequest.model_id),
-          Seq(algorithmExecutionResult.toJson).toDF())
+        // Save the ModelTrainingResult containing the models into ppddm-store/models/:model_id
+        DataStoreManager.saveDataFrame(
+          DataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
+          Seq(modelTrainingResult.toJson).toDF())
         Done
-      }
-      catch {
+      } catch {
         case e: Exception =>
-          val msg = s"Cannot save the AlgorithmExecutionResult of the model with model_id: ${algorithmExecutionRequest.model_id}."
+          val msg = s"Cannot save the ModelTrainingResult of the model with model_id: ${modelTrainingRequest.model_id}."
           logger.error(msg)
-          throw AlgorithmExecutionException(msg, e)
+          throw DataMiningException(msg, e)
       }
     }
   }
 
   /**
-   * Retrieves the AlgorithmExecutionResult which includes the models and statistics for the algorithms that were executed
+   * Retrieves the ModelTrainingResult which includes the trained WeakModels and training statistics for the algorithms that were executed
    *
    * @param model_id
    * @return
    */
-  def getAlgorithmExecutionResult(model_id: String): Option[AlgorithmExecutionResult] = {
+  def getTrainingResult(model_id: String): Option[ModelTrainingResult] = {
     Try(
-      DataStoreManager.getDF(DataStoreManager.getModelPath(model_id)) map { df =>
+      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
-          .extract[AlgorithmExecutionResult]
+          .extract[ModelTrainingResult]
       }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 
   /**
-   * Deletes AlgorithmExecutionResult
+   * Deletes ModelTrainingResult
    *
-   * @param model_id The unique identifier of the model whose AlgorithmExecutionResult is to be deleted
+   * @param model_id The unique identifier of the model whose ModelTrainingResult is to be deleted
    * @return
    */
-  def deleteAlgorithmExecutionResult(model_id: String): Option[Done] = {
-    // Delete the AlgorithmExecutionResult with the given model_id
-    val resulttDeleted = DataStoreManager.deleteDF(DataStoreManager.getModelPath(model_id))
-    if (resulttDeleted) {
-      logger.info(s"AlgorithmExecutionResult of model (with id: $model_id) have been deleted successfully")
+  def deleteTrainingResult(model_id: String): Option[Done] = {
+    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN))) {
+      logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
     } else {
-      logger.info(s"AlgorithmExecutionResult of model (with id: $model_id) do not exist!")
+      logger.debug(s"ModelTrainingResult of model (with id: $model_id) do not exist!")
       Option.empty[Done]
     }
+  }
+
+  /**
+   * Start the validation of the given WeakModels within the ModelValidationRequest against the Dataset of the Model
+   * indicated with model_id.
+   *
+   * @param modelValidationRequest
+   * @return
+   */
+  def startValidation(modelValidationRequest: ModelValidationRequest): Future[Done] = {
+    logger.debug("ModelValidationRequest received on agent:{} for model:{} for a total of {} WeakModels",
+      modelValidationRequest.agent.agent_id, modelValidationRequest.model_id, modelValidationRequest.weak_models.length)
+
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrame = retrieveDataFrame(modelValidationRequest.dataset_id)
+
+    // Split the data into training and test. Only trainingData will be used.
+    val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+
+    // Train each weak model on dataFrame, and calculate statistics for each
+    val validationFutures = modelValidationRequest.weak_models.map { weakModel =>
+      DataMiningAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel, trainingData)
+    }
+
+    Future.sequence(validationFutures) map { validationResults => // Join the Futures
+      val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id, modelValidationRequest.agent, validationResults)
+
+      try {
+        // Save the ModelValidationResult containing the models into ppddm-store/models/:model_id
+        DataStoreManager.saveDataFrame(
+          DataStoreManager.getModelPath(modelValidationResult.model_id, DataMiningRequestType.VALIDATE),
+          Seq(modelValidationResult.toJson).toDF())
+        Done
+      } catch {
+        case e: Exception =>
+          val msg = s"Cannot save the ModelValidationResult of the model with model_id: ${modelValidationResult.model_id}."
+          logger.error(msg)
+          throw DataMiningException(msg, e)
+      }
+    }
+
+  }
+
+  /**
+   * Retrieves the ModelValidationResult which includes the validation statistics for the weak models sent by the PPDDM Manager.
+   *
+   * @param model_id
+   * @return
+   */
+  def getValidationResult(model_id: String): Option[ModelValidationResult] = {
+    Try(
+      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE)) map { df =>
+        df // Dataframe consisting of a column named "value" that holds Json inside
+          .head() // Get the Array[Row]
+          .getString(0) // Get Json String
+          .extract[ModelValidationResult]
+      }).getOrElse(None) // Returns None if an error occurs within the Try block
+  }
+
+  /**
+   * Deletes ModelTrainingResult
+   *
+   * @param model_id The unique identifier of the model whose ModelTrainingResult is to be deleted
+   * @return
+   */
+  def deleteValidationResult(model_id: String): Option[Done] = {
+    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE))) {
+      logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
+      Some(Done)
+    } else {
+      logger.debug(s"ModelTrainingResult of model (with id: $model_id) do not exist!")
+      Option.empty[Done]
+    }
+  }
+
+  /**
+   * Start the test of the given BoostedModels within the ModelTestRequest against the Dataset of the Model
+   * indicated with model_id.
+   *
+   * @param modelTestRequest
+   * @return
+   */
+  def startTesting(modelTestRequest: ModelTestRequest): Future[Done] = {
+    logger.debug("ModelTestRequest received on agent:{} for model:{} for a total of {} BoostedModels",
+      modelTestRequest.agent.agent_id, modelTestRequest.model_id, modelTestRequest.boosted_models.length)
+
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrame = retrieveDataFrame(modelTestRequest.dataset_id)
+
+    // Split the data into training and test. Only testData will be used.
+    val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+
+    // Test each boosted model on dataFrame, and calculate statistics for each
+    val testFutures = modelTestRequest.boosted_models.map { boostedModel =>
+      DataMiningAlgorithm(modelTestRequest.agent, boostedModel.algorithm).test(boostedModel, testData)
+    }
+
+    Future.sequence(testFutures) map { testResults => // Join the Futures
+      val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, testResults)
+
+      try {
+        // Save the ModelTestResult containing the models into ppddm-store/models/:model_id
+        DataStoreManager.saveDataFrame(
+          DataStoreManager.getModelPath(modelTestResult.model_id, DataMiningRequestType.TEST),
+          Seq(modelTestResult.toJson).toDF())
+        Done
+      } catch {
+        case e: Exception =>
+          val msg = s"Cannot save the ModelTestResult of the model with model_id: ${modelTestResult.model_id}."
+          logger.error(msg)
+          throw DataMiningException(msg, e)
+      }
+    }
+  }
+
+  /**
+   * Retrieves the ModelTestResult which includes the test statistics for the BoostedModels
+   *
+   * @param model_id
+   * @return
+   */
+  def getTestResult(model_id: String): Option[ModelTestResult] = {
+    Try(
+      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
+        df // Dataframe consisting of a column named "value" that holds Json inside
+          .head() // Get the Array[Row]
+          .getString(0) // Get Json String
+          .extract[ModelTestResult]
+      }).getOrElse(None) // Returns None if an error occurs within the Try block
+  }
+
+  /**
+   * Deletes ModelTestResult
+   *
+   * @param model_id The unique identifier of the model whose ModelTestResult is to be deleted
+   * @return
+   */
+  def deleteTestResult(model_id: String): Option[Done] = {
+    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST))) {
+      logger.info(s"ModelTestResult of model (with id: $model_id) have been deleted successfully")
+      Some(Done)
+    } else {
+      logger.debug(s"ModelTestResult of model (with id: $model_id) do not exist!")
+      Option.empty[Done]
+    }
+  }
+
+  /**
+   * Retrieves already saved DataFrame from DataStore
+   * @param dataset_id the id of dataset to be retrieved
+   * @return the DataFrame if it exists. If not, throws a DataMiningException
+   */
+  private def retrieveDataFrame(dataset_id: String): DataFrame = {
+    val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(dataset_id))
+    if (dataFrameOption.isEmpty) {
+      val msg = s"The Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
+      logger.error(msg)
+      throw DataMiningException(msg)
+    }
+    dataFrameOption.get
   }
 }

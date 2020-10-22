@@ -36,7 +36,7 @@ object DatasetController {
     val datasetWithId = dataset.withUniqueDatasetId
 
     // Invoke agents to start data preparation processes
-    // Returns a new Dataset object with data sources and execution state "querying"
+    // Returns a new Dataset object with data sources and execution state "EXECUTING"
     FederatedQueryManager.invokeAgentsDataPreparation(datasetWithId) flatMap { datasetWithDataSources =>
       logger.info("Data preparation endpoints are invoked for all registered Agents (datasources)")
       db.getCollection[Dataset](COLLECTION_NAME).insertOne(datasetWithDataSources).toFuture() // insert into the database
@@ -66,7 +66,11 @@ object DatasetController {
       .flatMap { datasetOption =>
         if (datasetOption.isDefined) { // If the dataset is found with the given dataset_id
           // Ask the data preparation results to its DatasetSources
-          FederatedQueryManager.askAgentsDataPreparationResults(datasetOption.get) map (Some(_))
+          FederatedQueryManager.askAgentsDataPreparationResults(datasetOption.get) flatMap { dataset =>
+            // Save the new Dataset to the database so that in the next call to this function
+            // I do not ask the results to the agents which have already in their FINAL states
+            updateDataset(dataset)
+          }
         } else {
           Future {
             None
@@ -86,7 +90,14 @@ object DatasetController {
       Future.sequence(
         // Ask the data preparation results for each dataset to their DatasetSources
         // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
-        datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset))
+        datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset) flatMap { datasetWithNewDataSources =>
+          // Save the new Dataset to the database so that in the next call to this function
+          // I do not ask the results to the agents which have already in their FINAL states
+          updateDataset(datasetWithNewDataSources) map { updatedDataset =>
+            if(updatedDataset.isDefined) updatedDataset.get
+            else datasetWithNewDataSources
+          }
+        })
       )
     }
   }
