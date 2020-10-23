@@ -309,7 +309,7 @@ object DataMiningOrchestrator {
       if (DataMiningModelController.getAgentsWaitedForTestResults(newDataMiningModel).isEmpty) {
         // If there are no remaining Agents to wait for the test results,
         // We can calculate the calculated_test_statistics of the BoostedModels
-        val updatedBoostedModels = dataMiningModel.boosted_models.get map { boostedModel =>
+        val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
           val calculatedStatistics = StatisticsCalculator.combineStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
           boostedModel.withCalculatedTestStatistics(calculatedStatistics)
         }
