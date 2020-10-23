@@ -1,0 +1,33 @@
+{
+  "dataset_id": "9e2be13f-9d1b-4dfc-87af-3400d7ef2d072",
+  "project_id": "a115b09b-396c-4c3d-9bee-31c9bcd4bf27",
+  "data_source": {
+    "datasource_id": "sas-id",
+    "name": "SAS",
+    "endpoint": "http://localhost:8000/agent"
+  },
+  "featureset": {
+    "featureset_id": "66130b21-c83f-49e0-9512-9f943cb0916d",
+    "project_id": "a115b09b-396c-4c3d-9bee-31c9bcd4bf27",
+    "name": "F4H Use-case-2 feature set",
+    "description": "Contains medical comorbidities, pharmacological variables, laboratory variables and other variables",
+    "created_by": "1903",
+    "created_on": "2020-06-29T18:01:30.209"
+  },
+  "name": "F4H Use-case-2 data set",
+  "description": "Contains data of patients older than 18 and having COPD",
+  "eligibility_criteria": [
+    {
+      "fhir_query": "/Patient?_id=3ea6c79b2959285b03788ae4a18b105a,4e89b59e62cd838420963ddf35a468ef"
+    }
+  ],
+  "agent": {
+    "agent_id": "sas-id",
+    "name": "SAS",
+    "endpoint": "http://localhost:8000/agent"
+  },
+  "execution_state": "querying",
+  "created_by": "1903",
+  "created_on": "2020-09-01T15:33:25.379",
+  "submitted_by": "1903"
+}

@@ -48,6 +48,7 @@
     <mongo.embedded.version>2.2.0</mongo.embedded.version>
     <onfhir.version>3.1-SNAPSHOT</onfhir.version>
     <zt.zip.version>1.14</zt.zip.version>
+    <specs2.version>4.3.1</specs2.version>
   </properties>
 
   <build>
@@ -152,6 +153,19 @@
         <artifactId>akka-http-caching_${scala.binary.version}</artifactId>
         <version>${akka.http.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.typesafe.akka</groupId>
+        <artifactId>akka-testkit_${scala.binary.version}</artifactId>
+        <version>${akka.version}</version>
+      </dependency>
+
+      <!-- Testkit for Akka Http-->
+      <dependency>
+        <groupId>com.typesafe.akka</groupId>
+        <artifactId>akka-http-testkit_${scala.binary.version}</artifactId>
+        <version>${akka.http.version}</version>
+        <scope>test</scope>
+      </dependency>
 
       <!-- JSON4S -->
       <dependency>
@@ -200,6 +214,20 @@
         <groupId>org.zeroturnaround</groupId>
         <artifactId>zt-zip</artifactId>
         <version>${zt.zip.version}</version>
+      </dependency>
+
+      <!-- Unit Testing -->
+      <dependency>
+        <groupId>org.specs2</groupId>
+        <artifactId>specs2-core_${scala.binary.version}</artifactId>
+        <version>${specs2.version}</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.specs2</groupId>
+        <artifactId>specs2-junit_${scala.binary.version}</artifactId>
+        <version>${specs2.version}</version>
+        <scope>provided</scope>
       </dependency>
 
     </dependencies>

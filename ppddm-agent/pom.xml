@@ -132,6 +132,29 @@
             <artifactId>zt-zip</artifactId>
         </dependency>
 
+        <!--Testing toolkits for Akka-->
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-testkit_${scala.binary.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-http-testkit_${scala.binary.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Unit Testing -->
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-core_${scala.binary.version}</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-junit_${scala.binary.version}</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
 </project>
