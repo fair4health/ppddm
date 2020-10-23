@@ -11,7 +11,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import java.util.concurrent.TimeUnit
 
-import ppddm.core.ai.Aggregator
+import ppddm.core.ai.{Aggregator, StatisticsCalculator}
 
 /**
  * Handles the orchestration of Distributed Data Mining between the Agents.
@@ -297,7 +297,11 @@ object DataMiningOrchestrator {
       if (DataMiningModelController.getAgentsWaitedForTestResults(newDataMiningModel).isEmpty) {
         // If there are no remaining Agents to wait for the test results,
         // We can calculate the calculated_test_statistics of the BoostedModels
-        // TODO: Implement the mechanism to calculate the calculated_test_statistics of all BoostedModels within this DataMiningModel
+        val updatedBoostedModels = dataMiningModel.boosted_models.get map { boostedModel =>
+          val calculatedStatistics = StatisticsCalculator.combineStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
+          boostedModel.withCalculatedTestStatistics(calculatedStatistics)
+        }
+        newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
 
         // Advance the state to FINAL
         newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.FINAL)
