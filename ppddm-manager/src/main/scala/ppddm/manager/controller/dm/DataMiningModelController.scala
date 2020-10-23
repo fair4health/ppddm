@@ -119,11 +119,11 @@ object DataMiningModelController {
     // If there were no data inconsistency, all BoostedModels of this dataMiningModel should have the WeakModels from the
     // very same Agents at any instant in time.
     val illegalWeakModels = dataMiningModel.boosted_models.get
-      .map(_.weak_models.map(wm => wm.algorithm -> wm.agent).toSet)
+      .map(_.weak_models.map(_.agent).toSet) // Create a set from the Agents of each WeakModel
       .reduce((a, b) => if (a.equals(b)) a else Set.empty)
     if (illegalWeakModels.isEmpty) {
-      val msg = s"Ooops! All the WeakModels of the BoostedModels within a DataMiningModel:${dataMiningModel.model_id.get} should be the SAME " +
-        s"at any instant in time. It seems this is not the case!!!"
+      val msg = s"Ooops! All the WeakModels of the BoostedModels within a DataMiningModel:${dataMiningModel.model_id.get} should include SAME " +
+        s"Agents at any instant in time. It seems this is not the case!!!"
       logger.error(msg)
       throw DataIntegrityException(msg)
     }
