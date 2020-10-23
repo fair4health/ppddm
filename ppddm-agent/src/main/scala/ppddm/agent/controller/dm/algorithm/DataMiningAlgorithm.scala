@@ -70,7 +70,7 @@ trait DataMiningAlgorithm {
       // Calculate statistics
       val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
-      AgentAlgorithmStatistics(null, agent, algorithm, statistics) // TODO what is first parameter?
+      AgentAlgorithmStatistics(agent, agent, algorithm, statistics)
     }
   }
 
