@@ -27,7 +27,7 @@ private case class DecisionTreePPDDM(override val agent: Agent, override val alg
       // Create the LogisticRegression object
       val decisionTree = new DecisionTreeClassifier()
 
-      // Split the data into training and test
+      // Split the data into training and test. Only trainingData will be used.
       val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
       val pipeline = new Pipeline().setStages(pipelineStages ++ Array(decisionTree))
@@ -68,7 +68,7 @@ private case class DecisionTreePPDDM(override val agent: Agent, override val alg
 
       // Test the model
       logger.debug("Testing the model with test data...")
-      val testPredictionDF = pipelineModel.transform(testData)
+      val testPredictionDF = pipelineModel.transform(trainingData)
       logger.debug("DecisionTreeClassificationModel has been tested.")
 
       // Calculate statistics

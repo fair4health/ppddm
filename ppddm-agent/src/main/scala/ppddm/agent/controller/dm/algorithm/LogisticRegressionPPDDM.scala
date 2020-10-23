@@ -28,7 +28,7 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
       // Create the LogisticRegression object
       val logisticRegression = new LogisticRegression()
 
-      // Split the data into training and test
+      // Split the data into training and test. Only trainingData will be used.
       val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
       val pipeline = new Pipeline().setStages(pipelineStages ++ Array(logisticRegression))
@@ -70,7 +70,7 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
 
       // Test the model
       logger.debug("Testing the model with test data...")
-      val testPredictionDF = pipelineModel.transform(testData)
+      val testPredictionDF = pipelineModel.transform(trainingData)
       logger.debug("LogisticRegressionModel has been tested.")
 
       // Calculate statistics
