@@ -270,6 +270,10 @@ final case class BoostedModel(algorithm: Algorithm,
     this.copy(test_statistics = updatedStatistics)
   }
 
+  def withCalculatedTestStatistics(calculated_test_statistics: Seq[Parameter]): BoostedModel = {
+    this.copy(calculated_test_statistics = Some(calculated_test_statistics))
+  }
+
 }
 
 final case class WeakModel(algorithm: Algorithm,
