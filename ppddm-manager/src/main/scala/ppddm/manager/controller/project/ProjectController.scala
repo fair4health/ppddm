@@ -48,7 +48,14 @@ object ProjectController {
    * @return The Project if project_id is valid, None otherwise.
    */
   def getProject(project_id: String): Future[Option[Project]] = {
-    db.getCollection[Project](COLLECTION_NAME).find(equal("project_id", project_id)).first().headOption()
+    db.getCollection[Project](COLLECTION_NAME).find(equal("project_id", project_id))
+      .first()
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving a Project with project_id:${project_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -58,6 +65,11 @@ object ProjectController {
    */
   def getAllProjects: Future[Seq[Project]] = {
     db.getCollection[Project](COLLECTION_NAME).find().toFuture()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving all Projects from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -71,7 +83,13 @@ object ProjectController {
     db.getCollection[Project](COLLECTION_NAME).findOneAndReplace(
       equal("project_id", project.project_id.get),
       project,
-      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while updating the Project with project_id:${project.project_id.get} in the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -81,7 +99,13 @@ object ProjectController {
    * @return The deleted Project object if operation is successful, None otherwise.
    */
   def deleteProject(project_id: String): Future[Option[Project]] = {
-    db.getCollection[Project](COLLECTION_NAME).findOneAndDelete(equal("project_id", project_id)).headOption()
+    db.getCollection[Project](COLLECTION_NAME).findOneAndDelete(equal("project_id", project_id))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while deleting the Project with project_id:${project_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
 }

@@ -333,9 +333,7 @@ final case class Algorithm(name: AlgorithmName,
 final case class AgentAlgorithmStatistics(agent_model: Agent,
                                           agent_statistics: Agent,
                                           algorithm: Algorithm,
-                                          statistics: Seq[Parameter]) extends ModelClass {
-
-}
+                                          statistics: Seq[Parameter]) extends ModelClass
 
 final case class ModelTrainingRequest(model_id: String,
                                       dataset_id: String,
