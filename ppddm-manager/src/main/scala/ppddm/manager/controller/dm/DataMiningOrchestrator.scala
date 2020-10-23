@@ -29,6 +29,16 @@ object DataMiningOrchestrator {
   // Keep the record of scheduled processes
   private var scheduledProcesses = Map.empty[String, Cancellable]
 
+  def stopOrchestration(model_id: String): Unit = {
+    val scheduledProcess = scheduledProcesses.get(model_id)
+    if (scheduledProcess.isEmpty) {
+      logger.error(s"There is no Scheduled Process to stop for this DataMiningModel:${model_id}")
+    }
+    if (!scheduledProcess.get.cancel && !scheduledProcess.get.isCancelled) {
+      logger.error(s"Cancellation of the scheduled process for the DataMiningModel:${model_id} is UNSUCCESSFUL")
+    }
+  }
+
   def startOrchestration(dataMiningModel: DataMiningModel): Unit = {
     /* Import the ActorSystem */
     import ppddm.manager.config.ManagerExecutionContext._
@@ -83,7 +93,9 @@ object DataMiningOrchestrator {
           handleTestingState(dataMiningModel)
         case Some(DataMiningState.FINAL) =>
           // This is already in its FINAL state, this block should not execute in normal circumstances.
-          Future.apply(Done)
+          Future.apply(stopOrchestration(dataMiningModel.model_id.get)) // Stop the orchestration for this DataMiningModel
+          val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} is already in its FINAL state, why do you want me to process it within an Orchestrator!!!"
+          throw DataIntegrityException(msg)
       }
     }
 
@@ -284,7 +296,7 @@ object DataMiningOrchestrator {
       val updatedBoostedModels = dataMiningModel.boosted_models.get.map { boostedModel =>
         val testResultsOfAlgorithm = modelTestResults.map { modelTestResult =>
           val testResultsOfAlgorithmOption = modelTestResult.test_statistics.find(_.algorithm == boostedModel.algorithm)
-          if(testResultsOfAlgorithmOption.isEmpty) {
+          if (testResultsOfAlgorithmOption.isEmpty) {
             throw DataIntegrityException(s"ModelTestResult received from Agent:${modelTestResult.agent.name} for DataMiningModel:${modelTestResult.model_id}, " +
               s"however there is no result for the Algorithm:${boostedModel.algorithm.name}. This should not have happened!!!")
           }
@@ -312,6 +324,10 @@ object DataMiningOrchestrator {
           throw DataIntegrityException(s"data_mining_state of the DataMiningModel cannot be updated after the model test results are received from the Agents. " +
             s"model_id:${newDataMiningModel.model_id.get}")
         }
+
+        // Stop the orchestration for this DataMiningModel is a separate thread
+        Future.apply(stopOrchestration(newDataMiningModel.model_id.get))
+
         Done
       }
 
