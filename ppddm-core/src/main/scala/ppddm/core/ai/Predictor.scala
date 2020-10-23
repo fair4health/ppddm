@@ -1,23 +1,26 @@
-package ppddm.agent.controller.dm
+package ppddm.core.ai
 
+import com.typesafe.scalalogging.Logger
+import org.apache.spark.sql.functions.{col, udf, when}
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import ppddm.agent.Agent
-import org.apache.spark.sql.functions.{when, _}
 
 /**
  * This object handles the calculation of prediction of BoostedModel consisting of a number of WeakModels
  */
-object BoostedModelManager {
+object Predictor {
 
-  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
-  import sparkSession.implicits._
+  private val logger: Logger = Logger(this.getClass)
 
   /**
    * Predict values by taking weighted average of predictions of each weak model
    * @param testPredictionTuples
    * @return
    */
-  def predictWithWeightedAverageOfPredictions(testPredictionTuples: Seq[(Double, DataFrame)]): DataFrame = {
+  def predictWithWeightedAverageOfPredictions(testPredictionTuples: Seq[(Double, DataFrame)])(implicit sparkSession: SparkSession): DataFrame = {
+    logger.debug("## Start predicting with weighted average of predictions ##")
+
+    import sparkSession.implicits._
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
     } else { // Predict with weighted average of predictions
@@ -42,10 +45,11 @@ object BoostedModelManager {
             .drop("p1", "p2") // Drop the temporary columns
       }
 
+      logger.debug("## Finish predicting with weighted average of predictions ##")
+
       // If the result is negative or equal to zero, then predict 0.0, otherwise predict 1.0
       // TODO consider equal to zero case. Predict 0.0 or 1.0?
       predictedDF.withColumn("prediction", when(col("weightedPrediction") <= 0.0, 0.0).otherwise(1.0))
-
     }
   }
 
@@ -54,7 +58,11 @@ object BoostedModelManager {
    * @param testPredictionTuples
    * @return
    */
-  def predictWithWeightedProbability(testPredictionTuples: Seq[(Double, DataFrame)]): DataFrame = {
+  def predictWithWeightedProbability(testPredictionTuples: Seq[(Double, DataFrame)])(implicit sparkSession: SparkSession): DataFrame = {
+    logger.debug("## Start predicting with weighted probabilities ##")
+
+    import sparkSession.implicits._
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
     } else { // Predict with weighted probability
@@ -85,6 +93,8 @@ object BoostedModelManager {
           .drop("n1", "n2", "p1", "p2") // Drop the temporary columns
       }
 
+      logger.debug("## Finish predicting with weighted probabilities ##")
+
       // If the negative prediction is bigger than or equal to positive prediction, then predict 0.0, otherwise predict 1.0
       // TODO consider the case of equality of negative and positive probabilities. Predict 0.0 or 1.0?
       predictedDF.withColumn("prediction", when(col("negativeProbability") >= col("positiveProbability"), 0.0).otherwise(1.0))
@@ -96,7 +106,11 @@ object BoostedModelManager {
    * @param testPredictionTuples
    * @return
    */
-  def predictWithMajorityVoting(testPredictionTuples: Seq[(Double, DataFrame)]): DataFrame = {
+  def predictWithMajorityVoting(testPredictionTuples: Seq[(Double, DataFrame)])(implicit sparkSession: SparkSession): DataFrame = {
+    logger.debug("## Start predicting with majority voting ##")
+
+    import sparkSession.implicits._
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
     } else { // Predict with majority voting
@@ -118,6 +132,8 @@ object BoostedModelManager {
           .withColumn("signedPrediction", col("p1") + col("p2")) // Sum these values and write to "signedPrediction" column
           .drop("p1", "p2") // Drop the temporary columns
       }
+
+      logger.debug("## Finish predicting with majority voting ##")
 
       // If the value is negative or equal to 0.0, then predict 0.0. Otherwise, predict 1.0
       // TODO In equality case, predict 0.0 or 1.0?

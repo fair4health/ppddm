@@ -5,9 +5,10 @@ import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressio
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.sql.DataFrame
-import ppddm.agent.controller.dm.{DataAnalysisManager, StatisticsManager}
+import ppddm.agent.controller.dm.DataAnalysisManager
 import ppddm.core.rest.model._
 import ppddm.agent.controller.dm.DataMiningController.{SEED, TEST_SIZE, TRAINING_SIZE}
+import ppddm.core.ai.StatisticsCalculator
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -77,10 +78,10 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
       val logisticRegressionModel = pipelineModel.stages.last.asInstanceOf[LogisticRegressionModel]
       if (logisticRegressionModel.numClasses > 2) {
         // Multinomial Logistic Regression. Output has more than two classes
-        statistics = StatisticsManager.calculateMultinomialClassificationStatistics(testPredictionDF)
+        statistics = StatisticsCalculator.calculateMultinomialClassificationStatistics(testPredictionDF)
       } else {
         // Binomial Logistic Regression. Output has two classes, i.e. 1 and 0
-        statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+        statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
       }
 
       logger.debug("## Finish executing logistic regression ##")

@@ -5,11 +5,11 @@ import java.util.Base64
 
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.PipelineModel
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.zeroturnaround.zip.ZipUtil
-import ppddm.agent.controller.dm.{BoostedModelManager, StatisticsManager}
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
+import ppddm.core.ai.{Predictor, StatisticsCalculator}
 import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, BoostedModel, WeakModel}
 
 import scala.concurrent.Future
@@ -17,6 +17,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 trait DataMiningAlgorithm {
 
+  implicit val sparkSession: SparkSession = ppddm.agent.Agent.dataMiningEngine.sparkSession
   protected val logger: Logger = Logger(this.getClass)
 
   protected val agent: Agent // on which aAgent this DataMiningAlgorithm is running now
@@ -44,7 +45,7 @@ trait DataMiningAlgorithm {
       val testPredictionDF = pipelineModel.transform(dataFrame)
 
       // Calculate statistics
-      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+      val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
       AgentAlgorithmStatistics(weakModel.agent, agent, algorithm, statistics)
     }
@@ -64,10 +65,10 @@ trait DataMiningAlgorithm {
         (weakModel.weight.get, pipelineModel.transform(dataFrame))
       }
 
-      val testPredictionDF = BoostedModelManager.predictWithWeightedAverageOfPredictions(testPredictionTuples)
+      val testPredictionDF = Predictor.predictWithWeightedAverageOfPredictions(testPredictionTuples)
 
       // Calculate statistics
-      val statistics = StatisticsManager.calculateBinaryClassificationStatistics(testPredictionDF)
+      val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
       AgentAlgorithmStatistics(null, agent, algorithm, statistics) // TODO what is first parameter?
     }
