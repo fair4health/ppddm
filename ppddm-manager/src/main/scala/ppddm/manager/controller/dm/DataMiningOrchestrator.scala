@@ -224,7 +224,7 @@ object DataMiningOrchestrator {
         }
 
         val boostedModel = boostedModelOption.get
-        val updatedWeekModels = boostedModel.weak_models.map { weakModel => // For each WeakModel within this BoostedModel
+        val updatedWeakModels = boostedModel.weak_models.map { weakModel => // For each WeakModel within this BoostedModel
           val validationStatistics = modelValidationResults
             .filterNot(_.agent == weakModel.agent) // Find the ModelValidationResults received from the Agents other than the training Agent of this WeakModel (we are looping over the WeakModels)
             .map { result => // For each such ModelValidationResult
@@ -238,7 +238,7 @@ object DataMiningOrchestrator {
             }
           weakModel.addNewValidationStatistics(validationStatistics)
         }
-        boostedModel.replaceWeakModels(updatedWeekModels)
+        boostedModel.replaceWeakModels(updatedWeakModels)
       }
 
       var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)

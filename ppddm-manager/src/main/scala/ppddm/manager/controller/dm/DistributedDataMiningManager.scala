@@ -282,7 +282,7 @@ object DistributedDataMiningManager {
    * @return An Option[ModelTestResult]. If the result is None, that means the model testing has not completed yet.
    */
   private def getModelTestResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTestResult]] = {
-    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getValidationURI(dataMiningModel.model_id))
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getTestURI(dataMiningModel.model_id))
 
     logger.debug("Asking the ModelTestResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
       agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
