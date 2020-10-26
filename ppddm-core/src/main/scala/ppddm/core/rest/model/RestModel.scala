@@ -219,8 +219,8 @@ final case class BoostedModel(algorithm: Algorithm,
                               calculated_test_statistics: Option[Seq[Parameter]]) extends ModelClass {
 
   def replaceWeakModels(weakModels: Seq[WeakModel]): BoostedModel = {
-    val existingWeakModels = this.weak_models.map(wm => (wm.algorithm, wm.agent)).toSet
-    val newWeakModels = weakModels.map(wm => (wm.algorithm, wm.agent)).toSet
+    val existingWeakModels = this.weak_models.map(wm => (wm.algorithm.name, wm.agent.agent_id)).toSet
+    val newWeakModels = weakModels.map(wm => (wm.algorithm.name, wm.agent.agent_id)).toSet
     if (!existingWeakModels.equals(newWeakModels)) {
       val msg = s"You are trying to replace the whole WeakModels of this BoostedModel for Algorithm:${this.algorithm}, but they do not MATCH!! " +
         s"You can only replace the WeakModels if you already pass the new WeakModels for all existing WeakModels with respect to Algorithm and Agent."
@@ -286,27 +286,27 @@ final case class WeakModel(algorithm: Algorithm,
   def addNewValidationStatistics(validationStatistics: Seq[AgentAlgorithmStatistics]): WeakModel = {
     // Let's perform some integrity checks
 
-    val illegalAgent = validationStatistics.find(_.agent_model != this.agent)
+    val illegalAgent = validationStatistics.find(_.agent_model.agent_id != this.agent.agent_id)
     if (illegalAgent.isDefined) {
-      val msg = s"You are trying to add validation statistics to the WeakModel trained on Agent:${this.agent}, " +
+      val msg = s"You are trying to add validation statistics to the WeakModel trained on Agent:${this.agent.agent_id}, " +
         s"but the received validation statistics say that its model was trained on Agent:${illegalAgent.get.agent_model}. " +
         s"The statistics are calculated on Agent:${illegalAgent.get.agent_statistics}."
       throw new IllegalArgumentException(msg)
     }
 
-    val illegalValidation = validationStatistics.find(_.agent_statistics == this.agent)
+    val illegalValidation = validationStatistics.find(_.agent_statistics.agent_id == this.agent.agent_id)
     if (illegalValidation.isDefined) {
       val msg = s"You are trying to add validation statistics to the WeakModel trained on Agent:${this.agent}, " +
         s"but the received validation statistics say that the validation is also performed on the same Agent, " +
-        s"which is IMPOSSIBLE in a correct distributed ML execution."
+        s"which is IMPOSSIBLE in a correctly distributed ML execution."
       throw new IllegalArgumentException(msg)
     }
 
     val illegalStatistics = this.training_statistics
-      .map(s => (s.agent_model, s.agent_statistics, s.algorithm)) // Convert to (Agent, Agent, Algorithm) to check the equality without the statistics
+      .map(s => (s.agent_model.agent_id, s.agent_statistics.agent_id, s.algorithm.name)) // Convert to (Agent, Agent, Algorithm) to check the equality without the statistics
       .toSet
       .intersect(
-        validationStatistics.map(s => (s.agent_model, s.agent_statistics, s.algorithm)).toSet)
+        validationStatistics.map(s => (s.agent_model.agent_id, s.agent_statistics.agent_id, s.algorithm.name)).toSet)
     if (illegalStatistics.nonEmpty) {
       val msg = s"You give me new validation statistics, but they already exist within this WeakModel with Algorithm:${this.algorithm.name} " +
         s"and Agent:${this.agent.name}."

@@ -101,7 +101,7 @@ object DataMiningModelController {
     // Get the Agents from whom WeakModels should already have been received.
     getSelectedAgents(dataMiningModel).map { agent => // For each Agent
       val weakModelsToBeValidatedOnAgent = dataMiningModel.boosted_models.get.flatMap { boostedModel => // Loop through the BoostedModels of this DataMiningModel
-        boostedModel.weak_models.filterNot(_.agent == agent) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
+        boostedModel.weak_models.filterNot(_.agent.agent_id == agent.agent_id) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
       }
       agent -> weakModelsToBeValidatedOnAgent
     }
