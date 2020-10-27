@@ -6,18 +6,16 @@ import java.util.concurrent.TimeUnit
 import akka.Done
 import akka.actor.Cancellable
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
+import akka.http.scaladsl.model.headers.Authorization
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
-import akka.http.scaladsl.server.Route
 import org.json4s._
 import org.json4s.jackson.parseJson
 import org.junit.runner.RunWith
 import org.specs2.concurrent.ExecutionEnv
 import org.specs2.runner.JUnitRunner
-import ppddm.agent.PPDDMAgentTest
+import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
 import ppddm.agent.controller.prepare.DataPreparationController
-import ppddm.agent.gateway.api.endpoint.AgentEndpoint
 import ppddm.core.rest.model.DataPreparationRequest
 
 import scala.concurrent.Promise
@@ -25,16 +23,13 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.io.Source
 
 @RunWith(classOf[JUnitRunner])
-class DataPreparationEndpointTest extends PPDDMAgentTest with AgentEndpoint {
+class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
   implicit val formats: DefaultFormats.type = DefaultFormats
 
   val dataPreparationRequestWVariables: String = Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-with-variables.json")).mkString
   val dataPreparationRequestWoutVariables: String = Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-without-variables.json")).mkString
 
   val dataPreparationRequest: DataPreparationRequest = parseJson(dataPreparationRequestWVariables).extract[DataPreparationRequest]
-
-  val bearerToken: OAuth2BearerToken = OAuth2BearerToken("some-token")
-  val routes: Route = mainRoute(AgentConfig.baseUri)
 
   val askForDatasetPromise: Promise[Int] = Promise[Int]
   var askForDatasetScheduler: Cancellable = _

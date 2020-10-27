@@ -1,12 +1,13 @@
 package ppddm.agent.controller
 
 import org.junit.runner.RunWith
+import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
-import ppddm.agent.PPDDMAgentTest
+import ppddm.agent.SparkSessionWrapper
 import ppddm.agent.store.DataStoreManager
 
 @RunWith(classOf[JUnitRunner])
-class DataStoreManagerTest extends PPDDMAgentTest {
+class DataStoreManagerTest extends Specification with SparkSessionWrapper {
   import sparkSession.implicits._
 
   sequential
