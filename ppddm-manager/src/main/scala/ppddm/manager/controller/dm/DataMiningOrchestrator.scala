@@ -341,7 +341,7 @@ object DataMiningOrchestrator {
         logger.debug("There are no remaining Agents being waited for test results. So, I will calculate the testing " +
           s"statistics for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
 
-        val updatedBoostedModels = dataMiningModel.boosted_models.get map { boostedModel =>
+        val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
           val calculatedStatistics = StatisticsCalculator.combineStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
           boostedModel.withCalculatedTestStatistics(calculatedStatistics)
         }
