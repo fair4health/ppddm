@@ -64,8 +64,6 @@ object DataMiningOrchestrator {
             }
         } catch {
           case e: Exception => // Do nothing, it is already logged
-        } finally {
-          logger.debug("Scheduled processing ENDED for DataMiningModel with model_id:{} and model_name:{}", dataMiningModel.model_id.get, dataMiningModel.name)
         }
       },
       actorSystem.dispatcher)
