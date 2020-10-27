@@ -48,7 +48,14 @@ object FeaturesetController {
    * @return The Featureset if featureset_id is valid, None otherwise.
    */
   def getFeatureset(featureset_id: String): Future[Option[Featureset]] = {
-    db.getCollection[Featureset](COLLECTION_NAME).find(equal("featureset_id", featureset_id)).first().headOption()
+    db.getCollection[Featureset](COLLECTION_NAME).find(equal("featureset_id", featureset_id))
+      .first()
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving a Featureset with featureset_id:${featureset_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -59,6 +66,11 @@ object FeaturesetController {
    */
   def getAllFeaturesets(project_id: String): Future[Seq[Featureset]] = {
     db.getCollection[Featureset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving the Featuresets of the Project with project_id:${project_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -72,7 +84,13 @@ object FeaturesetController {
     db.getCollection[Featureset](COLLECTION_NAME).findOneAndReplace(
       equal("featureset_id", featureset.featureset_id.get),
       featureset,
-      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while updating the Featureset with featureset_id:${featureset.featureset_id.get} in the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -82,6 +100,12 @@ object FeaturesetController {
    * @return The deleted Featureset object if operation is successful, None otherwise.
    */
   def deleteFeatureset(featureset_id: String): Future[Option[Featureset]] = {
-    db.getCollection[Featureset](COLLECTION_NAME).findOneAndDelete(equal("featureset_id", featureset_id)).headOption()
+    db.getCollection[Featureset](COLLECTION_NAME).findOneAndDelete(equal("featureset_id", featureset_id))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while deleting the Featureset with featureset_id:${featureset_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 }

@@ -101,7 +101,7 @@ object DataMiningModelController {
     // Get the Agents from whom WeakModels should already have been received.
     getSelectedAgents(dataMiningModel).map { agent => // For each Agent
       val weakModelsToBeValidatedOnAgent = dataMiningModel.boosted_models.get.flatMap { boostedModel => // Loop through the BoostedModels of this DataMiningModel
-        boostedModel.weak_models.filterNot(_.agent == agent) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
+        boostedModel.weak_models.filterNot(_.agent.agent_id == agent.agent_id) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
       }
       agent -> weakModelsToBeValidatedOnAgent
     }
@@ -205,6 +205,11 @@ object DataMiningModelController {
     db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("model_id", model_id))
       .first()
       .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving the DataMiningModel with model_id:${model_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -215,6 +220,11 @@ object DataMiningModelController {
    */
   def getAllDataMiningModels(project_id: String): Future[Seq[DataMiningModel]] = {
     db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving the DataMiningModels of the Project with project_id:${project_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -227,7 +237,13 @@ object DataMiningModelController {
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
       dataMiningModel,
-      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while updating the DataMiningModel with model_id:${dataMiningModel.model_id.get}."
+          throw DBException(msg, e)
+      }
   }
 
   /**
