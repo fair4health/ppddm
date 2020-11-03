@@ -78,6 +78,7 @@ object DataMiningController {
    * @return
    */
   def getTrainingResult(model_id: String): Option[ModelTrainingResult] = {
+    logger.debug("getTrainingResult received on for model:{}", model_id)
     Try(
       DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
@@ -94,6 +95,7 @@ object DataMiningController {
    * @return
    */
   def deleteTrainingResult(model_id: String): Option[Done] = {
+    logger.debug("deleteTrainingResult received on for model:{}", model_id)
     if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
@@ -157,6 +159,7 @@ object DataMiningController {
    * @return
    */
   def getValidationResult(model_id: String): Option[ModelValidationResult] = {
+    logger.debug("getValidationResult received on for model:{}", model_id)
     Try(
       DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
@@ -173,6 +176,7 @@ object DataMiningController {
    * @return
    */
   def deleteValidationResult(model_id: String): Option[Done] = {
+    logger.debug("deleteValidationResult received on for model:{}", model_id)
     if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
@@ -235,6 +239,7 @@ object DataMiningController {
    * @return
    */
   def getTestResult(model_id: String): Option[ModelTestResult] = {
+    logger.debug("getTestResult received on for model:{}", model_id)
     Try(
       DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
@@ -251,6 +256,7 @@ object DataMiningController {
    * @return
    */
   def deleteTestResult(model_id: String): Option[Done] = {
+    logger.debug("deleteTestResult received on for model:{}", model_id)
     if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST))) {
       logger.info(s"ModelTestResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)

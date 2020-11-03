@@ -23,14 +23,14 @@ object Aggregator {
       var weightSum = 0.0 // For calculating normalized weight at the end
 
       logger.debug("In a boosted model, calculating calculated_training_statistics for each weak model...")
-      val weakModelsWithCalculatedTrainingStatistics = boostedModel.weak_models map { weakModel =>
-        val calculatedStatistics = StatisticsCalculator.combineStatistics(weakModel.training_statistics) // Combine training_statistics in WeakModel
+      val weakModelsWithCalculatedStatistics = boostedModel.weak_models map { weakModel =>
+        val calculatedStatistics = StatisticsCalculator.combineStatistics(weakModel.validation_statistics :+ weakModel.training_statistics) // Combine training_statistics in WeakModel
         val weight = StatisticsCalculator.getStatisticsValue(calculatedStatistics, AlgorithmStatisticsName.F_MEASURE).toDouble // TODO read this from config file and find a better way to calculate this
         weightSum += weight // We need sum of all weights in a BoostedModel so that we can normalize the weights
-        weakModel.withCalculatedTrainingStatistics(calculatedStatistics).withWeight(weight)
+        weakModel.withCalculatedStatistics(calculatedStatistics).withWeight(weight)
       }
       logger.debug("Finished calculating calculated_training_statistics.")
-      val updatedBoostedModel = boostedModel.replaceWeakModels(weakModelsWithCalculatedTrainingStatistics)
+      val updatedBoostedModel = boostedModel.replaceWeakModels(weakModelsWithCalculatedStatistics)
 
       logger.debug("In a boosted model, calculating normalized weight of each weak model...")
       val weakModelsWithNormalizedWeight = updatedBoostedModel.weak_models map { weakModel =>
