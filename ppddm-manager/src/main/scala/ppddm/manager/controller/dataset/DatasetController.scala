@@ -63,6 +63,11 @@ object DatasetController {
     db.getCollection[Dataset](COLLECTION_NAME).find(equal("dataset_id", dataset_id))
       .first()
       .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving a Dataset with dataset_id:${dataset_id} from the database."
+          throw DBException(msg, e)
+      }
       .flatMap { datasetOption =>
         if (datasetOption.isDefined) { // If the dataset is found with the given dataset_id
           // Ask the data preparation results to its DatasetSources
@@ -86,20 +91,26 @@ object DatasetController {
    * @return The list of all Datasets for the given project, empty list if there are no Datasets.
    */
   def getAllDatasets(project_id: String): Future[Seq[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture() flatMap { datasets =>
-      Future.sequence(
-        // Ask the data preparation results for each dataset to their DatasetSources
-        // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
-        datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset) flatMap { datasetWithNewDataSources =>
-          // Save the new Dataset to the database so that in the next call to this function
-          // I do not ask the results to the agents which have already in their FINAL states
-          updateDataset(datasetWithNewDataSources) map { updatedDataset =>
-            if(updatedDataset.isDefined) updatedDataset.get
-            else datasetWithNewDataSources
-          }
-        })
-      )
-    }
+    db.getCollection[Dataset](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving the Datasets of the Project with project_id:${project_id} from the database."
+          throw DBException(msg, e)
+      }
+      .flatMap { datasets =>
+        Future.sequence(
+          // Ask the data preparation results for each dataset to their DatasetSources
+          // Do this job in parallel and then join with Future.sequence to return a Future[Seq[Dataset]]
+          datasets.map(dataset => FederatedQueryManager.askAgentsDataPreparationResults(dataset) flatMap { datasetWithNewDataSources =>
+            // Save the new Dataset to the database so that in the next call to this function
+            // I do not ask the results to the agents which have already in their FINAL states
+            updateDataset(datasetWithNewDataSources) map { updatedDataset =>
+              if (updatedDataset.isDefined) updatedDataset.get
+              else datasetWithNewDataSources
+            }
+          })
+        )
+      }
   }
 
   /**
@@ -114,7 +125,13 @@ object DatasetController {
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
       equal("dataset_id", dataset.dataset_id.get),
       dataset.withUpdatedExecutionState(),
-      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while updating the Dataset with dataset_id:${dataset.dataset_id.get} in the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -124,18 +141,25 @@ object DatasetController {
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
   def deleteDataset(dataset_id: String): Future[Option[Dataset]] = {
-    db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id)).headOption() flatMap { datasetOption: Option[Dataset] =>
-      if (datasetOption.isDefined) {
-        val dataset = datasetOption.get
-        Future.sequence(
-          dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each DataSource in this set
-            FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.agent, dataset) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
-          }) map { _ => Some(dataset) }
+    db.getCollection[Dataset](COLLECTION_NAME).findOneAndDelete(equal("dataset_id", dataset_id))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while deleting the Dataset with dataset_id:${dataset_id} from the database."
+          throw DBException(msg, e)
       }
-      else {
-        Future.apply(Option.empty[Dataset])
+      .flatMap { datasetOption: Option[Dataset] =>
+        if (datasetOption.isDefined) {
+          val dataset = datasetOption.get
+          Future.sequence(
+            dataset.dataset_sources.get.map { datasetSource: DatasetSource => // For each DataSource in this set
+              FederatedQueryManager.deleteDatasetAndStatistics(datasetSource.agent, dataset) // Delete the extracted datasets and statistics from the Agents (do this in parallel)
+            }) map { _ => Some(dataset) }
+        }
+        else {
+          Future.apply(Option.empty[Dataset])
+        }
       }
-    }
   }
 
 }

@@ -101,7 +101,7 @@ object DataMiningModelController {
     // Get the Agents from whom WeakModels should already have been received.
     getSelectedAgents(dataMiningModel).map { agent => // For each Agent
       val weakModelsToBeValidatedOnAgent = dataMiningModel.boosted_models.get.flatMap { boostedModel => // Loop through the BoostedModels of this DataMiningModel
-        boostedModel.weak_models.filterNot(_.agent == agent) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
+        boostedModel.weak_models.filterNot(_.agent.agent_id == agent.agent_id) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
       }
       agent -> weakModelsToBeValidatedOnAgent
     }
@@ -118,10 +118,10 @@ object DataMiningModelController {
 
     // If there were no data inconsistency, all BoostedModels of this dataMiningModel should have the WeakModels from the
     // very same Agents at any instant in time.
-    val illegalWeakModels = dataMiningModel.boosted_models.get
+    val legalAgents = dataMiningModel.boosted_models.get
       .map(_.weak_models.map(_.agent).toSet) // Create a set from the Agents of each WeakModel
       .reduce((a, b) => if (a.equals(b)) a else Set.empty)
-    if (illegalWeakModels.isEmpty) {
+    if (legalAgents.isEmpty) {
       val msg = s"Ooops! All the WeakModels of the BoostedModels within a DataMiningModel:${dataMiningModel.model_id.get} should include SAME " +
         s"Agents at any instant in time. It seems this is not the case!!!"
       logger.error(msg)
@@ -130,7 +130,8 @@ object DataMiningModelController {
 
     val agentsWhoseValidationResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all will have the results from the same Agents at any instant in time
       .weak_models.flatMap { weakModel => // for each WeakModel of this BoostedModel
-      weakModel.training_statistics
+      weakModel.validation_statistics
+        .filter(s => s.agent_model.agent_id != s.agent_statistics.agent_id)
         .map(_.agent_statistics) // Collect the Agents from whom statistics are received
         .toSet // Convert to a Set
     }
@@ -205,6 +206,11 @@ object DataMiningModelController {
     db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("model_id", model_id))
       .first()
       .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving the DataMiningModel with model_id:${model_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -215,6 +221,11 @@ object DataMiningModelController {
    */
   def getAllDataMiningModels(project_id: String): Future[Seq[DataMiningModel]] = {
     db.getCollection[DataMiningModel](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while retrieving the DataMiningModels of the Project with project_id:${project_id} from the database."
+          throw DBException(msg, e)
+      }
   }
 
   /**
@@ -227,7 +238,13 @@ object DataMiningModelController {
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
       dataMiningModel,
-      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER)).headOption()
+      FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while updating the DataMiningModel with model_id:${dataMiningModel.model_id.get}."
+          throw DBException(msg, e)
+      }
   }
 
   /**
