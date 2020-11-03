@@ -279,8 +279,9 @@ final case class BoostedModel(algorithm: Algorithm,
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
                            fitted_model: String,
-                           training_statistics: Seq[AgentAlgorithmStatistics], // Includes its Agent's training statistics + other Agents' validation statistics
-                           calculated_training_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
+                           training_statistics: AgentAlgorithmStatistics, // Includes its Agent's training statistics
+                           validation_statistics: Seq[AgentAlgorithmStatistics], // Includes other Agents' validation statistics
+                           calculated_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
                            weight: Option[Double]) extends ModelClass {
 
   def addNewValidationStatistics(validationStatistics: Seq[AgentAlgorithmStatistics]): WeakModel = {
@@ -302,7 +303,7 @@ final case class WeakModel(algorithm: Algorithm,
       throw new IllegalArgumentException(msg)
     }
 
-    val illegalStatistics = this.training_statistics
+    val illegalStatistics = this.validation_statistics
       .map(s => (s.agent_model.agent_id, s.agent_statistics.agent_id, s.algorithm.name)) // Convert to (Agent, Agent, Algorithm) to check the equality without the statistics
       .toSet
       .intersect(
@@ -314,11 +315,11 @@ final case class WeakModel(algorithm: Algorithm,
     }
 
     // We are good to go!
-    this.copy(training_statistics = this.training_statistics ++ validationStatistics)
+    this.copy(validation_statistics = this.validation_statistics ++ validationStatistics)
   }
 
-  def withCalculatedTrainingStatistics(calculated_training_statistics: Seq[Parameter]): WeakModel = {
-    this.copy(calculated_training_statistics = Some(calculated_training_statistics))
+  def withCalculatedStatistics(calculated_statistics: Seq[Parameter]): WeakModel = {
+    this.copy(calculated_statistics = Some(calculated_statistics))
   }
 
   def withWeight(weight: Double): WeakModel = {

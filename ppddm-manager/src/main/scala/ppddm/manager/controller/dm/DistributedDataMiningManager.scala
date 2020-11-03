@@ -168,7 +168,7 @@ object DistributedDataMiningManager {
     val agentValidationPairs = DataMiningModelController.getAgentValidationModelPairs(dataMiningModel)
 
     logger.debug(s"I will invoke the model validation endpoints of ${agentValidationPairs.length} agents with the following details:")
-    agentValidationPairs.foreach(pair => logger.debug(s"Agent:${pair._1.name} will validate the WeakModels for ${pair._2.map(_.algorithm).mkString(",")}"))
+    agentValidationPairs.foreach(pair => logger.debug(s"Agent:${pair._1.name} will validate the WeakModels for ${pair._2.map(_.algorithm.name).mkString(",")}"))
 
     Future.sequence(agentValidationPairs.map(pair => invokeModelValidation(pair._1, pair._2, dataMiningModel))) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }

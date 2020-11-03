@@ -64,8 +64,6 @@ object DataMiningOrchestrator {
             }
         } catch {
           case e: Exception => // Do nothing, it is already logged
-        } finally {
-          logger.debug("Scheduled processing ENDED for DataMiningModel with model_id:{} and model_name:{}", dataMiningModel.model_id.get, dataMiningModel.name)
         }
       },
       actorSystem.dispatcher)
@@ -123,7 +121,8 @@ object DataMiningOrchestrator {
     logger.debug(s"The state of DataMiningModel:${dataMiningModel.model_id.get} is None. It is now being processed for the first time by handleNoState.")
     DistributedDataMiningManager.invokeAgentsModelTraining(dataMiningModel) flatMap { _ =>
       // After invoking the training endpoints of all Agents, update the state of the DataMiningController in the database
-      DataMiningModelController.updateDataMiningModel(dataMiningModel.withDataMiningState(DataMiningState.TRAINING)) map { res =>
+      val newDataMiningModel = dataMiningModel.withDataMiningState(DataMiningState.TRAINING)
+      DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
         if (res.isEmpty) {
           throw DataIntegrityException(s"data_mining_state of the DataMiningModel cannot be updated after the model training requests are sent to the Agents. " +
             s"model_id:${dataMiningModel.model_id.get}")
@@ -258,7 +257,8 @@ object DataMiningOrchestrator {
               }
               validationStatistics.get
             }
-          weakModel.addNewValidationStatistics(validationStatistics)
+          val newWeakModel = weakModel.addNewValidationStatistics(validationStatistics)
+          newWeakModel
         }
         boostedModel.replaceWeakModels(updatedWeakModels)
       }

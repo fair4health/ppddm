@@ -42,12 +42,16 @@ object DataMiningController {
     // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
     val dataFrame = retrieveDataFrame(modelTrainingRequest.dataset_id)
 
+    logger.debug(s"DataFrame for the Dataset:${modelTrainingRequest.dataset_id} is retrieved for training of ${modelTrainingRequest.algorithms.length} " +
+      s"Algorithms in DataMiningModel:${modelTrainingRequest.model_id}")
+
     // Train and generate weak models on the dataFrame
     val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
       DataMiningAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
     }
 
     Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
+      logger.debug(s"Parallel training of the Algorithms have been completed for DataMiningModel:${modelTrainingRequest.model_id}")
 
       val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
         modelTrainingRequest.agent, algorithm_models)
@@ -56,6 +60,7 @@ object DataMiningController {
         DataStoreManager.saveDataFrame(
           DataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
           Seq(modelTrainingResult.toJson).toDF())
+        logger.debug(s"ModelTrainingResult has been created and persisted into the data store successfully for DataMiningModel:${modelTrainingRequest.model_id}")
         Done
       } catch {
         case e: Exception =>
@@ -73,6 +78,7 @@ object DataMiningController {
    * @return
    */
   def getTrainingResult(model_id: String): Option[ModelTrainingResult] = {
+    logger.debug("getTrainingResult received on for model:{}", model_id)
     Try(
       DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
@@ -89,6 +95,7 @@ object DataMiningController {
    * @return
    */
   def deleteTrainingResult(model_id: String): Option[Done] = {
+    logger.debug("deleteTrainingResult received on for model:{}", model_id)
     if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
@@ -112,6 +119,9 @@ object DataMiningController {
     // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
     val dataFrame = retrieveDataFrame(modelValidationRequest.dataset_id)
 
+    logger.debug(s"DataFrame for the Dataset:${modelValidationRequest.dataset_id} is retrieved for validation of ${modelValidationRequest.weak_models.length} " +
+      s"WeakModels in DataMiningModel:${modelValidationRequest.model_id}")
+
     // Split the data into training and test. Only trainingData will be used.
     val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
@@ -121,6 +131,8 @@ object DataMiningController {
     }
 
     Future.sequence(validationFutures) map { validationResults => // Join the Futures
+      logger.debug(s"Parallel validation of the WeakModels have been completed for DataMiningModel:${modelValidationRequest.model_id}")
+
       val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id, modelValidationRequest.agent, validationResults)
 
       try {
@@ -128,6 +140,7 @@ object DataMiningController {
         DataStoreManager.saveDataFrame(
           DataStoreManager.getModelPath(modelValidationResult.model_id, DataMiningRequestType.VALIDATE),
           Seq(modelValidationResult.toJson).toDF())
+        logger.debug(s"ModelValidationResult has been created and persisted into the data store successfully for DataMiningModel:${modelValidationRequest.model_id}")
         Done
       } catch {
         case e: Exception =>
@@ -146,6 +159,7 @@ object DataMiningController {
    * @return
    */
   def getValidationResult(model_id: String): Option[ModelValidationResult] = {
+    logger.debug("getValidationResult received on for model:{}", model_id)
     Try(
       DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
@@ -162,6 +176,7 @@ object DataMiningController {
    * @return
    */
   def deleteValidationResult(model_id: String): Option[Done] = {
+    logger.debug("deleteValidationResult received on for model:{}", model_id)
     if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
@@ -185,6 +200,9 @@ object DataMiningController {
     // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
     val dataFrame = retrieveDataFrame(modelTestRequest.dataset_id)
 
+    logger.debug(s"DataFrame for the Dataset:${modelTestRequest.dataset_id} is retrieved for testing of ${modelTestRequest.boosted_models.length} " +
+      s"BoostedModels in DataMiningModel:${modelTestRequest.model_id}")
+
     // Split the data into training and test. Only testData will be used.
     val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
@@ -194,6 +212,8 @@ object DataMiningController {
     }
 
     Future.sequence(testFutures) map { testResults => // Join the Futures
+      logger.debug(s"Parallel testing of the BoostedModels have been completed for DataMiningModel:${modelTestRequest.model_id}")
+
       val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, testResults)
 
       try {
@@ -201,6 +221,7 @@ object DataMiningController {
         DataStoreManager.saveDataFrame(
           DataStoreManager.getModelPath(modelTestResult.model_id, DataMiningRequestType.TEST),
           Seq(modelTestResult.toJson).toDF())
+        logger.debug(s"ModelTestResult has been created and persisted into the data store successfully for DataMiningModel:${modelTestRequest.model_id}")
         Done
       } catch {
         case e: Exception =>
@@ -218,6 +239,7 @@ object DataMiningController {
    * @return
    */
   def getTestResult(model_id: String): Option[ModelTestResult] = {
+    logger.debug("getTestResult received on for model:{}", model_id)
     Try(
       DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
@@ -234,6 +256,7 @@ object DataMiningController {
    * @return
    */
   def deleteTestResult(model_id: String): Option[Done] = {
+    logger.debug("deleteTestResult received on for model:{}", model_id)
     if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST))) {
       logger.info(s"ModelTestResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
