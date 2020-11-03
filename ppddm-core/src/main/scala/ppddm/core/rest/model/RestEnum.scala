@@ -57,6 +57,7 @@ object DataMiningState extends Enumeration {
   val TRAINING = "training"
   val VALIDATING = "validating"
   val TESTING = "testing"
+  val READY = "ready"
   val FINAL = "final"
 }
 
