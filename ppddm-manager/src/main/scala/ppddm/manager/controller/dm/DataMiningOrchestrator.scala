@@ -100,10 +100,10 @@ object DataMiningOrchestrator {
           // If they are all completed, we can finalize the DataMiningModel
           // After this block, the scheduled process should be removed/cancelled
           handleTestingState(dataMiningModel)
-        case Some(DataMiningState.FINAL) =>
-          // This is already in its FINAL state, this block should not execute in normal circumstances.
+        case Some(DataMiningState.READY) =>
+          // This is already in its READY state, this block should not execute in normal circumstances.
           Future.apply(stopOrchestration(dataMiningModel.model_id.get)) // Stop the orchestration for this DataMiningModel
-          val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} is already in its FINAL state, why do you want me to process it within an Orchestrator!!!"
+          val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} is already in its READY state, why do you want me to process it within an Orchestrator!!!"
           throw DataIntegrityException(msg)
       }
     }
@@ -173,7 +173,7 @@ object DataMiningOrchestrator {
           // This means this is the first time that we will create a BoostedModel for this algorithm
           logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
             algorithm.name, dataMiningModel.model_id.get)
-          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None) // Create the BoostedModel for this algorithm for the first time
+          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None) // Create the BoostedModel for this algorithm for the first time
         }
 
       }
@@ -347,8 +347,8 @@ object DataMiningOrchestrator {
         }
         newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
 
-        // Advance the state to FINAL
-        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.FINAL)
+        // Advance the state to READY
+        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
       } else {
         logger.debug(s"There are still remaining Agents being waited for test results for this DataMiningModel:${dataMiningModel.model_id.get}")
       }
@@ -359,8 +359,8 @@ object DataMiningOrchestrator {
             s"model_id:${newDataMiningModel.model_id.get}")
         }
 
-        if (newDataMiningModel.data_mining_state.get == DataMiningState.FINAL) {
-          // Stop the orchestration for this DataMiningModel is a separate thread, only if its state is FINAL
+        if (newDataMiningModel.data_mining_state.get == DataMiningState.READY) {
+          // Stop the orchestration for this DataMiningModel is a separate thread, only if its state is READY
           Future.apply(stopOrchestration(newDataMiningModel.model_id.get))
         }
 

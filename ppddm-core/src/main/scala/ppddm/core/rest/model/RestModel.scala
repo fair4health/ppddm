@@ -211,12 +211,33 @@ final case class DataMiningModel(model_id: Option[String],
     this.copy(boosted_models = Some(boostedModels))
   }
 
+  def withUpdatedDataMiningState(dataMiningModel: DataMiningModel = this): DataMiningModel = {
+    if (dataMiningModel.boosted_models.isEmpty) {
+      // Do not do anything
+      dataMiningModel
+    } else {
+      val selectedDataMiningModels = dataMiningModel.boosted_models.get.filter(s => s.selection_status.isDefined && s.selection_status.get == SelectionStatus.SELECTED)
+      if (selectedDataMiningModels.nonEmpty) {
+        // This means there are selected data mining models, the state should be FINAL
+        if (!dataMiningModel.data_mining_state.contains(ExecutionState.FINAL)) {
+          dataMiningModel.copy(data_mining_state = Some(ExecutionState.FINAL))
+        } else {
+          // Do nothing if it is already in FINAL state
+          dataMiningModel
+        }
+      } else {
+        // Do nothing if no BoostedModel is selected
+        dataMiningModel
+      }
+    }
+  }
 }
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
                               test_statistics: Option[Seq[AgentAlgorithmStatistics]],
-                              calculated_test_statistics: Option[Seq[Parameter]]) extends ModelClass {
+                              calculated_test_statistics: Option[Seq[Parameter]],
+                              selection_status: Option[SelectionStatus]) extends ModelClass {
 
   def replaceWeakModels(weakModels: Seq[WeakModel]): BoostedModel = {
     val existingWeakModels = this.weak_models.map(wm => (wm.algorithm.name, wm.agent.agent_id)).toSet

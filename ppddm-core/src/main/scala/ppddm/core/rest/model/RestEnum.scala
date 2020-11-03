@@ -57,7 +57,7 @@ object DataMiningState extends Enumeration {
   val TRAINING = "training"
   val VALIDATING = "validating"
   val TESTING = "testing"
-  val FINAL = "final"
+  val READY = "ready"
 }
 
 object FHIRPathExpressionPrefix extends Enumeration {
