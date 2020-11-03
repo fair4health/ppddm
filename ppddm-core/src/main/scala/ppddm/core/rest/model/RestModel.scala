@@ -219,8 +219,8 @@ final case class DataMiningModel(model_id: Option[String],
       val selectedDataMiningModels = dataMiningModel.boosted_models.get.filter(s => s.selection_status.isDefined && s.selection_status.get == SelectionStatus.SELECTED)
       if (selectedDataMiningModels.nonEmpty) {
         // This means there are selected data mining models, the state should be FINAL
-        if (!dataMiningModel.data_mining_state.contains(ExecutionState.FINAL)) {
-          dataMiningModel.copy(data_mining_state = Some(ExecutionState.FINAL))
+        if (!dataMiningModel.data_mining_state.contains(DataMiningState.FINAL)) {
+          dataMiningModel.copy(data_mining_state = Some(DataMiningState.FINAL))
         } else {
           // Do nothing if it is already in FINAL state
           dataMiningModel
