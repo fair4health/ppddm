@@ -115,11 +115,15 @@ object AlgorithmParameterName extends Enumeration {
   val ELASTIC_NET_PARAM = "elasticnet_param" // ElasticNet mixing parameter [Double]
 
 
-  // Decision Tree
+  // Decision Tree + Random Forest
   val MAX_DEPTH = "max_depth" // Maximum depth of a tree. Deeper trees are more expressive (potentially allowing higher accuracy), but they are also more costly to train and are more likely to overfit.
   val MIN_INFO_GAIN = "min_info_gain" // For a node to be split further, the split must improve at least this much (in terms of information gain).
   val MAX_BINS = "max_bins" // TODO Consider using this if you will not perform categorical handling or feature scaling for decision tree
-  val IMPURITY = "impurity" // The node impurity is a measure of the homogeneity of the labels at the node
+  val IMPURITY = "impurity" // The node impurity is a measure of the homogeneity of the labels at the node. Values can be "gini" or "entropy"
+
+  // RandomForest
+  val NUM_TREES = "num_trees" // Number of trees in the forest. Increasing the number of trees will decrease the variance in predictions, improving the model’s test-time accuracy
+  val FEATURE_SUBSET_STRATEGY = "feature_subset_strategy" // Number of features to use as candidates for splitting at each tree node. Default is "auto"
 }
 
 object AlgorithmStatisticsName extends Enumeration {
