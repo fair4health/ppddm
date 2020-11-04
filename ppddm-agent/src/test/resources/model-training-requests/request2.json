@@ -1,0 +1,27 @@
+{
+  "model_id": "model2",
+  "dataset_id": "dataset1",
+  "agent": {
+    "agent_id": "test",
+    "name": "test",
+    "endpoint": "test"
+  },
+  "algorithms": [
+    {
+      "name": "classification_decision_tree",
+      "parameters": [
+        {
+          "name": "max_depth",
+          "data_type": "integer",
+          "value": "6"
+        },
+        {
+          "name": "impurity",
+          "data_type": "string",
+          "value": "entropy"
+        }
+      ]
+    }
+  ],
+  "submitted_by": "1903"
+}

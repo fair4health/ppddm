@@ -15,7 +15,7 @@ trait PPDDMAgentEndpointTest extends Specification with Specs2RouteTest with Bef
   // Init Data mining engine and sparkSession before all tests
   override def beforeAll(): Unit = Agent.dataMiningEngine = DataMiningEngine(AgentConfig.appName, AgentConfig.sparkMaster)
   // After all tests, close the spark session
-  override def afterAll(): Unit = Agent.dataMiningEngine.sparkSession.close()
+//  override def afterAll(): Unit = Agent.dataMiningEngine.sparkSession.close()
 
   implicit val actorSystem: ActorSystem = ActorSystem("ppddm-agent-test")
   lazy implicit val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
