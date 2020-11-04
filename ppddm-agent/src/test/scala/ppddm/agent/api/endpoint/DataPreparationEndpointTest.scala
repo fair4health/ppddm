@@ -11,15 +11,13 @@ import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import org.json4s._
 import org.json4s.jackson.parseJson
 import org.junit.runner.RunWith
-import org.specs2.concurrent.ExecutionEnv
 import org.specs2.runner.JUnitRunner
 import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
-import ppddm.agent.controller.prepare.DataPreparationController
 import ppddm.core.rest.model.DataPreparationRequest
 
 import scala.concurrent.Promise
-import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.Duration
 import scala.io.Source
 
 @RunWith(classOf[JUnitRunner])
@@ -31,20 +29,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
 
   val dataPreparationRequest: DataPreparationRequest = parseJson(dataPreparationRequestWVariables).extract[DataPreparationRequest]
 
-  val askForDatasetPromise: Promise[Int] = Promise[Int]
-  var askForDatasetScheduler: Cancellable = _
-
   sequential
-
-  def askForDataset(dataset_id: String): Any = {
-    Get("/" + AgentConfig.baseUri + "/prepare/" + dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
-      println("Asking for dataset: " + dataset_id)
-      if (status.intValue() == 200) {
-        askForDatasetPromise.success(1)
-        askForDatasetScheduler.cancel()
-      }
-    }
-  }
 
   "Data Preparation Endpoint" should {
     "reject the request without a token" in {
@@ -68,16 +53,6 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
       }
     }
 
-//    "prepare dataset with given data preparation request" in {
-//      implicit val ee: ExecutionEnv = ExecutionEnv.fromGlobalExecutionContext
-//      // Start the data preparation with the given data preparation request
-//      DataPreparationController.startPreparation(dataPreparationRequest) must be_==(Done).awaitFor(FiniteDuration(20, TimeUnit.SECONDS))
-//      // Check if the data set and statistics have been prepared
-//      Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
-//        status shouldEqual OK
-//      }
-//    }
-
     "start data preparation" in {
       Post("/" + AgentConfig.baseUri + "/prepare", HttpEntity(ContentTypes.`application/json`, dataPreparationRequestWVariables)) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
@@ -85,15 +60,22 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "ask for dataset whether it is ready or not" in {
+      val askForDatasetPromise: Promise[Done] = Promise[Done]
+      var askForDatasetScheduler: Option[Cancellable] = None
       // Set a scheduler to ask if dataset and statistics are ready
-      askForDatasetScheduler = actorSystem.scheduler.scheduleWithFixedDelay(
+      askForDatasetScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          askForDataset(dataPreparationRequest.dataset_id)
+          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+            if (status.intValue() == 200) {
+              askForDatasetPromise.success(Done)
+              askForDatasetScheduler.get.cancel()
+            }
+          }
         },
         actorSystem.dispatcher
-      )
+      ))
       // Try 10 times at 2-second intervals
       askForDatasetPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
     }
