@@ -129,6 +129,7 @@ object DataMiningAlgorithm {
       case AlgorithmName.CLASSIFICATION_DECISION_TREE => DecisionTreePPDDM(agent, algorithm)
       case AlgorithmName.CLASSIFICATION_RANDOM_FOREST => RandomForestPPDDM(agent, algorithm)
       case AlgorithmName.CLASSIFICATION_GBT => GradientBoostedTreePPDDM(agent, algorithm)
+      case AlgorithmName.CLASSIFICATION_SVM => SupportVectorMachinePPDDM(agent, algorithm)
       case _ =>
         val msg = s"Unknown Algorithm:${algorithm.name}"
         throw DataMiningException(msg)

@@ -109,8 +109,8 @@ object AlgorithmParameterName extends Enumeration {
   val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
 
   val THRESHOLD = "threshold" // Threshold (Double) [Logistic Regression]
-  val MAX_ITER = "max_iter" // Maximum number of iterations (Integer) [Logistic Regression, GBT]
-  val REG_PARAM = "reg_param" // Regularization parameter (Double) [Logistic Regression]
+  val MAX_ITER = "max_iter" // Maximum number of iterations (Integer) [Logistic Regression, GBT, SVM]
+  val REG_PARAM = "reg_param" // Regularization parameter (Double) [Logistic Regression, SVM]
   val ELASTIC_NET_PARAM = "elasticnet_param" // ElasticNet mixing parameter (Double) [Logistic Regression]
 
   val MAX_DEPTH = "max_depth" // Maximum depth of a tree. Deeper trees are more expressive (potentially allowing higher accuracy), but they are also more costly to train and are more likely to overfit. [Decision Tree, Random Forest, GBT]
