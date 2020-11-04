@@ -84,7 +84,7 @@ private case class LogisticRegressionPPDDM(override val agent: Agent, override v
         statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
       }
 
-      logger.debug("## Finish executing logistic regression ##")
+      logger.debug("## Finish executing LogisticRegression ##")
 
       WeakModel(algorithm, agent, toString(pipelineModel), AgentAlgorithmStatistics(agent, agent, algorithm, statistics), Seq.empty, None, None)
     }
