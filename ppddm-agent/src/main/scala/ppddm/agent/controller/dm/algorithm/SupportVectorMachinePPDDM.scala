@@ -1,7 +1,7 @@
 package ppddm.agent.controller.dm.algorithm
 
 import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.apache.spark.ml.classification.{GBTClassifier, LinearSVC}
+import org.apache.spark.ml.classification.LinearSVC
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.sql.DataFrame

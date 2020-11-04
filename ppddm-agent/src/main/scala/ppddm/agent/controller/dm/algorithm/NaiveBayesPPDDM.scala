@@ -1,7 +1,7 @@
 package ppddm.agent.controller.dm.algorithm
 
 import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.apache.spark.ml.classification.GBTClassifier
+import org.apache.spark.ml.classification.NaiveBayes
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.sql.DataFrame
@@ -13,10 +13,10 @@ import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, Algori
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-private case class GradientBoostedTreePPDDM(override val agent: Agent, override val algorithm: Algorithm) extends DataMiningAlgorithm {
+case class NaiveBayesPPDDM(override val agent: Agent, override val algorithm: Algorithm) extends DataMiningAlgorithm {
 
   override def train(dataset_id: String, dataFrame: DataFrame): Future[WeakModel] = {
-    logger.debug("## Start executing GradientBoostedTree ##")
+    logger.debug("## Start executing NaiveBayes ##")
 
     // Prepare the data for execution of the data mining algorithms,
     // i.e. perform the exploratory data analysis which include categorical variable handling, null values handling etc.
@@ -24,13 +24,13 @@ private case class GradientBoostedTreePPDDM(override val agent: Agent, override 
 
       // TODO we can also perform Train-Validation Split here if we parameters as array from the client.
 
-      // Create the GBTClassifier object
-      val gbtClassifier = new GBTClassifier()
+      // Create the NaiveBayes object
+      val naiveBayesClassifier = new NaiveBayes()
 
       // Split the data into training and test. Only trainingData will be used.
       val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
-      val pipeline = new Pipeline().setStages(pipelineStages ++ Array(gbtClassifier))
+      val pipeline = new Pipeline().setStages(pipelineStages ++ Array(naiveBayesClassifier))
 
       // ### Apply k-fold cross validation ###
       logger.debug("Applying k-fold cross-validation...")
@@ -40,10 +40,6 @@ private case class GradientBoostedTreePPDDM(override val agent: Agent, override 
       val paramGridBuilder = new ParamGridBuilder()
       algorithm.parameters.foreach( p => {
         p.name match {
-          case AlgorithmParameterName.MAX_DEPTH => paramGridBuilder.addGrid(gbtClassifier.maxDepth, p.getValueAsIntArray())
-          case AlgorithmParameterName.MIN_INFO_GAIN => paramGridBuilder.addGrid(gbtClassifier.minInfoGain, p.getValueAsDoubleArray())
-          case AlgorithmParameterName.FEATURE_SUBSET_STRATEGY => paramGridBuilder.addGrid(gbtClassifier.featureSubsetStrategy, p.getValueAsStringArray())
-          case AlgorithmParameterName.MAX_ITER => paramGridBuilder.addGrid(gbtClassifier.maxIter, p.getValueAsIntArray())
           case AlgorithmParameterName.NUMBER_OF_FOLDS => numberOfFolds = p.value.toInt
           case AlgorithmParameterName.MAX_PARALLELISM => maxParallelism = p.value.toInt
           // Add others here
@@ -62,20 +58,20 @@ private case class GradientBoostedTreePPDDM(override val agent: Agent, override 
         .setParallelism(maxParallelism)
 
       // Fit the model
-      logger.debug("Fitting GradientBoostedTreeClassifier...")
+      logger.debug("Fitting NaiveBayesClassifier...")
       val cvModel = cv.fit(trainingData)
       val pipelineModel = cvModel.bestModel.asInstanceOf[PipelineModel]
-      logger.debug("GradientBoostedTreeClassifier has been fit.")
+      logger.debug("NaiveBayesClassifier has been fit.")
 
       // Test the model
       logger.debug("Testing the model with test data...")
       val testPredictionDF = pipelineModel.transform(trainingData)
-      logger.debug("GradientBoostedTreeClassificationModel has been tested.")
+      logger.debug("NaiveBayesClassificationModel has been tested.")
 
       // Calculate statistics
       val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
 
-      logger.debug("## Finish executing GradientBoostedTree ##")
+      logger.debug("## Finish executing NaiveBayes ##")
 
       WeakModel(algorithm, agent, toString(pipelineModel), AgentAlgorithmStatistics(agent, agent, algorithm, statistics), Seq.empty, None, None)
     }
