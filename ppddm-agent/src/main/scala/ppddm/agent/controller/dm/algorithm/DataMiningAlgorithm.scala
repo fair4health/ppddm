@@ -4,13 +4,18 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File}
 import java.util.Base64
 
 import com.typesafe.scalalogging.Logger
-import org.apache.spark.ml.PipelineModel
+import org.apache.spark.ml.{Pipeline, PipelineModel, PipelineStage}
+import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
+import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.tuning.CrossValidator
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.zeroturnaround.zip.ZipUtil
+import ppddm.agent.controller.dm.DataAnalysisManager
+import ppddm.agent.controller.dm.DataMiningController.{SEED, TEST_SIZE, TRAINING_SIZE}
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.DataStoreManager
 import ppddm.core.ai.{Predictor, StatisticsCalculator}
-import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, BoostedModel, WeakModel}
+import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, AlgorithmParameterName, BoostedModel, WeakModel}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -24,13 +29,79 @@ trait DataMiningAlgorithm {
   protected val algorithm: Algorithm // The Algoritm that this DataMiningAlgorithm is training/validating/testing
 
   /**
+   * Get classifier and paramGrid for cross validation for each classification algorithm
+   * @return tuple of classifier and paramGrid
+   */
+  def getClassifierAndParamGrid(): (Array[PipelineStage], Array[ParamMap])
+
+  /**
    * Train a model using the DataMiningAlgorithm on the given DataFrame of this Agent
    *
    * @param dataset_id
    * @param dataFrame
    * @return
    */
-  def train(dataset_id: String, dataFrame: DataFrame): Future[WeakModel]
+  def train(dataset_id: String, dataFrame: DataFrame): Future[WeakModel] = {
+    logger.debug(s"## Start executing ${algorithm.name} ##")
+
+    // Prepare the data for execution of the data mining algorithms,
+    // i.e. perform the exploratory data analysis which include categorical variable handling, null values handling etc.
+    DataAnalysisManager.performDataAnalysis(dataset_id, dataFrame) map { pipelineStages =>
+
+      // TODO we can also perform Train-Validation Split here if we parameters as array from the client.
+
+      // Create the classifier object and paramGrid containing its parameters for cross validation
+      val classifierAndParamGrid = getClassifierAndParamGrid()
+
+      // Split the data into training and test. Only trainingData will be used.
+      val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+
+      val pipeline = new Pipeline().setStages(pipelineStages ++ classifierAndParamGrid._1)
+
+      // ### Apply k-fold cross validation ###
+      logger.debug("Applying k-fold cross-validation...")
+
+      var numberOfFolds = 3 // Use 3+ in practice
+      var maxParallelism = 2 // Evaluate up to 2 parameter settings in parallel
+      var metric = "areaUnderROC" // TODO Decide which metric to use. It can be precision/recall for imbalanced data, and accuracy for others
+      algorithm.parameters.foreach( p => {
+        p.name match {
+          case AlgorithmParameterName.NUMBER_OF_FOLDS => numberOfFolds = p.value.toInt
+          case AlgorithmParameterName.MAX_PARALLELISM => maxParallelism = p.value.toInt
+          case AlgorithmParameterName.METRIC => metric = p.value
+          case _ => None
+        }
+      })
+      val binaryClassificationEvaluator = new BinaryClassificationEvaluator()
+        .setLabelCol("label")
+        .setRawPredictionCol("rawPrediction")
+        .setMetricName(metric)
+      val cv = new CrossValidator()
+        .setEstimator(pipeline)
+        .setEvaluator(binaryClassificationEvaluator)
+        .setEstimatorParamMaps(classifierAndParamGrid._2)
+        .setNumFolds(numberOfFolds)
+        .setParallelism(maxParallelism)
+
+      // Fit the model
+      logger.debug(s"Fitting ${algorithm.name} model...")
+      val cvModel = cv.fit(trainingData)
+      val pipelineModel = cvModel.bestModel.asInstanceOf[PipelineModel]
+      logger.debug(s"${algorithm.name} model has been fit.")
+
+      // Test the model
+      logger.debug("Testing the model with test data...")
+      val testPredictionDF = pipelineModel.transform(trainingData)
+      logger.debug(s"${algorithm.name} model has been tested.")
+
+      // Calculate statistics
+      val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
+
+      logger.debug(s"## Finish executing ${algorithm.name} ##")
+
+      WeakModel(algorithm, agent, toString(pipelineModel), AgentAlgorithmStatistics(agent, agent, algorithm, statistics), Seq.empty, None, None)
+    }
+  }
 
   /**
    * Validate a model on the given dataFrame

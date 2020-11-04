@@ -107,6 +107,7 @@ object AlgorithmParameterName extends Enumeration {
   type AlgorithmParameterName = String
   val NUMBER_OF_FOLDS = "num_folds" // Value of k in k-fold Cross validation
   val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
+  val METRIC = "metric" // Metric to use on Cross validation
 
   val THRESHOLD = "threshold" // Threshold (Double) [Logistic Regression]
   val MAX_ITER = "max_iter" // Maximum number of iterations (Integer) [Logistic Regression, GBT, SVM]
