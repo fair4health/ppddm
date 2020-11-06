@@ -237,7 +237,7 @@ object DataMiningModelController {
   def updateDataMiningModel(dataMiningModel: DataMiningModel): Future[Option[DataMiningModel]] = {
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
-      dataMiningModel,
+      dataMiningModel.withUpdatedDataMiningState(),
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
       .headOption()
       .recover {
