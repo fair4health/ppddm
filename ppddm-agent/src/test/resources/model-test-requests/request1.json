@@ -1,0 +1,33 @@
+{
+  "model_id": "model1",
+  "dataset_id": "dataset1",
+  "agent": {
+    "agent_id": "test",
+    "name": "test",
+    "endpoint": "test"
+  },
+  "boosted_models": [
+    {
+      "algorithm": {
+        "name": "classification_logistic_regression",
+        "parameters": [
+          {
+            "name": "max_iter",
+            "data_type": "integer",
+            "value": "10"
+          },
+          {
+            "name": "reg_param",
+            "data_type": "double",
+            "value": "0.01"
+          },
+          {
+            "name": "elasticnet_param",
+            "data_type": "double",
+            "value": "1.0"
+          }
+        ]
+      }
+    }
+  ]
+}

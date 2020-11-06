@@ -24,7 +24,7 @@ object DataMiningController {
   val SEED = 11L // We need a seed value to be the same so that, the data that is split into training and test will always be the same
 
   private val logger: Logger = Logger(this.getClass)
-  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
+  private implicit val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
   import sparkSession.implicits._
 

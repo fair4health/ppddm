@@ -4,7 +4,6 @@ import java.io.File
 import java.util.UUID
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 import ppddm.agent.controller.dm.DataMiningRequestType
 import ppddm.agent.controller.dm.DataMiningRequestType.DataMiningRequestType
@@ -25,8 +24,6 @@ object DataStoreManager {
   final private val MODEL_TEST_STORE_DIR: String = BASE_STORE_DIR + "/models/test/"
   final private val TMP_STORE_DIR: String = BASE_STORE_DIR + "/tmp/"
 
-  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
-
   /**
    * Saves the DataFrame to the given file path
    *
@@ -44,7 +41,7 @@ object DataStoreManager {
    * @param path The filepath of the DataFrame
    * @return the DataFrame if it is found
    */
-  def getDataFrame(path: String): Option[DataFrame] = {
+  def getDataFrame(path: String)(implicit sparkSession: SparkSession): Option[DataFrame] = {
     Try(sparkSession.read.parquet(path)).toOption
   }
 

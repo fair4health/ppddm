@@ -36,7 +36,7 @@ object DataPreparationController {
   private val logger: Logger = Logger(this.getClass)
 
   private val batchSize: Int = AgentConfig.agentBatchSize
-  private val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
+  private implicit val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
   import sparkSession.implicits._
 
