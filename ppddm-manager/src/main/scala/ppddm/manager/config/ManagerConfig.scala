@@ -15,4 +15,7 @@ object ManagerConfig extends AppConfig {
     /** MogoDB Configuration */
     override lazy val mongoDbName: String = Try(config.getString("mongodb.db")).getOrElse("ppddm-manager")
 
+    /** Which Agents are defined to be connected */
+    lazy val agentsDefinitionPath: String = Try(config.getString("agents.definition-path")).getOrElse("agents.json")
+
 }
