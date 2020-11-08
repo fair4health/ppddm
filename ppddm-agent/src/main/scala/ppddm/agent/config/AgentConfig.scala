@@ -16,10 +16,10 @@ object AgentConfig extends AppConfig {
   lazy val fhirProtocol: String = Try(config.getString("fhir.protocol")).getOrElse("http")
   lazy val fhirHost: String = Try(config.getString("fhir.host")).getOrElse("localhost")
   lazy val fhirPort: Int = Try(config.getInt("fhir.port")).getOrElse(80)
-  lazy val fhirPath: String = Try(config.getString("fhir.path")).getOrElse("/")
+  lazy val fhirBaseUri: String = Try(config.getString("fhir.base-uri")).getOrElse("/")
 
   /** PPDDM-Agent config */
   lazy val agentID: String = Try(config.getString("agent.id")).getOrElse("agent-1")
-  lazy val agentBatchSize: Int = Try(config.getInt("agent.batch.size")).getOrElse(10)
+  lazy val agentBatchSize: Int = Try(config.getInt("agent.batch-size")).getOrElse(10)
 
 }

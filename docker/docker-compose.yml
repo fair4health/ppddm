@@ -1,0 +1,71 @@
+version: '2'
+services:
+  mongo:
+    image: mongo:latest
+    volumes:
+      - './volumes/mongo:/data/db'
+    container_name: f4h-mongo
+    restart: always
+  onfhir:
+    build: ./onfhir
+    depends_on:
+      - mongo
+    ports:
+      - 7070:8080
+    container_name: f4h-onfhir
+    restart: always
+  ppddm-agent-1:
+    build: ./ppddm-agent
+    depends_on:
+      - onfhir
+    environment:
+      AGENT_ID: agent-1
+      SERVER_PORT: 7001
+      FHIR_HOST: f4h-onfhir
+      FHIR_PORT: 8080
+    volumes:
+      - './volumes/ppddm-agent1:/usr/local/ppddm/ppddm-store'
+    container_name: f4h-ppddm-agent-1
+    restart: always
+  ppddm-agent-2:
+    build: ./ppddm-agent
+    depends_on:
+      - onfhir
+    environment:
+      AGENT_ID: agent-2
+      SERVER_PORT: 7002
+      FHIR_HOST: f4h-onfhir
+      FHIR_PORT: 8080
+    volumes:
+      - './volumes/ppddm-agent2:/usr/local/ppddm/ppddm-store'
+    container_name: f4h-ppddm-agent-2
+    restart: always
+  ppddm-agent-3:
+    build: ./ppddm-agent
+    depends_on:
+      - onfhir
+    environment:
+      AGENT_ID: agent-3
+      SERVER_PORT: 7003
+      FHIR_HOST: f4h-onfhir
+      FHIR_PORT: 8080
+    volumes:
+      - './volumes/ppddm-agent3:/usr/local/ppddm/ppddm-store'
+    container_name: f4h-ppddm-agent-3
+    restart: always
+  ppddm-manager:
+    build: ./ppddm-manager
+    depends_on:
+      - mongo
+      - ppddm-agent-1
+      - ppddm-agent-2
+      - ppddm-agent-3
+    environment:
+      SERVER_PORTL: 8000
+      AGENTS_DEFINITION: agents-deployment.json
+      MONGO_HOST: f4h-mongo
+    ports:
+      - 7000:8000
+    container_name: f4h-ppddm-manager
+    restart: always
+

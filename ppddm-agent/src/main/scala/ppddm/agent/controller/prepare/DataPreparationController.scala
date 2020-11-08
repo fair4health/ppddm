@@ -58,7 +58,7 @@ object DataPreparationController {
         Done
       }
     } else {
-      val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
+      val fhirClientMaster = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirBaseUri, AgentConfig.fhirProtocol)
 
       // Start with the Patients
       val patientQuery = QueryHandler.getPatientQuery(dataPreparationRequest.eligibility_criteria)
@@ -74,7 +74,7 @@ object DataPreparationController {
           val rdd: RDD[Seq[Row]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
             partitionIterator.map { pageIndex =>
               // Instantiate a FHIRClient and FhirPathEvaluator for each worker node
-              val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirPath, AgentConfig.fhirProtocol)
+              val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirBaseUri, AgentConfig.fhirProtocol)
               val fhirPathEvaluator = FhirPathEvaluator()
 
               // Fetch the Patient resources from the FHIR Repository and collect their IDs

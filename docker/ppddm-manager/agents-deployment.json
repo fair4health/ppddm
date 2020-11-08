@@ -1,0 +1,17 @@
+[
+  {
+    "agent_id": "agent-1",
+    "name": "Agent 1",
+    "endpoint": "http://f4h-ppddm-agent-1:7001/agent"
+  },
+  {
+    "agent_id": "agent-2",
+    "name": "Agent 2",
+    "endpoint": "http://f4h-ppddm-agent-2:7002/agent"
+  },
+  {
+    "agent_id": "agent-3",
+    "name": "Agent 3",
+    "endpoint": "http://f4h-ppddm-agent-3:7003/agent"
+  }
+]
