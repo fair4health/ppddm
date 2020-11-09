@@ -6,6 +6,9 @@ import org.junit.runner.RunWith
 import org.specs2.runner.JUnitRunner
 import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
+import ppddm.core.rest.model.Agent
+
+import ppddm.core.rest.model.Json4sSupport._
 
 @RunWith(classOf[JUnitRunner])
 class ServiceEndpointTest extends PPDDMAgentEndpointTest {
@@ -23,17 +26,8 @@ class ServiceEndpointTest extends PPDDMAgentEndpointTest {
       Get("/" + AgentConfig.baseUri + "/metadata") ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
 
-        val response = responseAs[String]
-        response shouldEqual "\"This is GET:metadata\""
-      }
-    }
-
-    "return service metadata" in {
-      Get("/" + AgentConfig.baseUri + "/service/metadata") ~> Authorization(bearerToken) ~> routes ~> check {
-        status shouldEqual OK
-
-        val response = responseAs[String]
-        response shouldEqual "\"This is GET:service/metadata\""
+        val response = responseAs[Agent]
+        response.endpoint shouldEqual s"${AgentConfig.serverHost}:${AgentConfig.serverPort}:${AgentConfig.baseUri}"
       }
     }
   }
