@@ -164,6 +164,16 @@ object DataPreparationController {
           Done
         } else {
           logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
+
+          logger.debug("An empty DataPreparationResult will be saved into the DataStore for Dataset:{}", dataPreparationRequest.dataset_id)
+          val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id,
+            dataPreparationRequest.agent,
+            AgentDataStatistics(0L, Seq.empty[VariableStatistics]))
+
+          DataStoreManager.saveDataFrame(
+            DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
+            Seq(dataPreparationResult.toJson).toDF())
+
           Done
         }
       }
@@ -573,10 +583,10 @@ object DataPreparationController {
    */
   def deleteData(dataset_id: String): Option[Done] = {
     // Delete the dataset with the given dataset_id
-    val datasetDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getDatasetPath(dataset_id))
+    DataStoreManager.deleteDirectory(DataStoreManager.getDatasetPath(dataset_id))
     // Delete the statistics related with the given dataset_id
     val statisticsDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getStatisticsPath(dataset_id))
-    if (datasetDeleted && statisticsDeleted) {
+    if (statisticsDeleted) {
       logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
       Some(Done)
     } else {

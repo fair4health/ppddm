@@ -7,10 +7,6 @@ import akka.Done
 import akka.actor.Cancellable
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.Authorization
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
-import org.json4s.DefaultFormats
-import org.json4s.jackson.parseJson
-import org.json4s.jackson.Serialization.write
 import org.junit.runner.RunWith
 import org.specs2.matcher.MatchResult
 import org.specs2.runner.JUnitRunner
@@ -18,28 +14,33 @@ import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
 import ppddm.core.rest.model.{BoostedModel, DataPreparationRequest, ModelTestRequest, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest}
 
+import ppddm.core.rest.model.Json4sSupport._
+
 import scala.concurrent.Promise
 import scala.concurrent.duration.Duration
 import scala.io.Source
 
 @RunWith(classOf[JUnitRunner])
 class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
-  implicit val formats: DefaultFormats.type = DefaultFormats
 
-  val dataPreparationRequestStr: String = Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-with-variables.json")).mkString
-  val modelTrainingRequestStr1: String = Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/request1.json")).mkString
-  val modelTrainingRequestStr2: String = Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/request2.json")).mkString
-  val modelTestRequestStr: String = Source.fromInputStream(getClass.getResourceAsStream("/model-test-requests/request1.json")).mkString
+  import ppddm.core.util.JsonFormatter._
 
-  val dataPreparationRequest: DataPreparationRequest = parseJson(dataPreparationRequestStr).extract[DataPreparationRequest]
-  val modelTrainingRequests: Seq[ModelTrainingRequest] = Seq(
-    parseJson(modelTrainingRequestStr1).extract[ModelTrainingRequest],
-    parseJson(modelTrainingRequestStr2).extract[ModelTrainingRequest]
-  )
+  val dataPreparationRequest: DataPreparationRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-with-variables.json")).mkString
+      .extract[DataPreparationRequest]
+  val modelTrainingRequest1: ModelTrainingRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/request1.json")).mkString
+      .extract[ModelTrainingRequest]
+  val modelTrainingRequest2: ModelTrainingRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/request2.json")).mkString
+      .extract[ModelTrainingRequest]
+  var modelTestRequest: ModelTestRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/model-test-requests/request1.json")).mkString
+      .extract[ModelTestRequest]
+
+  val modelTrainingRequests: Seq[ModelTrainingRequest] = Seq(modelTrainingRequest1, modelTrainingRequest2)
   var modelTrainingResult: ModelTrainingResult = _
   var modelValidationRequests: Seq[ModelValidationRequest] = Seq.empty[ModelValidationRequest]
-  var modelTestRequest: ModelTestRequest = parseJson(modelTestRequestStr).extract[ModelTestRequest]
-
 
   /**
    * Asks model training result repeatedly with a scheduler and when it is ready, prepares the validation and test requests
@@ -58,7 +59,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         Get("/" + AgentConfig.baseUri + "/dm/train/" + model_id) ~> Authorization(bearerToken) ~> routes ~> check {
           if (status.intValue() == 200) {
             // Parse model training result
-            modelTrainingResult = parseJson(responseAs[String]).extract[ModelTrainingResult]
+            modelTrainingResult = responseAs[ModelTrainingResult]
 
             // Create model validation request body from training result
             modelValidationRequests = modelValidationRequests :+ ModelValidationRequest(
@@ -123,8 +124,9 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
   sequential
 
   "Data Mining Endpoint" should {
+
     "create a dataset first" in {
-      Post("/" + AgentConfig.baseUri + "/prepare", HttpEntity(ContentTypes.`application/json`, dataPreparationRequestStr)) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
 
@@ -151,13 +153,13 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "start model training - request1" in {
-      Post("/" + AgentConfig.baseUri + "/dm/train", HttpEntity(ContentTypes.`application/json`, modelTrainingRequestStr1)) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/train", modelTrainingRequest1) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "start model training - request2" in {
-      Post("/" + AgentConfig.baseUri + "/dm/train", HttpEntity(ContentTypes.`application/json`, modelTrainingRequestStr2)) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/train", modelTrainingRequest2) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -170,7 +172,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
 
     "validate the model" in {
       modelValidationRequests.map { modelValidationRequest =>
-        Post("/" + AgentConfig.baseUri + "/dm/validate", HttpEntity(ContentTypes.`application/json`, write(modelValidationRequest))) ~> Authorization(bearerToken) ~> routes ~> check {
+        Post("/" + AgentConfig.baseUri + "/dm/validate", modelValidationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
           status shouldEqual OK
         }
       }
@@ -183,7 +185,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "test the boosted model" in {
-      Post("/" + AgentConfig.baseUri + "/dm/test", HttpEntity(ContentTypes.`application/json`, write(modelTestRequest))) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/test", modelTestRequest) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
