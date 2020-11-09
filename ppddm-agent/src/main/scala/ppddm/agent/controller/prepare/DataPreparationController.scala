@@ -164,6 +164,16 @@ object DataPreparationController {
           Done
         } else {
           logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
+
+          logger.debug("An empty DataPreparationResult will be saved into the DataStore for Dataset:{}", dataPreparationRequest.dataset_id)
+          val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id,
+            dataPreparationRequest.agent,
+            AgentDataStatistics(0L, Seq.empty[VariableStatistics]))
+
+          DataStoreManager.saveDataFrame(
+            DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
+            Seq(dataPreparationResult.toJson).toDF())
+
           Done
         }
       }
