@@ -45,6 +45,10 @@ Privacy-Preserving Distributed Data Mining (PPDDM) Manager
 Core components and libraries shared by other modules of the FAIR4Health PPDDM such as the REST model
 or machine learning libraries.
 
+## Warning
+ * This project utilizes Apacke Spark and Spark has a dependency on Windows OS as described on [Stackoverflow](https://stackoverflow.com/questions/35652665/java-io-ioexception-could-not-locate-executable-null-bin-winutils-exe-in-the-ha). If you will use on Windows, you need the winutils as desribed in the link.
+ * Tests of the ppddm-agent requires an HL7 FHIR Repository (prefereably an [onFHIR Repository](https://onfhir.io)) to be running at the host and port configured in the application.conf of the Agent.
+
 ## Acknowledgement
 
 This research has received funding from the European Union’s Horizon 2020 research and innovation programme under grant agreement No 824666,
