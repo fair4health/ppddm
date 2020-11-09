@@ -583,10 +583,10 @@ object DataPreparationController {
    */
   def deleteData(dataset_id: String): Option[Done] = {
     // Delete the dataset with the given dataset_id
-    val datasetDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getDatasetPath(dataset_id))
+    DataStoreManager.deleteDirectory(DataStoreManager.getDatasetPath(dataset_id))
     // Delete the statistics related with the given dataset_id
     val statisticsDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getStatisticsPath(dataset_id))
-    if (datasetDeleted && statisticsDeleted) {
+    if (statisticsDeleted) {
       logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
       Some(Done)
     } else {
