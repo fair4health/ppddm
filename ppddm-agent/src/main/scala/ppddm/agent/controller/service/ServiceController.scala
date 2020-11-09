@@ -1,13 +1,12 @@
 package ppddm.agent.controller.service
 
-import com.typesafe.scalalogging.Logger
+import ppddm.agent.config.AgentConfig
+import ppddm.core.rest.model.Agent
 
 object ServiceController {
 
-  private val logger: Logger = Logger(this.getClass)
-
-  def getMetadata(inp: String): String = {
-    inp
+  def getMetadata: Agent = {
+    Agent(AgentConfig.agentID, AgentConfig.appName, s"${AgentConfig.serverHost}:${AgentConfig.serverPort}:${AgentConfig.baseUri}")
   }
 
 }

@@ -12,18 +12,7 @@ trait ServiceEndpoint {
       pathEndOrSingleSlash {
         get {
           complete {
-            ServiceController.getMetadata("This is GET:metadata")
-          }
-        }
-      }
-    } ~
-    pathPrefix("service") {
-      pathPrefix("metadata") {
-        pathEndOrSingleSlash {
-          get {
-            complete {
-              ServiceController.getMetadata("This is GET:service/metadata")
-            }
+            ServiceController.getMetadata
           }
         }
       }
