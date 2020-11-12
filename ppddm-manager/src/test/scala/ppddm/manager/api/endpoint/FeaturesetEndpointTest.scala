@@ -35,7 +35,7 @@ class FeaturesetEndpointTest extends PPDDMManagerEndpointTest {
 
     "create a new feature set" in {
       Post("/" + ManagerConfig.baseUri + "/featureset", featuresetRequest) ~> Authorization(bearerToken) ~> routes ~> check {
-        status shouldEqual OK
+        status shouldEqual Created
 
         createdFeatureset = responseAs[Featureset]
         createdFeatureset.project_id shouldEqual featuresetRequest.project_id
@@ -64,7 +64,7 @@ class FeaturesetEndpointTest extends PPDDMManagerEndpointTest {
       // Add another feature set with the same project id
       var newFeaturesetID: String = ""
       Post("/" + ManagerConfig.baseUri + "/featureset", featuresetRequest) ~> Authorization(bearerToken) ~> routes ~> check {
-        status shouldEqual OK
+        status shouldEqual Created
 
         val response: Featureset = responseAs[Featureset]
         newFeaturesetID = response.featureset_id.get

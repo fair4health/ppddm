@@ -29,7 +29,7 @@ class ProjectEndpointTest extends PPDDMManagerEndpointTest {
 
     "create a new project" in {
       Post("/" + ManagerConfig.baseUri + "/project", projectRequest) ~> Authorization(bearerToken) ~> routes ~> check {
-        status shouldEqual OK
+        status shouldEqual Created
 
         createdProject = responseAs[Project]
         createdProject.name === projectRequest.name

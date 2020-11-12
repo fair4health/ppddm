@@ -4,7 +4,7 @@
   "description": "Contains only heart and endocrine diseases",
   "variables": [
     {
-      "name": "Hearf failure",
+      "name": "Heart failure",
       "fhir_query": "/Condition?code=I50&subject=patient1",
       "fhir_path": "value:exists",
       "variable_data_type": "numeric",
