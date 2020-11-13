@@ -1,0 +1,34 @@
+{
+  "project_id": "test-project",
+  "featureset": {
+    "project_id": "test-project",
+    "featureset_id": "test-featureset",
+    "name": "Feature set with small number of variables",
+    "description": "Contains only heart and endocrine diseases",
+    "variables": [
+      {
+        "name": "Heart failure",
+        "fhir_query": "/Condition?code=I50&subject=patient1",
+        "fhir_path": "value:exists",
+        "variable_data_type": "numeric",
+        "variable_type": "independent"
+      },
+      {
+        "name": "Coronary artery disease",
+        "fhir_query": "/Condition?code=I25&subject=patient1",
+        "fhir_path": "value:exists",
+        "variable_data_type": "numeric",
+        "variable_type": "independent"
+      }
+    ],
+    "created_by": "test"
+  },
+  "name": "Test data set",
+  "description": "Test dataset",
+  "eligibility_criteria": [
+    {
+      "fhir_query": "/Condition?code:sw=N18,I50,I10"
+    }
+  ],
+  "created_by": "1903"
+}

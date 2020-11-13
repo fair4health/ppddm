@@ -18,7 +18,7 @@ class ProjectEndpointTest extends PPDDMManagerEndpointTest {
   import ppddm.core.util.JsonFormatter._
 
   val projectRequest: Project =
-    Source.fromInputStream(getClass.getResourceAsStream("/project.json")).mkString
+    Source.fromResource("project.json").mkString
       .extract[Project]
 
   var createdProject: Project = _
@@ -29,7 +29,7 @@ class ProjectEndpointTest extends PPDDMManagerEndpointTest {
 
     "create a new project" in {
       Post("/" + ManagerConfig.baseUri + "/project", projectRequest) ~> Authorization(bearerToken) ~> routes ~> check {
-        status shouldEqual OK
+        status shouldEqual Created
 
         createdProject = responseAs[Project]
         createdProject.name === projectRequest.name

@@ -1,10 +1,13 @@
 package ppddm.manager.gateway.api.endpoint
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ppddm.core.rest.model.Json4sSupport._
 import ppddm.core.rest.model.Project
 import ppddm.manager.controller.project.ProjectController
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 trait ProjectEndpoint {
 
@@ -14,7 +17,9 @@ trait ProjectEndpoint {
         post {
           entity(as[Project]) { project =>
             complete {
-              ProjectController.createProject(project)
+              ProjectController.createProject(project) map { createdProject =>
+                StatusCodes.Created -> createdProject
+              }
             }
           }
         } ~
