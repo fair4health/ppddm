@@ -18,7 +18,7 @@ class FeaturesetEndpointTest extends PPDDMManagerEndpointTest {
   import ppddm.core.util.JsonFormatter._
 
   val featuresetRequest: Featureset =
-    Source.fromInputStream(getClass.getResourceAsStream("/featureset.json")).mkString
+    Source.fromResource("featureset.json").mkString
       .extract[Featureset]
 
   var createdFeatureset: Featureset = _

@@ -104,5 +104,14 @@ class DatasetEndpointTest extends PPDDMManagerEndpointTest {
       }
     }
 
+    "delete the created datasets" in {
+      Delete("/" + ManagerConfig.baseUri + "/dataset/" + createdBareDataset.dataset_id.get) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+      Delete("/" + ManagerConfig.baseUri + "/dataset/" + createdFullDataset.dataset_id.get) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
   }
 }
