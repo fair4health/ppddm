@@ -16,12 +16,14 @@ class AlgorithmEndpointTest extends PPDDMManagerEndpointTest {
 
   "Algorithms Endpoint" should {
 
-    "retrieve all avaialble algorithms" in {
+    "retrieve all available algorithms" in {
       Get("/" + ManagerConfig.baseUri + "/algorithm") ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
 
-//        val response: Seq[Algorithm] = responseAs[Seq[Algorithm]]
-//        response.size ===
+        val response: Seq[Algorithm] = responseAs[Seq[Algorithm]]
+        response.size shouldEqual 12
+        // We cannot make this check because we do not create the Enumarations appropriately. The values of the Enumeration objects are not Value instances
+        // response.size shouldEqual AlgorithmName.values.size
       }
     }
   }
