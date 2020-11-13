@@ -15,16 +15,20 @@ trait DataMiningModelEndpoint {
     pathPrefix("dm-model") {
       pathEndOrSingleSlash {
         post {
-          entity(as[DataMiningModel]) { datamining_model =>
-            complete { // Create a new DataMiningModel and return the created entity
-              DataMiningModelController.createDataMiningModel(datamining_model) map { dataMiningModel =>
+          parameters("_test".?) { test =>
+            entity(as[DataMiningModel]) { datamining_model =>
+              complete { // Create a new DataMiningModel and return the created entity
+                DataMiningModelController.createDataMiningModel(datamining_model) map { dataMiningModel =>
 
-                // After the DataMiningModel is saved into the database, start an orchestration process for this model
-                // so that model training, validation and testing are executed through the distributed data mining approach
-                // Do not wait this orchestration to be completed, start the orchestration and return.
-                DataMiningOrchestrator.startOrchestration(dataMiningModel)
+                  if(test.isEmpty) { // Start the orchestration only if this call is NOT for testing purposes
+                    // After the DataMiningModel is saved into the database, start an orchestration process for this model
+                    // so that model training, validation and testing are executed through the distributed data mining approach
+                    // Do not wait this orchestration to be completed, start the orchestration and return.
+                    DataMiningOrchestrator.startOrchestration(dataMiningModel)
+                  }
 
-                StatusCodes.Created -> dataMiningModel // Return the OK result, do not wait for the orchestration to finish
+                  StatusCodes.Created -> dataMiningModel // Return the OK result, do not wait for the orchestration to finish
+                }
               }
             }
           }

@@ -1,10 +1,13 @@
 package ppddm.manager.gateway.api.endpoint
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ppddm.core.rest.model.Featureset
 import ppddm.core.rest.model.Json4sSupport._
 import ppddm.manager.controller.featureset.FeaturesetController
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 trait FeaturesetEndpoint {
 
@@ -14,7 +17,9 @@ trait FeaturesetEndpoint {
         post { // create a new feature set
           entity(as[Featureset]) { featureset =>
             complete {
-              FeaturesetController.createFeatureset(featureset)
+              FeaturesetController.createFeatureset(featureset) map { createdFeatureset =>
+                StatusCodes.Created -> createdFeatureset
+              }
             }
           }
         } ~

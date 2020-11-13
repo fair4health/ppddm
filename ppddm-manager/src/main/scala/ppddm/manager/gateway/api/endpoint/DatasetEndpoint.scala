@@ -15,18 +15,20 @@ trait DatasetEndpoint {
     pathPrefix("dataset") {
       pathEndOrSingleSlash {
         post { // create a new data set
-          entity(as[Dataset]) { dataset =>
-            complete {
-              DatasetController.createDataset(dataset) map { dataset =>
-                StatusCodes.Created -> dataset
+          parameters("_test".?) { test =>
+            entity(as[Dataset]) { dataset =>
+              complete {
+                DatasetController.createDataset(dataset, test.isDefined) map { createdDataset =>
+                  StatusCodes.Created -> createdDataset
+                }
               }
             }
           }
         } ~
           get { // get all data sets of project
-            parameters('project_id) { project_id =>
+            parameters('project_id, "_test".?) { (project_id, test) =>
               complete {
-                DatasetController.getAllDatasets(project_id)
+                DatasetController.getAllDatasets(project_id, test.isDefined)
               }
             }
           }
@@ -35,20 +37,26 @@ trait DatasetEndpoint {
       pathPrefix("dataset" / Segment) { dataset_id =>
         pathEndOrSingleSlash {
           get { // get data set
-            complete {
-              DatasetController.getDataset(dataset_id)
+            parameters("_test".?) { test =>
+              complete {
+                DatasetController.getDataset(dataset_id, test.isDefined)
+              }
             }
           } ~
             put { // update data set
-              entity(as[Dataset]) { dataset =>
-                complete {
-                  DatasetController.updateDataset(dataset)
+              parameters("_test".?) { test =>
+                entity(as[Dataset]) { dataset =>
+                  complete {
+                    DatasetController.updateDataset(dataset, test.isDefined)
+                  }
                 }
               }
             } ~
             delete { // delete data set
-              complete {
-                DatasetController.deleteDataset(dataset_id)
+              parameters("_test".?) { test =>
+                complete {
+                  DatasetController.deleteDataset(dataset_id, test.isDefined)
+                }
               }
             }
         }
