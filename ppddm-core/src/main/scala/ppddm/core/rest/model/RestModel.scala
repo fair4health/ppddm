@@ -4,9 +4,11 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 import ppddm.core.rest.model.AlgorithmName.AlgorithmName
+import ppddm.core.rest.model.CategoricalEncodingType.CategoricalEncodingType
 import ppddm.core.rest.model.DataMiningState.DataMiningState
 import ppddm.core.rest.model.DataType.DataType
 import ppddm.core.rest.model.ExecutionState.ExecutionState
+import ppddm.core.rest.model.MissingDataOperationType.MissingDataOperationType
 import ppddm.core.rest.model.ProjectType.ProjectType
 import ppddm.core.rest.model.SelectionStatus.SelectionStatus
 import ppddm.core.rest.model.VariableDataType.VariableDataType
@@ -193,7 +195,10 @@ final case class DataMiningModel(model_id: Option[String],
                                  dataset: Dataset,
                                  name: String,
                                  description: String,
+                                 variable_configurations: Seq[VariableConfiguration],
                                  algorithms: Seq[Algorithm],
+                                 training_size: Double,
+                                 test_size: Double,
                                  boosted_models: Option[Seq[BoostedModel]],
                                  data_mining_state: Option[DataMiningState],
                                  created_by: String,
@@ -232,6 +237,11 @@ final case class DataMiningModel(model_id: Option[String],
     }
   }
 }
+
+final case class VariableConfiguration(variable: Variable,
+                                       encoding_type: Option[CategoricalEncodingType],
+                                       missing_data_operation: Option[MissingDataOperationType],
+                                       missing_data_specific_value: Option[Double])
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],

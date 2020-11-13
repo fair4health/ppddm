@@ -18,6 +18,22 @@ object VariableType extends Enumeration {
   val DEPENDENT = "dependent"
 }
 
+object CategoricalEncodingType extends Enumeration {
+  type CategoricalEncodingType = String
+  val DUMMY = "introduce_dummy"
+  val NUMERIC = "convert_to_numeric"
+}
+
+object MissingDataOperationType extends Enumeration {
+  type MissingDataOperationType = String
+  val SET_MIN = "set_min"
+  val SET_MAX = "set_max"
+  val SET_AVERAGE = "set_average"
+  val SET_MEAN = "set_mean"
+  val SET_MEDIAN = "set_median"
+  val SET_SPECIFIC = "set_specific"
+}
+
 object SelectionStatus extends Enumeration {
   type SelectionStatus = String
   val SELECTED = "selected"
