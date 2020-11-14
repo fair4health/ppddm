@@ -82,7 +82,7 @@ object DistributedDataMiningManager {
   private def getModelTrainingResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ModelTrainingResult]] = {
     val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getTrainingURI(dataMiningModel.model_id))
 
-    logger.debug("Asking the ModelTrainingResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
+    logger.debug("Asking the ModelTrainingResult to the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
       agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
     AgentClient.invokeHttpRequest[ModelTrainingResult](agentRequest).map(_.toOption)
@@ -110,24 +110,38 @@ object DistributedDataMiningManager {
   }
 
   /**
-   * Deletes the trained AlgorithmExecutionResults from the Agents.
+   * Deletes the training results of the DataMiningModel indicated by the model_id on the given Agent
    *
    * @param agent
    * @param dataMiningModel
    * @return
    */
-  def deleteAlgorithmExecutionResult(agent: Agent, dataMiningModel: DataMiningModel): Future[Done] = {
+  private def deleteModelTrainingResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
     val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getTrainingURI(dataMiningModel.model_id))
 
-    logger.debug("Deleting the algorithm execution result from the Agent on URI:{} for model_id: {} & model_name: {}",
-      agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+    logger.debug("Deleting the ModelTrainingResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
-    AgentClient.invokeHttpRequest[Done](agentRequest) map {
-      case Success(result) =>
-        logger.debug("Successfully deleted the algorithm execution result from the Agent on URI:{} for model_id: {} & model_name: {}",
-          agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
-        result
-      case Failure(ex) => throw ex
+    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Sends DELETE requests for the training results to all selected Agents of the given DataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def deleteAgentsModelTrainingResults(dataMiningModel: DataMiningModel): Future[Done] = {
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+    logger.debug("I will invoke the DELETE model training endpoints of {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(deleteModelTrainingResultFromAgent(_, dataMiningModel))) map { responses =>
+      if(responses.exists(_.isEmpty)) {
+        logger.warn("We are trying to delete the training results on Agents, however; there is an Agent whose training results were not there!")
+      }
+      Done
     }
   }
 
@@ -220,6 +234,42 @@ object DistributedDataMiningManager {
     }
   }
 
+  /**
+   * Deletes the validation results of the DataMiningModel indicated by the model_id on the given Agent
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return
+   */
+  private def deleteModelValidationResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getValidationURI(dataMiningModel.model_id))
+
+    logger.debug("Deleting the ModelValidationResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Sends DELETE requests for the validation results to all selected Agents of the given DataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def deleteAgentsModelValidationResults(dataMiningModel: DataMiningModel): Future[Done] = {
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+    logger.debug("I will invoke the DELETE model validation endpoints of {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(deleteModelValidationResultFromAgent(_, dataMiningModel))) map { responses =>
+      if(responses.exists(_.isEmpty)) {
+        logger.warn("We are trying to delete the validation results on Agents, however; there is an Agent whose validation results were not there!")
+      }
+      Done
+    }
+  }
+
   // ******* TESTING *******
 
   /**
@@ -309,6 +359,42 @@ object DistributedDataMiningManager {
       responses
         .filter(_.isDefined) // keep only ready ModelTestResult
         .map(_.get) // get rid of Option
+    }
+  }
+
+  /**
+   * Deletes the test results of the DataMiningModel indicated by the model_id on the given Agent
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return
+   */
+  private def deleteModelTestResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getTestURI(dataMiningModel.model_id))
+
+    logger.debug("Deleting the ModelTestResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Sends DELETE requests for the test results to all selected Agents of the given DataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def deleteAgentsModelTestResults(dataMiningModel: DataMiningModel): Future[Done] = {
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+    logger.debug("I will invoke the DELETE model test endpoints of {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(deleteModelTestResultFromAgent(_, dataMiningModel))) map { responses =>
+      if(responses.exists(_.isEmpty)) {
+        logger.warn("We are trying to delete the test results on Agents, however; there is an Agent whose test results were not there!")
+      }
+      Done
     }
   }
 
