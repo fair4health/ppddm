@@ -4,10 +4,11 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ppddm.core.rest.model.DataMiningModel
-import ppddm.manager.controller.dm.{DataMiningModelController, DataMiningOrchestrator}
+import ppddm.manager.controller.dm.{DataMiningModelController, DataMiningOrchestrator, DistributedDataMiningManager}
 import ppddm.core.rest.model.Json4sSupport._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 trait DataMiningModelEndpoint {
 
@@ -57,8 +58,21 @@ trait DataMiningModelEndpoint {
               }
             } ~
             delete {
-              complete { // Delete the DataMiningModel
-                DataMiningModelController.deleteDataMiningModel(model_id)
+              parameters("_test".?) { test =>
+                complete { // Delete the DataMiningModel
+                  DataMiningModelController.deleteDataMiningModel(model_id) flatMap { dataMiningModel =>
+                    if(dataMiningModel.isDefined && test.isEmpty) {
+                      // Delete the data for this DataMiningModel on Agents
+                      Future.sequence(Seq(
+                        DistributedDataMiningManager.deleteAgentsModelTrainingResults(dataMiningModel.get),
+                        DistributedDataMiningManager.deleteAgentsModelValidationResults(dataMiningModel.get),
+                        DistributedDataMiningManager.deleteAgentsModelTestResults(dataMiningModel.get)
+                      ))
+                    } else {
+                      Future.apply(Option.empty[DataMiningModel])
+                    }
+                  }
+                }
               }
             }
         }
