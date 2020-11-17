@@ -9,7 +9,6 @@ import ppddm.core.rest.model.EligibilityCriterion
 object QueryHandler {
 
   def getPatientQuery(eligibilityCriteria: Seq[EligibilityCriterion]): FHIRQuery = {
-    // TODO: What if there are multiple Patient queries in the eligibilityCriteria
     val patientEC = eligibilityCriteria.find(_.fhir_query.startsWith("/Patient"))
     val patientQuery = if (patientEC.isDefined) {
       FHIRQueryWithQueryString(patientEC.get.fhir_query, patientEC.get.fhir_path)

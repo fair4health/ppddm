@@ -1,5 +1,6 @@
 package ppddm.core.fhir
 
+import com.typesafe.scalalogging.Logger
 import org.json4s.JsonAST.{JString, JValue}
 import org.json4s.{JArray, JInt, JObject}
 
@@ -7,6 +8,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 abstract class FHIRQuery(fhirPath: Option[String]) extends Serializable {
+
+  private val logger: Logger = Logger(this.getClass)
 
   protected def constructQueryString(): String
 
@@ -26,7 +29,6 @@ abstract class FHIRQuery(fhirPath: Option[String]) extends Serializable {
    */
   def getCount(client: FHIRClient): Future[Int] = {
     getCountQuery().execute(client).map { res =>
-      // TODO: What happens if an exception occurs
       (res \ "total").asInstanceOf[JInt].num.toInt
     }
   }
@@ -85,7 +87,12 @@ abstract class FHIRQuery(fhirPath: Option[String]) extends Serializable {
   }
 
   def execute(client: FHIRClient): Future[JObject] = {
-    client.searchByUrl(constructQueryString())
+    val queryString = constructQueryString()
+    client.searchByUrl(queryString).recover {
+      case e: Exception =>
+        val msg = s"Error while executing the FHIR Query: ${queryString}"
+        throw e
+    }
   }
 
 }

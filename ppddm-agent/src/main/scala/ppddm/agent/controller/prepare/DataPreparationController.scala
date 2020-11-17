@@ -80,7 +80,7 @@ object DataPreparationController {
               // Fetch the Patient resources from the FHIR Repository and collect their IDs
               val theFuture = findEligiblePatients(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.eligibility_criteria, patientQuery, pageIndex) flatMap { eligiblePatientURIs =>
                 if (eligiblePatientURIs.isEmpty) {
-                  // No patients are eligible
+                  // No patients are eligible in the partition, so return an empty Row
                   Future {
                     Seq.empty[Row]
                   }
@@ -104,8 +104,9 @@ object DataPreparationController {
                 Await.result(theFuture, Duration(10, TimeUnit.MINUTES))
               } catch {
                 case e: TimeoutException =>
-                  logger.error("The data preparation cannot be completed on a worker node with pageIndex:{} within 10 minutes.", pageIndex, e)
-                  Seq.empty[Row] // TODO: Check whether we can do better than returning an empty sequence. What happens if a worker node throws an exception?
+                  val msg = s"The data preparation cannot be completed on a worker node with pageIndex:${pageIndex} within 10 minutes."
+                  logger.error(msg, e)
+                  throw DataPreparationException(msg, e)
               }
             }
           })
@@ -114,8 +115,6 @@ object DataPreparationController {
           val dataRowSet = rdd.collect() // Collect the Seq[Row]s from the worker nodes
             .toSeq // Covert the Array[Seq[Row]]s to Seq[Seq[Row]]s
             .flatten // Create a single Seq[Row] by merging all Seq[Row]s
-          // TODO If you are going to use the same RDD more than once, make sure to call rdd.cache() first. Otherwise, it will be executed in each action
-          // TODO When you are done, call rdd.unpersist() to remove it from cache.
 
           logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
 
@@ -157,7 +156,6 @@ object DataPreparationController {
           }
 
           // We print the schema and the data only for debugging purposes. Will be removed in the future.
-          // TODO: Remove
           dataFrame.printSchema()
           dataFrame.show(false)
 
@@ -541,9 +539,9 @@ object DataPreparationController {
               case FhirPathNumber(v) => v.toDouble
               case FhirPathDateTime(dt) => dt.toString
               case _ =>
-                logger.error("Unsupported FHIRPath result type: {}", result)
-                // TODO: Throw an appropriate exception
-                null
+                val msg = s"Unsupported FHIRPath result type: ${result}"
+                logger.error(msg)
+                throw DataPreparationException(msg)
             }
           }
         }
