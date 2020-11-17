@@ -6,7 +6,7 @@ import ppddm.core.rest.directive.CorsHandler
 import ppddm.manager.controller.auth.AuthenticationController
 import ppddm.manager.gateway.api.directive.ManagerExceptionHandler
 
-trait ManagerEndpoint extends CorsHandler with ManagerExceptionHandler with ProjectEndpoint with FeaturesetEndpoint with DatasetEndpoint with AlgorithmEndpoint with DataMiningModelEndpoint {
+trait ManagerEndpoint extends CorsHandler with ManagerExceptionHandler with ProjectEndpoint with FeaturesetEndpoint with DatasetEndpoint with AlgorithmEndpoint with DataMiningModelEndpoint with ProspectiveStudyEndpoint {
   def mainRoute(baseUri: String) =
     handleCORS { // CORS handling
       handleRejections(RejectionHandler.default) { // Default rejection handling
@@ -14,7 +14,7 @@ trait ManagerEndpoint extends CorsHandler with ManagerExceptionHandler with Proj
           handleExceptions(ppddmExceptionHandler) { // Exception Handling specific to PPDDM Agent
             pathPrefix(baseUri) { // Catch the baseUri at this point and do not use the baseUri in the paths of the inner routes
               authenticateOAuth2(realm = baseUri, AuthenticationController.accessTokenAuthenticator) { implicit accessToken =>
-                projectRoute ~ featuresetRoute ~ datasetRoute ~ algorithmRoute ~ dataMiningModelRoute
+                projectRoute ~ featuresetRoute ~ datasetRoute ~ algorithmRoute ~ dataMiningModelRoute ~ prospectiveStudyRoute
               }
             }
           }

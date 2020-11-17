@@ -236,6 +236,10 @@ final case class DataMiningModel(model_id: Option[String],
       }
     }
   }
+
+  def getSelectedBoostedModel(dataMiningModel: DataMiningModel = this): BoostedModel = {
+    dataMiningModel.boosted_models.get.filter(boosted_model => boosted_model.selection_status.get == SelectionStatus.SELECTED).head
+  }
 }
 
 final case class VariableConfiguration(variable: Variable,
@@ -398,3 +402,24 @@ final case class ModelTestResult(model_id: String,
                                  dataset_id: String,
                                  agent: Agent,
                                  test_statistics: Seq[AgentAlgorithmStatistics]) extends ModelClass
+
+final case class ProspectiveStudy(prospective_study_id: Option[String],
+                                  name: String,
+                                  description: String,
+                                  data_mining_model_id: String,
+                                  predictions: Seq[PredictionResult],
+                                  created_by: String,
+                                  created_on: Option[LocalDateTime]) extends ModelClass {
+  def withUniqueProspectiveStudyId: ProspectiveStudy = {
+    this.copy(prospective_study_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+  }
+}
+
+final case class PredictionRequest(data_mining_model_id: String,
+                                   identifier: String,
+                                   variables: Seq[Parameter]) extends ModelClass
+
+final case class PredictionResult(data_mining_model_id: String,
+                                  identifier: String,
+                                  variables: Seq[Parameter],
+                                  prediction: Double) extends ModelClass

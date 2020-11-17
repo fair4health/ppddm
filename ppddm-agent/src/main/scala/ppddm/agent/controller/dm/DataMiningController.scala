@@ -6,7 +6,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
 import ppddm.agent.controller.dm.algorithm.DataMiningAlgorithm
 import ppddm.agent.exception.DataMiningException
-import ppddm.agent.store.DataStoreManager
+import ppddm.agent.store.AgentDataStoreManager
 import ppddm.core.rest.model.{ModelTestRequest, ModelTestResult, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest, ModelValidationResult}
 import ppddm.core.util.JsonFormatter._
 
@@ -57,8 +57,8 @@ object DataMiningController {
         modelTrainingRequest.agent, algorithm_models)
       try {
         // Save the ModelTrainingResult containing the models into ppddm-store/models/:model_id
-        DataStoreManager.saveDataFrame(
-          DataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
+        AgentDataStoreManager.saveDataFrame(
+          AgentDataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
           Seq(modelTrainingResult.toJson).toDF())
         logger.debug(s"ModelTrainingResult has been created and persisted into the data store successfully for DataMiningModel:${modelTrainingRequest.model_id}")
         Done
@@ -80,7 +80,7 @@ object DataMiningController {
   def getTrainingResult(model_id: String): Option[ModelTrainingResult] = {
     logger.debug("getTrainingResult received on for model:{}", model_id)
     Try(
-      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
+      AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
@@ -96,7 +96,7 @@ object DataMiningController {
    */
   def deleteTrainingResult(model_id: String): Option[Done] = {
     logger.debug("deleteTrainingResult received on for model:{}", model_id)
-    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN))) {
+    if (AgentDataStoreManager.deleteDirectory(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
     } else {
@@ -137,8 +137,8 @@ object DataMiningController {
 
       try {
         // Save the ModelValidationResult containing the models into ppddm-store/models/:model_id
-        DataStoreManager.saveDataFrame(
-          DataStoreManager.getModelPath(modelValidationResult.model_id, DataMiningRequestType.VALIDATE),
+        AgentDataStoreManager.saveDataFrame(
+          AgentDataStoreManager.getModelPath(modelValidationResult.model_id, DataMiningRequestType.VALIDATE),
           Seq(modelValidationResult.toJson).toDF())
         logger.debug(s"ModelValidationResult has been created and persisted into the data store successfully for DataMiningModel:${modelValidationRequest.model_id}")
         Done
@@ -161,7 +161,7 @@ object DataMiningController {
   def getValidationResult(model_id: String): Option[ModelValidationResult] = {
     logger.debug("getValidationResult received on for model:{}", model_id)
     Try(
-      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE)) map { df =>
+      AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
@@ -177,7 +177,7 @@ object DataMiningController {
    */
   def deleteValidationResult(model_id: String): Option[Done] = {
     logger.debug("deleteValidationResult received on for model:{}", model_id)
-    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE))) {
+    if (AgentDataStoreManager.deleteDirectory(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE))) {
       logger.info(s"ModelTrainingResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
     } else {
@@ -218,8 +218,8 @@ object DataMiningController {
 
       try {
         // Save the ModelTestResult containing the models into ppddm-store/models/:model_id
-        DataStoreManager.saveDataFrame(
-          DataStoreManager.getModelPath(modelTestResult.model_id, DataMiningRequestType.TEST),
+        AgentDataStoreManager.saveDataFrame(
+          AgentDataStoreManager.getModelPath(modelTestResult.model_id, DataMiningRequestType.TEST),
           Seq(modelTestResult.toJson).toDF())
         logger.debug(s"ModelTestResult has been created and persisted into the data store successfully for DataMiningModel:${modelTestRequest.model_id}")
         Done
@@ -241,7 +241,7 @@ object DataMiningController {
   def getTestResult(model_id: String): Option[ModelTestResult] = {
     logger.debug("getTestResult received on for model:{}", model_id)
     Try(
-      DataStoreManager.getDataFrame(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
+      AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
@@ -257,7 +257,7 @@ object DataMiningController {
    */
   def deleteTestResult(model_id: String): Option[Done] = {
     logger.debug("deleteTestResult received on for model:{}", model_id)
-    if (DataStoreManager.deleteDirectory(DataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST))) {
+    if (AgentDataStoreManager.deleteDirectory(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST))) {
       logger.info(s"ModelTestResult of model (with id: $model_id) have been deleted successfully")
       Some(Done)
     } else {
@@ -272,7 +272,7 @@ object DataMiningController {
    * @return the DataFrame if it exists. If not, throws a DataMiningException
    */
   private def retrieveDataFrame(dataset_id: String): DataFrame = {
-    val dataFrameOption = DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(dataset_id))
+    val dataFrameOption = AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getDatasetPath(dataset_id))
     if (dataFrameOption.isEmpty) {
       val msg = s"The Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
       logger.error(msg)
