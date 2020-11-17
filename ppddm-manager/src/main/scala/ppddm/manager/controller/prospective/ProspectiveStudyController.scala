@@ -9,8 +9,6 @@ import ppddm.core.exception.DBException
 import ppddm.core.rest.model.{DataType, PredictionRequest, PredictionResult, ProspectiveStudy, VariableType}
 import ppddm.core.util.DataPreparationUtil
 import ppddm.manager.Manager
-import ppddm.manager.controller.dm.DataMiningModelController
-import ppddm.manager.exception.DataIntegrityException
 import ppddm.manager.store.ManagerDataStoreManager
 
 import scala.concurrent.Future
@@ -124,33 +122,28 @@ object ProspectiveStudyController {
    * @return the PredictionResult containing the prediction value
    */
   def predict(predictionRequest: PredictionRequest): Future[PredictionResult] = {
-    logger.debug("Prediction request received.")
-
-    DataMiningModelController.getDataMiningModel(predictionRequest.data_mining_model_id) map { dataMiningModelOption =>
-      if (dataMiningModelOption.isEmpty) {
-        throw DataIntegrityException(s"ProspectiveStudyController cannot access DataMiningModel with model_id:${predictionRequest.data_mining_model_id}. This should not have happened!!")
-      }
-      val dataMiningModel = dataMiningModelOption.get
+    Future {
+      logger.debug("Prediction request received.")
 
       logger.debug("Creating data frame...")
       // For each variable in feature set, find the value from predictionRequest
-      val variableValues = dataMiningModel.dataset.featureset.variables.get
-          .filter(variable => variable.variable_type == VariableType.INDEPENDENT) // do not include dependent variable as it is not provided in PredictionRequest
-          .map { variable =>
-            val variableParameter = predictionRequest.variables.find( v => v.name == variable.name)
-            if (variableParameter.isDefined) {
-              if (variableParameter.get.data_type == DataType.INTEGER || variableParameter.get.data_type == DataType.DOUBLE)
-                variableParameter.get.value.toDouble
-              else variableParameter.get.value
+      val variableValues = predictionRequest.data_mining_model.dataset.featureset.variables.get
+        .filter(variable => variable.variable_type == VariableType.INDEPENDENT) // do not include dependent variable as it is not provided in PredictionRequest
+        .map { variable =>
+          val variableParameter = predictionRequest.variables.find( v => v.name == variable.name)
+          if (variableParameter.isDefined) {
+            if (variableParameter.get.data_type == DataType.INTEGER || variableParameter.get.data_type == DataType.DOUBLE)
+              variableParameter.get.value.toDouble
+            else variableParameter.get.value
           }
-      }
+        }
 
       // First column must be pid, last column must be the dependent variable
       // These values are not provided in the variables in prediction request, hence provide manually in here
       // The last one is just for satisfying the schema in PipelineModel, hence -99.9 is just an arbitrary value
       val rowSeq = Seq(Row.fromSeq(Seq(predictionRequest.identifier) ++ variableValues ++ Seq(-99.9)))
 
-      val structureSchema = DataPreparationUtil.generateSchema(dataMiningModel.dataset.featureset)
+      val structureSchema = DataPreparationUtil.generateSchema(predictionRequest.data_mining_model.dataset.featureset)
 
       val dataFrame = sparkSession.createDataFrame(sparkSession.sparkContext.parallelize(rowSeq), structureSchema)
 
@@ -159,7 +152,7 @@ object ProspectiveStudyController {
       dataFrame.show(false)
 
       logger.debug("Predicting with weak models...")
-      val testPredictionTuples = dataMiningModel.getSelectedBoostedModel().weak_models.map { weakModel =>
+      val testPredictionTuples = predictionRequest.data_mining_model.getSelectedBoostedModel().weak_models.map { weakModel =>
         val pipelineModel = PipelineModelEncoderDecoder.fromString(weakModel.fitted_model, ManagerDataStoreManager.getTmpPath())
         (weakModel.weight.get, pipelineModel.transform(dataFrame))
       }
@@ -168,8 +161,8 @@ object ProspectiveStudyController {
       val testPredictionDF = Predictor.predictWithWeightedAverageOfPredictions(testPredictionTuples)
       val predictionArray = testPredictionDF.select("prediction").rdd.map(r => (r.getDouble(0))).collect()
 
-      logger.debug(s"PredictionResult is ready for patient id: ${predictionRequest.identifier} and data_mining_model_id: ${predictionRequest.data_mining_model_id}")
-      PredictionResult(predictionRequest.data_mining_model_id, predictionRequest.identifier, predictionRequest.variables, predictionArray.head)
+      logger.debug(s"PredictionResult is ready for patient id: ${predictionRequest.identifier} and data_mining_model_id: ${predictionRequest.data_mining_model.model_id}")
+      PredictionResult(predictionRequest.identifier, predictionRequest.variables, predictionArray.head)
     }
   }
 }

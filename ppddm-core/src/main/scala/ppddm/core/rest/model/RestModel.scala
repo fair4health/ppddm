@@ -406,7 +406,7 @@ final case class ModelTestResult(model_id: String,
 final case class ProspectiveStudy(prospective_study_id: Option[String],
                                   name: String,
                                   description: String,
-                                  data_mining_model_id: String,
+                                  data_mining_model: DataMiningModel,
                                   predictions: Seq[PredictionResult],
                                   created_by: String,
                                   created_on: Option[LocalDateTime]) extends ModelClass {
@@ -415,11 +415,10 @@ final case class ProspectiveStudy(prospective_study_id: Option[String],
   }
 }
 
-final case class PredictionRequest(data_mining_model_id: String,
+final case class PredictionRequest(data_mining_model: DataMiningModel,
                                    identifier: String,
                                    variables: Seq[Parameter]) extends ModelClass
 
-final case class PredictionResult(data_mining_model_id: String,
-                                  identifier: String,
+final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],
                                   prediction: Double) extends ModelClass
