@@ -254,19 +254,13 @@ object DataMiningModelController {
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
   def deleteDataMiningModel(model_id: String): Future[Option[DataMiningModel]] = {
-    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id)).headOption()
-    //    flatMap { dataMiningModelOption: Option[DataMiningModel] =>
-    //      if (dataMiningModelOption.isDefined) {
-    //        val dataMiningModel = dataMiningModelOption.get
-    //        Future.sequence(
-    //          dataMiningModel.data_mining_sources.get.map { dataMiningSource: DataMiningSource => // For each DataMiningSource in this set
-    //            DistributedDataMiningManager.deleteAlgorithmExecutionResult(dataMiningSource.agent, dataMiningModel) // Delete the algorithm execution results from the Agents (do this in parallel)
-    //          }) map { _ => Some(dataMiningModel) }
-    //      }
-    //      else {
-    //        Future.apply(Option.empty[DataMiningModel])
-    //      }
-    //    }
+    db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id))
+      .headOption()
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while deleting the DataMiningModel with model_id:${model_id}."
+          throw DBException(msg, e)
+      }
   }
 
 }
