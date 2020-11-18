@@ -6,7 +6,6 @@ import akka.Done
 import com.typesafe.scalalogging.Logger
 import io.onfhir.path._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SparkSession}
 import org.json4s.JsonAST.JObject
 import org.json4s.{JArray, JString}
@@ -14,9 +13,10 @@ import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
 import ppddm.agent.exception.DataPreparationException
 import ppddm.agent.spark.NodeExecutionContext._
-import ppddm.agent.store.DataStoreManager
+import ppddm.agent.store.AgentDataStoreManager
 import ppddm.core.fhir.{FHIRClient, FHIRQuery}
 import ppddm.core.rest.model._
+import ppddm.core.util.DataPreparationUtil
 import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -51,7 +51,7 @@ object DataPreparationController {
   def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Done] = {
     logger.debug("Data preparation request received.")
 
-    if (DataStoreManager.getDataFrame(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
+    if (AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
       // Check data store whether the Dataset with given dataset_id is already created and saved
       Future {
         logger.warn(s"Dataset with id: ${dataPreparationRequest.dataset_id} already exists. Why do you want to prepare it again?")
@@ -118,7 +118,7 @@ object DataPreparationController {
 
           logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
 
-          val structureSchema = generateSchema(dataPreparationRequest.featureset)
+          val structureSchema = DataPreparationUtil.generateSchema(dataPreparationRequest.featureset)
 
           val dataFrame = sparkSession.createDataFrame(
             sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
@@ -126,7 +126,7 @@ object DataPreparationController {
 
           try {
             // Save the dataFrame which includes the prepared data into ppddm-store/datasets/:dataset_id
-            DataStoreManager.saveDataFrame(DataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
+            AgentDataStoreManager.saveDataFrame(AgentDataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
             logger.info(s"Prepared data has been successfully saved with id: ${dataPreparationRequest.dataset_id}")
           }
           catch {
@@ -141,8 +141,8 @@ object DataPreparationController {
             if (variablesOption.isDefined) {
               val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variablesOption.get)
               val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent, agentDataStatistics)
-              DataStoreManager.saveDataFrame(
-                DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
+              AgentDataStoreManager.saveDataFrame(
+                AgentDataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
                 Seq(dataPreparationResult.toJson).toDF())
               logger.info("Calculated statistics have been successfully saved.")
             } else {
@@ -168,8 +168,8 @@ object DataPreparationController {
             dataPreparationRequest.agent,
             AgentDataStatistics(0L, Seq.empty[VariableStatistics]))
 
-          DataStoreManager.saveDataFrame(
-            DataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
+          AgentDataStoreManager.saveDataFrame(
+            AgentDataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
             Seq(dataPreparationResult.toJson).toDF())
 
           Done
@@ -211,23 +211,6 @@ object DataPreparationController {
    */
   def removeInvalidChars(value: String): String = {
     value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
-  }
-
-  /**
-   * Generate the schema for the DataFrame by using the Variable definitions of the Featureset
-   *
-   * @param featureset The Featureset
-   * @return The schema of the resulting data in the format of StructType
-   */
-  private def generateSchema(featureset: Featureset): StructType = {
-    val fields = featureset.variables.get
-      .map(variable =>
-        StructField(
-          variable.name /*.trim.replaceAll("\\s", "")*/ ,
-          if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
-        )
-      )
-    StructType(Seq(StructField("pid", StringType, nullable = false)) ++ fields)
   }
 
   /**
@@ -565,7 +548,7 @@ object DataPreparationController {
   def getDataSourceStatistics(dataset_id: String): Option[DataPreparationResult] = {
     logger.debug("DataSourceStatistics is requested for the Dataset:{}", dataset_id)
     Try(
-      DataStoreManager.getDataFrame(DataStoreManager.getStatisticsPath(dataset_id)) map { df =>
+      AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getStatisticsPath(dataset_id)) map { df =>
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
@@ -581,9 +564,9 @@ object DataPreparationController {
    */
   def deleteData(dataset_id: String): Option[Done] = {
     // Delete the dataset with the given dataset_id
-    DataStoreManager.deleteDirectory(DataStoreManager.getDatasetPath(dataset_id))
+    AgentDataStoreManager.deleteDirectory(AgentDataStoreManager.getDatasetPath(dataset_id))
     // Delete the statistics related with the given dataset_id
-    val statisticsDeleted = DataStoreManager.deleteDirectory(DataStoreManager.getStatisticsPath(dataset_id))
+    val statisticsDeleted = AgentDataStoreManager.deleteDirectory(AgentDataStoreManager.getStatisticsPath(dataset_id))
     if (statisticsDeleted) {
       logger.info(s"Dataset and statistics (with id: $dataset_id) have been deleted successfully")
       Some(Done)
