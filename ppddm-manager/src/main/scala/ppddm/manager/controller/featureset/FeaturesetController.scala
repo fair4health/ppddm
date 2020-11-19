@@ -6,6 +6,7 @@ import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.exception.DBException
 import ppddm.core.rest.model.Featureset
 import ppddm.manager.Manager
+import ppddm.manager.exception.DataIntegrityException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -27,6 +28,13 @@ object FeaturesetController {
    * @return The created Featureset with a unique featureset_id in it
    */
   def createFeatureset(featureset: Featureset): Future[Featureset] = {
+    if(featureset.variables.isEmpty) {
+      throw new IllegalArgumentException("A feature set must include at least one variable")
+    }
+    if(featureset.featureset_id.isDefined) {
+      throw new IllegalArgumentException("If you want to create a new feature set, please provide it WITHOUT a featureset_id")
+    }
+
     val featuresetWithId = featureset.withUniqueFeaturesetId // Create a new Featureset object with a unique identifier
     db.getCollection[Featureset](COLLECTION_NAME).insertOne(featuresetWithId).toFuture() // insert into the database
       .map { result =>
@@ -80,7 +88,10 @@ object FeaturesetController {
    * @return The updated Featureset object if operation is successful, None otherwise.
    */
   def updateFeatureset(featureset: Featureset): Future[Option[Featureset]] = {
-    // TODO: Add some integrity checks before document replacement
+    if(featureset.variables.isEmpty) {
+      throw new IllegalArgumentException("A feature set must include at least one variable")
+    }
+
     db.getCollection[Featureset](COLLECTION_NAME).findOneAndReplace(
       equal("featureset_id", featureset.featureset_id.get),
       featureset,

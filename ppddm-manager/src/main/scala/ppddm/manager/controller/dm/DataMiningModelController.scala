@@ -180,6 +180,10 @@ object DataMiningModelController {
    * @return The created DataMiningModel with a unique model_id in it
    */
   def createDataMiningModel(dataMiningModel: DataMiningModel): Future[DataMiningModel] = {
+    if(dataMiningModel.model_id.isDefined) {
+      throw new IllegalArgumentException("If you want to create a new data mining model, please provide it WITHOUT a model_id")
+    }
+
     // Create a new DataMiningModel object with a unique identifier
     val dataMiningModelWithId = dataMiningModel.withUniqueModelId
 
@@ -235,6 +239,12 @@ object DataMiningModelController {
    * @return The updated DataMiningModel object if operation is successful, None otherwise.
    */
   def updateDataMiningModel(dataMiningModel: DataMiningModel): Future[Option[DataMiningModel]] = {
+    if(dataMiningModel.boosted_models.isEmpty || dataMiningModel.boosted_models.get.isEmpty) {
+      throw new IllegalArgumentException(s"A data mining mode must include at least one boosted model at this point (while updating it). model_id:${dataMiningModel.model_id.get}")
+    }
+    if(!dataMiningModel.boosted_models.get.exists(bm => bm.selection_status.isDefined && bm.selection_status.get == SelectionStatus.SELECTED)) {
+      throw new IllegalArgumentException(s"At least one of the boosted models of this data mining model must be SELECTED while updating it. model_id:${dataMiningModel.model_id.get}")
+    }
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
       dataMiningModel.withUpdatedDataMiningState(),

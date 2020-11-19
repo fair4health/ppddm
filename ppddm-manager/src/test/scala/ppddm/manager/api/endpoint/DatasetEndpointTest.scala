@@ -74,7 +74,7 @@ class DatasetEndpointTest extends PPDDMManagerEndpointTest {
     }
 
     "update the dataset set" in {
-      val updatedDataset: Dataset = createdBareDataset.copy(name = "updated dataset name")
+      val updatedDataset: Dataset = createdFullDataset.copy(name = "updated dataset name")
       Put("/" + ManagerConfig.baseUri + "/dataset/" + updatedDataset.dataset_id.get + "?_test", updatedDataset) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
 

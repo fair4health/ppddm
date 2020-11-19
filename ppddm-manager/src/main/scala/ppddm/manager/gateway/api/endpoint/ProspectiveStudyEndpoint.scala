@@ -30,38 +30,38 @@ trait ProspectiveStudyEndpoint {
           }
       }
     } ~
-    pathPrefix("prospective" / Segment) { prospective_study_id =>
-      pathEndOrSingleSlash {
-        get {
-          complete {
-            ProspectiveStudyController.getProspectiveStudy(prospective_study_id)
-          }
-        } ~
-          put {
-            entity(as[ProspectiveStudy]) { prospectiveStudy =>
-              complete {
-                ProspectiveStudyController.updateProspectiveStudy(prospectiveStudy)
-              }
+      pathPrefix("prospective" / Segment) { prospective_study_id =>
+        pathEndOrSingleSlash {
+          get {
+            complete {
+              ProspectiveStudyController.getProspectiveStudy(prospective_study_id)
             }
           } ~
-          delete {
-            complete {
-              ProspectiveStudyController.deleteProspectiveStudy(prospective_study_id)
+            put {
+              entity(as[ProspectiveStudy]) { prospectiveStudy =>
+                complete {
+                  ProspectiveStudyController.updateProspectiveStudy(prospectiveStudy)
+                }
+              }
+            } ~
+            delete {
+              complete {
+                ProspectiveStudyController.deleteProspectiveStudy(prospective_study_id)
+              }
             }
-          }
-      }
-    } ~
-    pathPrefix("prospective" / "predict") {
-      pathEndOrSingleSlash {
-        post {
-          entity(as[PredictionRequest]) { predictionRequest =>
-            complete {
-              ProspectiveStudyController.predict(predictionRequest)
+        }
+      } ~
+      pathPrefix("prospective" / "predict") {
+        pathEndOrSingleSlash {
+          post {
+            entity(as[PredictionRequest]) { predictionRequest =>
+              complete {
+                ProspectiveStudyController.predict(predictionRequest)
+              }
             }
           }
         }
       }
-    }
   }
 
 }

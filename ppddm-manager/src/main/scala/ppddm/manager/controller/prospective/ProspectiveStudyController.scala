@@ -30,6 +30,12 @@ object ProspectiveStudyController {
    * @return The created ProspectiveStudy object with a unique prospective_study_id in it
    */
   def createProspectiveStudy(prospectiveStudy: ProspectiveStudy): Future[ProspectiveStudy] = {
+    if (prospectiveStudy.prospective_study_id.isDefined) {
+      throw new IllegalArgumentException("If you want to create a new prospective study, please provide it WITHOUT a prospective_study_id")
+    }
+    if (prospectiveStudy.predictions.isEmpty) {
+      throw new IllegalArgumentException(s"A prospective study must include at lease on prediction in it while saving.")
+    }
     logger.debug("Creating prospective study...")
     val prospectiveStudyWithId = prospectiveStudy.withUniqueProspectiveStudyId // Create a new, timestamped, ProspectiveStudy object with a unique identifier
     db.getCollection[ProspectiveStudy](COLLECTION_NAME).insertOne(prospectiveStudyWithId).toFuture() // insert into the database
@@ -85,8 +91,11 @@ object ProspectiveStudyController {
    * @return The updated ProspectiveStudy object if operation is successful, None otherwise.
    */
   def updateProspectiveStudy(prospectiveStudy: ProspectiveStudy): Future[Option[ProspectiveStudy]] = {
+    if (prospectiveStudy.predictions.isEmpty) {
+      throw new IllegalArgumentException(s"A prospective study must include at lease on prediction in it while updating. ${prospectiveStudy.prospective_study_id.get}")
+    }
+
     logger.debug(s"Updating prospective study with id ${prospectiveStudy.prospective_study_id}...")
-    // TODO: Add some integrity checks before document replacement
     db.getCollection[ProspectiveStudy](COLLECTION_NAME).findOneAndReplace(
       equal("prospective_study_id", prospectiveStudy.prospective_study_id.get),
       prospectiveStudy,
@@ -118,6 +127,7 @@ object ProspectiveStudyController {
 
   /**
    * Makes the prediction with the BoostedModel for the given patient
+   *
    * @param predictionRequest The PredictionRequest containing the patient data and data mining model id
    * @return the PredictionResult containing the prediction value
    */
@@ -127,10 +137,10 @@ object ProspectiveStudyController {
 
       logger.debug("Creating data frame...")
       // For each variable in feature set, find the value from predictionRequest
-      val variableValues = predictionRequest.data_mining_model.dataset.featureset.variables.get
+      val variableValues = predictionRequest.data_mining_model.dataset.featureset.variables
         .filter(variable => variable.variable_type == VariableType.INDEPENDENT) // do not include dependent variable as it is not provided in PredictionRequest
         .map { variable =>
-          val variableParameter = predictionRequest.variables.find( v => v.name == variable.name)
+          val variableParameter = predictionRequest.variables.find(v => v.name == variable.name)
           if (variableParameter.isDefined) {
             if (variableParameter.get.data_type == DataType.INTEGER || variableParameter.get.data_type == DataType.DOUBLE)
               variableParameter.get.value.toDouble

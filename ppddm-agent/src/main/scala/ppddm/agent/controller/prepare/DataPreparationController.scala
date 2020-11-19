@@ -137,16 +137,16 @@ object DataPreparationController {
           }
 
           try {
-            val variablesOption = dataPreparationRequest.featureset.variables
-            if (variablesOption.isDefined) {
-              val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variablesOption.get)
+            val variables = dataPreparationRequest.featureset.variables
+            if (variables.isEmpty) {
+              logger.warn("This should not have HAPPENED!!! There are no variables in the data preparation request.")
+            } else {
+              val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variables)
               val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent, agentDataStatistics)
               AgentDataStoreManager.saveDataFrame(
                 AgentDataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
                 Seq(dataPreparationResult.toJson).toDF())
               logger.info("Calculated statistics have been successfully saved.")
-            } else {
-              logger.warn("This should not have HAPPENED!!! There are no variables in the data preparation request.")
             }
           } catch {
             case e: Exception =>
@@ -185,21 +185,20 @@ object DataPreparationController {
    * @return
    */
   def validatePreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
-    if (dataPreparationRequest.featureset.variables.isDefined) {
+    if (dataPreparationRequest.featureset.variables.isEmpty) {
+      throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
+    } else {
       if (dataPreparationRequest.eligibility_criteria.count(_.fhir_query.startsWith("/Patient")) > 1) { // Check if there are multiple Patient queries
         throw DataPreparationException(s"The Eligibility Criteria in the submitted DataPreparationRequest has multiple Patient queries. It should not be more than one.")
       } else {
         dataPreparationRequest.copy(
           featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
-            variables = Option( // Assign new variables
-              dataPreparationRequest.featureset.variables.get // Get Variables from Option
+            variables = // Assign new variables
+              dataPreparationRequest.featureset.variables // Get Variables from Option
                 .map(variable => variable.copy(name = removeInvalidChars(variable.name))) // Remove invalid characters in variable.name
-            )
           )
         )
       }
-    } else {
-      throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
     }
   }
 
@@ -227,7 +226,7 @@ object DataPreparationController {
     patientURIs
       .toSeq // Covert to sequence to achieve a Row[Seq] in th end. At this time, we are sure that we do not have duplicates.
       .map(patientURI => { // For each patient
-        val rowValues = featureset.variables.get.map(variable => { // For each variable
+        val rowValues = featureset.variables.map(variable => { // For each variable
           val resourceForVariable = resourceMap(variable.name) // For the variable, get values for all patients
           resourceForVariable.get(patientURI) // Find the corresponding patient and write the value to the corresponding cell.
         }).filter(_.isDefined) // Keep values which exist for the given patients
@@ -260,7 +259,7 @@ object DataPreparationController {
    */
   private def populateVariableValues(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator,
                                      featureset: Featureset, patientURIs: Set[String]): Future[Map[String, Map[String, Any]]] = {
-    val queryFutures = featureset.variables.get
+    val queryFutures = featureset.variables
       .map(fetchValuesOfVariable(fhirClient, fhirPathEvaluator, patientURIs, _)) // For each variable, fetch the values for each patient
 
     Future.sequence(queryFutures) // Join the parallel Futures

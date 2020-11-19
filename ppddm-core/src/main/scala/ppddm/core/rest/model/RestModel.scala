@@ -33,7 +33,7 @@ case class Featureset(featureset_id: Option[String],
                       project_id: String,
                       name: String,
                       description: String,
-                      variables: Option[Seq[Variable]],
+                      variables: Seq[Variable],
                       created_by: String,
                       created_on: Option[LocalDateTime]) extends ModelClass {
 

@@ -27,6 +27,9 @@ object ProjectController {
    * @return The created Project object with a unique project_id in it
    */
   def createProject(project: Project): Future[Project] = {
+    if(project.project_id.isDefined) {
+      throw new IllegalArgumentException("If you want to create a new project, please provide it WITHOUT a project_id")
+    }
     val projectWithId = project.withUniqueProjectId // Create a new, timestamped, Project object with a unique identifier
     db.getCollection[Project](COLLECTION_NAME).insertOne(projectWithId).toFuture() // insert into the database
       .map { result =>
@@ -79,7 +82,6 @@ object ProjectController {
    * @return The updated Project object if operation is successful, None otherwise.
    */
   def updateProject(project: Project): Future[Option[Project]] = {
-    // TODO: Add some integrity checks before document replacement
     db.getCollection[Project](COLLECTION_NAME).findOneAndReplace(
       equal("project_id", project.project_id.get),
       project,
