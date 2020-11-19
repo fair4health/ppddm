@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{Dataset, DatasetSource, ExecutionState}
+import ppddm.core.rest.model.{Dataset, DatasetSource, ExecutionState, SelectionStatus}
 import ppddm.manager.Manager
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -32,6 +32,15 @@ object DatasetController {
    * @return The created Dataset with a unique dataset_id in it
    */
   def createDataset(dataset: Dataset, isTest: Boolean = false): Future[Dataset] = {
+
+    if(dataset.dataset_id.isDefined) {
+      throw new IllegalArgumentException("If you want to create a new data set, please provide it WITHOUT a dataset_id")
+    }
+    if(dataset.featureset.variables.isEmpty) {
+      logger.error("How does this happen? The client sends a Dataset creation request, but there is no variable inside the featureset within this dataset definition")
+      throw new IllegalArgumentException("A feature set must include at least one variable")
+    }
+
     // Create a new Dataset object with a unique identifier
     val datasetWithId = dataset.withUniqueDatasetId
 
@@ -144,8 +153,12 @@ object DatasetController {
    * @return The updated Dataset object if operation is successful, None otherwise.
    */
   def updateDataset(dataset: Dataset, isTest: Boolean = false): Future[Option[Dataset]] = {
-    // TODO: Add some integrity checks before document replacement
-    // TODO: Check whether at least one DatasetSource is selected
+    if(dataset.dataset_sources.isEmpty || dataset.dataset_sources.get.isEmpty) {
+      throw new IllegalArgumentException(s"A data set must include at least one data set source at this point (while updating it). dataset_id:${dataset.dataset_id.get}")
+    }
+    if(!dataset.dataset_sources.get.exists(dss => dss.selection_status.isDefined && dss.selection_status.get == SelectionStatus.SELECTED)) {
+      throw new IllegalArgumentException(s"At lease one of the data set sources of this dataset must be SELECTED while updating it. dataset_id:${dataset.dataset_id.get}")
+    }
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
       equal("dataset_id", dataset.dataset_id.get),
       dataset.withUpdatedExecutionState(),

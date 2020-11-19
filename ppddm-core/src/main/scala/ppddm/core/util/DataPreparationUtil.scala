@@ -12,7 +12,7 @@ object DataPreparationUtil {
    * @return The schema of the resulting data in the format of StructType
    */
   def generateSchema(featureset: Featureset): StructType = {
-    val fields = featureset.variables.get
+    val fields = featureset.variables
       .map(variable =>
         StructField(
           variable.name /*.trim.replaceAll("\\s", "")*/ ,
