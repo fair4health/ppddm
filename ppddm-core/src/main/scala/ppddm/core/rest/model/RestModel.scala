@@ -121,15 +121,15 @@ final case class Agent(agent_id: String,
   }
 
   def getTrainingURI(model_id: Option[String] = None): String = {
-    getURI("dm/train", model_id)
+    getURI("dm/classification/train", model_id)
   }
 
   def getValidationURI(model_id: Option[String] = None): String = {
-    getURI("dm/validate", model_id)
+    getURI("dm/classification/validate", model_id)
   }
 
   def getTestURI(model_id: Option[String] = None): String = {
-    getURI("dm/test", model_id)
+    getURI("dm/classification/test", model_id)
   }
 }
 
@@ -422,3 +422,29 @@ final case class PredictionRequest(data_mining_model: DataMiningModel,
 final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],
                                   prediction: Double) extends ModelClass
+
+final case class ARLFrequencyCalculationRequest(model_id: String,
+                                                dataset_id: String,
+                                                agent: Agent,
+                                                submitted_by: String) extends ModelClass
+
+final case class ARLFrequencyCalculationResult(model_id: String,
+                                               dataset_id: String,
+                                               agent: Agent,
+                                               item_frequencies: Seq[Parameter]) extends ModelClass
+
+final case class ARLExecutionRequest(model_id: String,
+                                     dataset_id: String,
+                                     agent: Agent,
+                                     algorithms: Seq[Algorithm],
+                                     items: Seq[String],
+                                     submitted_by: String) extends ModelClass
+
+final case class ARLExecutionResult(model_id: String,
+                                    dataset_id: String,
+                                    agent: Agent,
+                                    arl_models: Seq[ARLModel]) extends ModelClass // TODO
+
+final case class ARLModel(algorithm: Algorithm,
+                          agent: Agent,
+                          fitted_model: String) extends ModelClass

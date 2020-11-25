@@ -100,10 +100,10 @@ object DataMiningOrchestrator {
           // If they are all completed, we can finalize the DataMiningModel
           // After this block, the scheduled process should be removed/cancelled
           handleTestingState(dataMiningModel)
-        case Some(DataMiningState.READY) =>
-          // This is already in its READY state, this block should not execute in normal circumstances.
+        case Some(DataMiningState.READY) | Some(DataMiningState.FINAL) =>
+          // This is already in its READY or FINAL state, this block should not execute in normal circumstances.
           Future.apply(stopOrchestration(dataMiningModel.model_id.get)) // Stop the orchestration for this DataMiningModel
-          val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} is already in its READY state, why do you want me to process it within an Orchestrator!!!"
+          val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} is already in its ${dataMiningModel.data_mining_state.get} state, why do you want me to process it within an Orchestrator!!!"
           throw DataIntegrityException(msg)
       }
     }

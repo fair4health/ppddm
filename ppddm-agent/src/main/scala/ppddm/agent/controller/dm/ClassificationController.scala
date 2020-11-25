@@ -4,10 +4,10 @@ import akka.Done
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
-import ppddm.agent.controller.dm.algorithm.DataMiningAlgorithm
+import ppddm.agent.controller.dm.algorithm.classification.ClassificationAlgorithm
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
-import ppddm.core.rest.model.{ModelTestRequest, ModelTestResult, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest, ModelValidationResult}
+import ppddm.core.rest.model._
 import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -17,7 +17,7 @@ import scala.util.Try
 /**
  * Controller object for Data Mining Algorithm Execution
  */
-object DataMiningController {
+object ClassificationController {
 
   val TRAINING_SIZE = 0.8 // TODO get these values from client in the future
   val TEST_SIZE = 0.2 // TODO get these values from client in the future
@@ -47,7 +47,7 @@ object DataMiningController {
 
     // Train and generate weak models on the dataFrame
     val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
-      DataMiningAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
+      ClassificationAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
     }
 
     Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
@@ -127,7 +127,7 @@ object DataMiningController {
 
     // Train each weak model on dataFrame, and calculate statistics for each
     val validationFutures = modelValidationRequest.weak_models.map { weakModel =>
-      DataMiningAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel, trainingData)
+      ClassificationAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel, trainingData)
     }
 
     Future.sequence(validationFutures) map { validationResults => // Join the Futures
@@ -208,7 +208,7 @@ object DataMiningController {
 
     // Test each boosted model on dataFrame, and calculate statistics for each
     val testFutures = modelTestRequest.boosted_models.map { boostedModel =>
-      DataMiningAlgorithm(modelTestRequest.agent, boostedModel.algorithm).test(boostedModel, testData)
+      ClassificationAlgorithm(modelTestRequest.agent, boostedModel.algorithm).test(boostedModel, testData)
     }
 
     Future.sequence(testFutures) map { testResults => // Join the Futures

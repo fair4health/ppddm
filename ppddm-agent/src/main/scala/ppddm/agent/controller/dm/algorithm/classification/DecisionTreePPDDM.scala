@@ -1,4 +1,4 @@
-package ppddm.agent.controller.dm.algorithm
+package ppddm.agent.controller.dm.algorithm.classification
 
 import org.apache.spark.ml.PipelineStage
 import org.apache.spark.ml.classification.DecisionTreeClassifier
@@ -6,7 +6,7 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.tuning.ParamGridBuilder
 import ppddm.core.rest.model.{Agent, Algorithm, AlgorithmParameterName}
 
-private case class DecisionTreePPDDM(override val agent: Agent, override val algorithm: Algorithm) extends DataMiningAlgorithm {
+case class DecisionTreePPDDM(override val agent: Agent, override val algorithm: Algorithm) extends ClassificationAlgorithm {
 
   override def getClassifierAndParamGrid(): (Array[PipelineStage], Array[ParamMap]) = {
     // Create the classifier

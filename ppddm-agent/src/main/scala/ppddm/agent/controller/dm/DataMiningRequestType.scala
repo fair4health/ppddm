@@ -5,4 +5,5 @@ object DataMiningRequestType extends Enumeration {
   val TRAIN = "train"
   val VALIDATE = "validate"
   val TEST = "test"
+  val ARL = "arl"
 }
