@@ -1,9 +1,6 @@
 package ppddm.agent.controller.dm
 
 import akka.Done
-import com.typesafe.scalalogging.Logger
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import ppddm.agent.Agent
 import ppddm.agent.controller.dm.algorithm.classification.ClassificationAlgorithm
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
@@ -15,16 +12,13 @@ import scala.concurrent.Future
 import scala.util.Try
 
 /**
- * Controller object for Data Mining Algorithm Execution
+ * Controller object for Classification Algorithm Execution
  */
-object ClassificationController {
+object ClassificationController extends DataMiningController {
 
   val TRAINING_SIZE = 0.8 // TODO get these values from client in the future
   val TEST_SIZE = 0.2 // TODO get these values from client in the future
   val SEED = 11L // We need a seed value to be the same so that, the data that is split into training and test will always be the same
-
-  private val logger: Logger = Logger(this.getClass)
-  private implicit val sparkSession: SparkSession = Agent.dataMiningEngine.sparkSession
 
   import sparkSession.implicits._
 
@@ -266,18 +260,5 @@ object ClassificationController {
     }
   }
 
-  /**
-   * Retrieves already saved DataFrame from DataStore
-   * @param dataset_id the id of dataset to be retrieved
-   * @return the DataFrame if it exists. If not, throws a DataMiningException
-   */
-  private def retrieveDataFrame(dataset_id: String): DataFrame = {
-    val dataFrameOption = AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getDatasetPath(dataset_id))
-    if (dataFrameOption.isEmpty) {
-      val msg = s"The Dataset with id:${dataset_id} on which Data Mining algorithms will be executed does not exist. This should not have happened!!"
-      logger.error(msg)
-      throw DataMiningException(msg)
-    }
-    dataFrameOption.get
-  }
+
 }

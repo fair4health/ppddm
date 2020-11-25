@@ -431,7 +431,8 @@ final case class ARLFrequencyCalculationRequest(model_id: String,
 final case class ARLFrequencyCalculationResult(model_id: String,
                                                dataset_id: String,
                                                agent: Agent,
-                                               item_frequencies: Seq[Parameter]) extends ModelClass
+                                               item_frequencies: Seq[Parameter],
+                                               item_count: Long) extends ModelClass
 
 final case class ARLExecutionRequest(model_id: String,
                                      dataset_id: String,
@@ -443,7 +444,7 @@ final case class ARLExecutionRequest(model_id: String,
 final case class ARLExecutionResult(model_id: String,
                                     dataset_id: String,
                                     agent: Agent,
-                                    arl_models: Seq[ARLModel]) extends ModelClass // TODO
+                                    arl_models: Seq[ARLModel]) extends ModelClass
 
 final case class ARLModel(algorithm: Algorithm,
                           agent: Agent,

@@ -20,6 +20,7 @@ object AgentDataStoreManager extends DataStoreManager {
   final private val MODEL_VALIDATE_STORE_DIR: String = BASE_AGENT_DIR + "/models/validate/"
   final private val MODEL_TEST_STORE_DIR: String = BASE_AGENT_DIR + "/models/test/"
   final private val MODEL_ARL_STORE_DIR: String = BASE_AGENT_DIR + "/models/arl/"
+  final private val FREQUENCY_STORE_DIR: String = BASE_AGENT_DIR + "/frequencies"
   final private val TMP_STORE_DIR: String = BASE_AGENT_DIR + "/tmp/"
 
   /**
@@ -59,6 +60,17 @@ object AgentDataStoreManager extends DataStoreManager {
       case DataMiningRequestType.TEST => MODEL_TEST_STORE_DIR + model_id
       case DataMiningRequestType.ARL => MODEL_ARL_STORE_DIR + model_id
     }
+  }
+
+  /**
+   * Returns the path to the location where the item frequencies with the given dataset_id is kept.
+   * /ppddm-store/frequencies/:dataset_id
+   *
+   * @param dataset_id
+   * @return
+   */
+  def getFrequenciesPath(dataset_id: String): String = {
+    FREQUENCY_STORE_DIR + dataset_id
   }
 
   /**
