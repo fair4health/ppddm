@@ -51,7 +51,7 @@ trait ProspectiveStudyEndpoint {
             }
         }
       } ~
-      pathPrefix("prospective" / "predict") {
+      pathPrefix("predict") {
         pathEndOrSingleSlash {
           post {
             entity(as[PredictionRequest]) { predictionRequest =>

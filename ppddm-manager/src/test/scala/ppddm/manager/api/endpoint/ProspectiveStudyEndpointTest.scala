@@ -36,13 +36,13 @@ class ProspectiveStudyEndpointTest extends PPDDMManagerEndpointTest {
 
   "ProspectiveStudy Endpoint" should {
     "reject the request without a token" in {
-      Post("/" + ManagerConfig.baseUri + "/prospective/predict", predictionRequest) ~> routes ~> check {
+      Post("/" + ManagerConfig.baseUri + "/predict", predictionRequest) ~> routes ~> check {
         status shouldEqual Unauthorized
       }
     }
 
     "make a prediction" in {
-      Post("/" + ManagerConfig.baseUri + "/prospective/predict", predictionRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + ManagerConfig.baseUri + "/predict", predictionRequest) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
 
         predictionResult = responseAs[PredictionResult]
