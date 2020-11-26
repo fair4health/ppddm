@@ -1,6 +1,7 @@
 package ppddm.agent.controller.dm
 
 import akka.Done
+import ppddm.agent.controller.dm.algorithm.arl.ARLAlgorithm
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
 import ppddm.core.rest.model.{ARLExecutionRequest, ARLExecutionResult, ARLFrequencyCalculationRequest, ARLFrequencyCalculationResult, DataType, Parameter}
@@ -94,16 +95,83 @@ object ARLController extends DataMiningController {
     }
   }
 
+  /**
+   * Start the execution of the data mining algorithm for ARL. This function returns if the execution is started successfully.
+   * Model execution will continue in the background and the manager will ask about the status through a separate HTTP GET call.
+   *
+   * @param arlExecutionRequest
+   * @return
+   */
   def startExecution(arlExecutionRequest: ARLExecutionRequest): Future[Done] = {
-    Future { Done } // TODO
+    logger.debug("ARLExecutionRequest received on agent:{} for model:{}",
+      arlExecutionRequest.agent.agent_id, arlExecutionRequest.model_id)
+
+    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+    val dataFrame = retrieveDataFrame(arlExecutionRequest.dataset_id)
+
+    logger.debug(s"DataFrame for the Dataset:${arlExecutionRequest.dataset_id} is retrieved for ARL execution in DataMiningModel:${arlExecutionRequest.model_id}")
+
+    // Keep only the frequent items sent in the request in the data frame
+    val frequentItemDataFrame = dataFrame.select(arlExecutionRequest.items.head, arlExecutionRequest.items.tail: _*)
+
+    // Execute algorithms on the frequentItemDataFrame
+    val executionFutures = arlExecutionRequest.algorithms map { algorithm =>
+      ARLAlgorithm(arlExecutionRequest.agent, algorithm).execute(frequentItemDataFrame)
+    }
+
+    Future.sequence(executionFutures) map { arl_models => // Join the Futures
+      logger.debug(s"Parallel execution of the Algorithms have been completed for DataMiningModel:${arlExecutionRequest.model_id}")
+
+      val arlExecutionResult = ARLExecutionResult(arlExecutionRequest.model_id, arlExecutionRequest.dataset_id,
+        arlExecutionRequest.agent, arl_models)
+      try {
+        // Save the ARLExecutionResult containing the models into ppddm-store/models/:model_id
+        AgentDataStoreManager.saveDataFrame(
+          AgentDataStoreManager.getModelPath(arlExecutionRequest.model_id, DataMiningRequestType.ARL),
+          Seq(arlExecutionResult.toJson).toDF())
+        logger.debug(s"ARLExecutionResult has been created and persisted into the data store successfully for DataMiningModel:${arlExecutionRequest.model_id}")
+        Done
+      } catch {
+        case e: Exception =>
+          val msg = s"Cannot save the ARLExecutionResult of the model with model_id: ${arlExecutionRequest.model_id}."
+          logger.error(msg)
+          throw DataMiningException(msg, e)
+      }
+    }
   }
 
+  /**
+   * Retrieves the ARLExecutionResult which includes the ARL models for the algorithms that were executed
+   *
+   * @param model_id
+   * @return
+   */
   def getExecutionResult(model_id: String): Option[ARLExecutionResult] = {
-    null // TODO
+    logger.debug("getExecutionResult received on for model:{}", model_id)
+    Try(
+      AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.ARL)) map { df =>
+        df // Dataframe consisting of a column named "value" that holds Json inside
+          .head() // Get the Array[Row]
+          .getString(0) // Get Json String
+          .extract[ARLExecutionResult]
+      }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 
+  /**
+   * Deletes ARLExecutionResult
+   *
+   * @param model_id The unique identifier of the model whose ARLExecutionResult is to be deleted
+   * @return
+   */
   def deleteExecutionResult(model_id: String): Option[Done] = {
-    Some(Done) // TODO
+    logger.debug("deleteExecutionResult received on for model:{}", model_id)
+    if (AgentDataStoreManager.deleteDirectory(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.ARL))) {
+      logger.info(s"ARLExecutionResult of model (with id: $model_id) have been deleted successfully")
+      Some(Done)
+    } else {
+      logger.debug(s"ARLExecutionResult of model (with id: $model_id) do not exist!")
+      Option.empty[Done]
+    }
   }
 
 }

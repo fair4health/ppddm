@@ -127,6 +127,8 @@ object AlgorithmParameterName extends Enumeration {
   val NUM_TREES = "num_trees" // Number of trees in the forest. Increasing the number of trees will decrease the variance in predictions, improving the model’s test-time accuracy [Random Forest]
   val FEATURE_SUBSET_STRATEGY = "feature_subset_strategy" // Number of features to use as candidates for splitting at each tree node. Default is "auto" [Random Forest, GBT]
 
+  val MIN_SUPPORT = "min_support" // The minimum support for an itemset to be identified as frequent [ARL]
+  val MIN_CONFIDENCE = "min_confidence" // The minimum confidence for generating Association Rule. Confidence is an indication of how often an association rule has been found to be true. [ARL]
 }
 
 object AlgorithmStatisticsName extends Enumeration {
