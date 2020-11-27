@@ -31,12 +31,12 @@ object ARLController extends DataMiningController {
       var dataFrame = retrieveDataFrame(frequencyCalculationRequest.dataset_id)
       logger.debug(s"DataFrame for the Dataset:${frequencyCalculationRequest.dataset_id} is retrieved for frequency calculation in DataMiningModel:${frequencyCalculationRequest.model_id}")
 
-      dataFrame = DataAnalysisManager.applyMultipleColumnOneHotEncoder(dataFrame)
-      logger.debug(s"MultipleColumnOneHotEncoder is applied to the categorical variables...")
+      dataFrame = DataAnalysisManager.performCategoricalTransformations(dataFrame)
+      logger.debug(s"Categorical transformations are applied for the DataFrame...")
 
       logger.debug(s"Calculating item frequencies...")
       val itemFrequencies = dataFrame.schema.tail map { s =>
-        val count = dataFrame.filter(s"${s.name} != 0.0").count()
+        val count = dataFrame.filter(dataFrame(s.name) =!= "0.0").count()
         Parameter(s.name, DataType.INTEGER, count.toString)
       }
 
@@ -110,8 +110,8 @@ object ARLController extends DataMiningController {
     var dataFrame = retrieveDataFrame(arlExecutionRequest.dataset_id)
     logger.debug(s"DataFrame for the Dataset:${arlExecutionRequest.dataset_id} is retrieved for ARL execution in DataMiningModel:${arlExecutionRequest.model_id}")
 
-    dataFrame = DataAnalysisManager.applyMultipleColumnOneHotEncoder(dataFrame)
-    logger.debug(s"MultipleColumnOneHotEncoder is applied to the categorical variables...")
+    dataFrame = DataAnalysisManager.performCategoricalTransformations(dataFrame)
+    logger.debug(s"Categorical transformations are applied for the DataFrame...")
 
     // Keep only the frequent items sent in the request in the data frame
     val frequentItemDataFrame = dataFrame.select(arlExecutionRequest.items.head, arlExecutionRequest.items.tail: _*)

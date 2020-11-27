@@ -5,7 +5,7 @@ import org.apache.spark.ml.PipelineStage
 import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.StringType
-import ppddm.agent.controller.dm.transformer.MultipleColumnOneHotEncoder
+import ppddm.agent.controller.dm.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
 import ppddm.agent.controller.prepare.DataPreparationController
 import ppddm.agent.exception.DataMiningException
 import ppddm.core.rest.model.{VariableDataType, VariableType}
@@ -135,12 +135,20 @@ object DataAnalysisManager {
   }
 
   /**
-   * Applies MultipleColumnOneHotEncoder on a data frame and returns the resulting data frame
+   * Applies MultipleColumnOneHotEncoder and AgeTransformer on a data frame and returns the resulting data frame
    * @param dataFrame
    * @return
    */
-  def applyMultipleColumnOneHotEncoder(dataFrame: DataFrame): DataFrame = {
+  def performCategoricalTransformations(dataFrame: DataFrame): DataFrame = {
+    // Find categorical variables which are in StringType
     val inputCols = dataFrame.schema.filter(s => s.dataType == StringType && !s.name.equals("pid")).map(_.name)
-    new MultipleColumnOneHotEncoder().setInputCols(inputCols.toArray).transform(dataFrame)
+
+    // Apply MultipleColumnOneHotEncoder
+    val updateDataFrame = new MultipleColumnOneHotEncoder().setInputCols(inputCols.toArray).transform(dataFrame)
+
+    // If age column exists in the data frame, apply AgeTransformer. Otherwise return the data frame.
+    if (!updateDataFrame.schema.filter(_.name == "age").isEmpty)
+      new AgeTransformer().setInputCol("age").transform(updateDataFrame)
+    else updateDataFrame
   }
 }
