@@ -4,7 +4,7 @@ import akka.Done
 import ppddm.agent.controller.dm.algorithm.arl.ARLAlgorithm
 import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
-import ppddm.core.rest.model.{ARLExecutionRequest, ARLExecutionResult, ARLFrequencyCalculationRequest, ARLFrequencyCalculationResult, DataType, Parameter}
+import ppddm.core.rest.model._
 import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -28,14 +28,15 @@ object ARLController extends DataMiningController {
         frequencyCalculationRequest.agent.agent_id, frequencyCalculationRequest.model_id)
 
       // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
-      val dataFrame = retrieveDataFrame(frequencyCalculationRequest.dataset_id)
+      var dataFrame = retrieveDataFrame(frequencyCalculationRequest.dataset_id)
 
       logger.debug(s"DataFrame for the Dataset:${frequencyCalculationRequest.dataset_id} is retrieved for frequency calculation in DataMiningModel:${frequencyCalculationRequest.model_id}")
 
-      // TODO how to handle categorical variables in here? Actually, how to handle non-binary columns?
+      logger.debug(s"Applying MultipleColumnOneHotEncoder to categorical variables...")
+      dataFrame = DataAnalysisManager.applyMultipleColumnOneHotEncoder(dataFrame)
 
       logger.debug(s"Calculating item frequencies...")
-      val itemFrequencies = dataFrame.schema.toSeq.tail map { s =>
+      val itemFrequencies = dataFrame.schema.tail map { s =>
         val count = dataFrame.filter(s"${s.name} != 0.0").count()
         Parameter(s.name, DataType.INTEGER, count.toString)
       }

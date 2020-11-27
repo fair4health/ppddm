@@ -20,7 +20,7 @@ object AgentDataStoreManager extends DataStoreManager {
   final private val MODEL_VALIDATE_STORE_DIR: String = BASE_AGENT_DIR + "/models/validate/"
   final private val MODEL_TEST_STORE_DIR: String = BASE_AGENT_DIR + "/models/test/"
   final private val MODEL_ARL_STORE_DIR: String = BASE_AGENT_DIR + "/models/arl/"
-  final private val FREQUENCY_STORE_DIR: String = BASE_AGENT_DIR + "/frequencies"
+  final private val FREQUENCY_STORE_DIR: String = BASE_AGENT_DIR + "/frequencies/"
   final private val TMP_STORE_DIR: String = BASE_AGENT_DIR + "/tmp/"
 
   /**
