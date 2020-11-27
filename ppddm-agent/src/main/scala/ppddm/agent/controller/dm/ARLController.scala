@@ -113,12 +113,11 @@ object ARLController extends DataMiningController {
     dataFrame = DataAnalysisManager.applyMultipleColumnOneHotEncoder(dataFrame)
     logger.debug(s"MultipleColumnOneHotEncoder is applied to the categorical variables...")
 
-    // Keep only the frequent items sent in the request in the data frame
-    val frequentItemDataFrame = dataFrame.select(arlExecutionRequest.items.head, arlExecutionRequest.items.tail: _*)
-
     // Execute algorithms on the frequentItemDataFrame
-    val executionFutures = arlExecutionRequest.algorithms map { algorithm =>
-      ARLAlgorithm(arlExecutionRequest.agent, algorithm).execute(frequentItemDataFrame)
+    val executionFutures = arlExecutionRequest.algorithm_set map { algorithmItemPair =>
+      // Keep only the frequent items sent in the request in the data frame
+      val frequentItemDataFrame = dataFrame.select(algorithmItemPair.items.head, algorithmItemPair.items.tail: _*)
+      ARLAlgorithm(arlExecutionRequest.agent, algorithmItemPair.algorithm).execute(frequentItemDataFrame)
     }
 
     Future.sequence(executionFutures) map { arl_models => // Join the Futures

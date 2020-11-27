@@ -432,13 +432,15 @@ final case class ARLFrequencyCalculationResult(model_id: String,
                                                dataset_id: String,
                                                agent: Agent,
                                                item_frequencies: Seq[Parameter],
-                                               item_count: Long) extends ModelClass
+                                               total_record_count: Long) extends ModelClass
+
+final case class AlgorithmItemSet(algorithm: Algorithm,
+                                  items: Seq[String]) extends ModelClass
 
 final case class ARLExecutionRequest(model_id: String,
                                      dataset_id: String,
                                      agent: Agent,
-                                     algorithms: Seq[Algorithm],
-                                     items: Seq[String],
+                                     algorithm_set: Seq[AlgorithmItemSet],
                                      submitted_by: String) extends ModelClass
 
 final case class ARLExecutionResult(model_id: String,

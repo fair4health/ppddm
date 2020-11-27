@@ -70,9 +70,14 @@ object ExecutionState extends Enumeration {
  */
 object DataMiningState extends Enumeration {
   type DataMiningState = String
+
   val TRAINING = "training"
   val VALIDATING = "validating"
   val TESTING = "testing"
+
+  val CALCULATING_FREQUENCY_ARL = "calculating_frequency"
+  val EXECUTING_ARL = "executing_arl"
+
   val READY = "ready"
   val FINAL = "final"
 }
