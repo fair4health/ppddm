@@ -29,11 +29,10 @@ object ARLController extends DataMiningController {
 
       // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
       var dataFrame = retrieveDataFrame(frequencyCalculationRequest.dataset_id)
-
       logger.debug(s"DataFrame for the Dataset:${frequencyCalculationRequest.dataset_id} is retrieved for frequency calculation in DataMiningModel:${frequencyCalculationRequest.model_id}")
 
-      logger.debug(s"Applying MultipleColumnOneHotEncoder to categorical variables...")
       dataFrame = DataAnalysisManager.applyMultipleColumnOneHotEncoder(dataFrame)
+      logger.debug(s"MultipleColumnOneHotEncoder is applied to the categorical variables...")
 
       logger.debug(s"Calculating item frequencies...")
       val itemFrequencies = dataFrame.schema.tail map { s =>
@@ -108,9 +107,11 @@ object ARLController extends DataMiningController {
       arlExecutionRequest.agent.agent_id, arlExecutionRequest.model_id)
 
     // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
-    val dataFrame = retrieveDataFrame(arlExecutionRequest.dataset_id)
-
+    var dataFrame = retrieveDataFrame(arlExecutionRequest.dataset_id)
     logger.debug(s"DataFrame for the Dataset:${arlExecutionRequest.dataset_id} is retrieved for ARL execution in DataMiningModel:${arlExecutionRequest.model_id}")
+
+    dataFrame = DataAnalysisManager.applyMultipleColumnOneHotEncoder(dataFrame)
+    logger.debug(s"MultipleColumnOneHotEncoder is applied to the categorical variables...")
 
     // Keep only the frequent items sent in the request in the data frame
     val frequentItemDataFrame = dataFrame.select(arlExecutionRequest.items.head, arlExecutionRequest.items.tail: _*)

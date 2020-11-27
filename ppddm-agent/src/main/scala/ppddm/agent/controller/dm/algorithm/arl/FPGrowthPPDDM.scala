@@ -1,43 +1,26 @@
 package ppddm.agent.controller.dm.algorithm.arl
 
 import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.fpm.{FPGrowth, FPGrowthModel}
 import org.apache.spark.sql.DataFrame
+import ppddm.agent.controller.dm.transformer.StringVectorAssembler
 import ppddm.core.rest.model.{ARLModel, Agent, Algorithm, AlgorithmParameterName}
-import org.apache.spark.sql.functions._
 
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 case class FPGrowthPPDDM(override val agent: Agent, override val algorithm: Algorithm) extends ARLAlgorithm {
-
-  import sparkSession.implicits._
 
   def execute(frequentItemDataFrame: DataFrame): Future[ARLModel] = {
     logger.debug(s"## Start executing ${algorithm.name} ##")
 
     Future {
-      logger.debug("Creating the new data frame for the frequent items...")
+      logger.debug("Creating the items column...")
       val schema = frequentItemDataFrame.schema.map(_.name)
-
-      // Since VectorAssembler does not work with String type, we do several steps manually
-      // First, change 0.0 values with -1 and other values with the index of column name in the schema
-      var newDataFrame = frequentItemDataFrame
-      for ((field, index) <- schema.zipWithIndex) {
-        newDataFrame = newDataFrame.withColumn(s"${field}",
-          when(col(s"${field}").equalTo(0.0), -1).otherwise(index))
-      }
-
-      // Then, put all the values into single vector
-      val assembler = new VectorAssembler()
+      val assembler = new StringVectorAssembler()
         .setInputCols(schema.toArray)
-        .setOutputCol("numberVector")
-      newDataFrame = assembler.transform(newDataFrame)
-
-      // Take this vector, convert to array, remove -1 values, and replace index values with item names
-      val vectorToArray = udf( (xs: org.apache.spark.ml.linalg.Vector) => xs.toArray.filter(_ > -1).map( i => schema(i.toInt)) )
-      newDataFrame = newDataFrame.withColumn("items", vectorToArray($"numberVector"))
+        .setOutputCol("items")
+      val itemsDataFrame = assembler.transform(frequentItemDataFrame)
 
       logger.debug("Creating the FPGrowth object...")
       val minSupport = 0 // We don't use min support here. We use it in the PPDDM Manager for eliminating infrequent items globally. Hence set it to zero here
@@ -54,7 +37,7 @@ case class FPGrowthPPDDM(override val agent: Agent, override val algorithm: Algo
 
       logger.debug("Fitting the model...")
       val pipeline = new Pipeline().setStages(Array(fpGrowth))
-      val model = pipeline.fit(newDataFrame)
+      val model = pipeline.fit(itemsDataFrame)
 
       // Display frequent itemsets.
       model.stages.last.asInstanceOf[FPGrowthModel].freqItemsets.show()
