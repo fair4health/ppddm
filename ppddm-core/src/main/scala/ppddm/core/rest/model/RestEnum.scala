@@ -75,7 +75,7 @@ object DataMiningState extends Enumeration {
   val VALIDATING = "validating"
   val TESTING = "testing"
 
-  val CALCULATING_FREQUENCY_ARL = "calculating_frequency"
+  val CALCULATING_FREQUENCY_ARL = "calculating_frequency_arl"
   val EXECUTING_ARL = "executing_arl"
 
   val READY = "ready"

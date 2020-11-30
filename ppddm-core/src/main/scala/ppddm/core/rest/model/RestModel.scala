@@ -131,6 +131,14 @@ final case class Agent(agent_id: String,
   def getTestURI(model_id: Option[String] = None): String = {
     getURI("dm/classification/test", model_id)
   }
+
+  def getARLFrequencyCalculationURI(model_id: Option[String] = None): String = {
+    getURI("dm/arl/frequency", model_id)
+  }
+
+  def getARLExecutionURI(model_id: Option[String] = None): String = {
+    getURI("dm/arl/execute", model_id)
+  }
 }
 
 final case class AgentDataStatistics(number_of_records: Long,
@@ -314,8 +322,10 @@ final case class BoostedModel(algorithm: Algorithm,
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
                            fitted_model: String,
-                           training_statistics: AgentAlgorithmStatistics, // Includes its Agent's training statistics
-                           validation_statistics: Seq[AgentAlgorithmStatistics], // Includes other Agents' validation statistics
+                           item_frequencies: Option[Seq[Parameter]],
+                           total_record_count: Option[Long],
+                           training_statistics: Option[AgentAlgorithmStatistics], // Includes its Agent's training statistics
+                           validation_statistics: Option[Seq[AgentAlgorithmStatistics]], // Includes other Agents' validation statistics
                            calculated_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
                            weight: Option[Double]) extends ModelClass {
 
@@ -338,7 +348,7 @@ final case class WeakModel(algorithm: Algorithm,
       throw new IllegalArgumentException(msg)
     }
 
-    val illegalStatistics = this.validation_statistics
+    val illegalStatistics = this.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics])
       .map(s => (s.agent_model.agent_id, s.agent_statistics.agent_id, s.algorithm.name)) // Convert to (Agent, Agent, Algorithm) to check the equality without the statistics
       .toSet
       .intersect(
@@ -350,7 +360,7 @@ final case class WeakModel(algorithm: Algorithm,
     }
 
     // We are good to go!
-    this.copy(validation_statistics = this.validation_statistics ++ validationStatistics)
+    this.copy(validation_statistics = Some(this.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics]) ++ validationStatistics))
   }
 
   def withCalculatedStatistics(calculated_statistics: Seq[Parameter]): WeakModel = {
@@ -396,7 +406,8 @@ final case class ModelValidationResult(model_id: String,
 final case class ModelTestRequest(model_id: String,
                                   dataset_id: String,
                                   agent: Agent,
-                                  boosted_models: Seq[BoostedModel]) extends ModelClass
+                                  boosted_models: Seq[BoostedModel],
+                                  submitted_by: String) extends ModelClass
 
 final case class ModelTestResult(model_id: String,
                                  dataset_id: String,
@@ -417,7 +428,8 @@ final case class ProspectiveStudy(prospective_study_id: Option[String],
 
 final case class PredictionRequest(data_mining_model: DataMiningModel,
                                    identifier: String,
-                                   variables: Seq[Parameter]) extends ModelClass
+                                   variables: Seq[Parameter],
+                                   submitted_by: String) extends ModelClass
 
 final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],

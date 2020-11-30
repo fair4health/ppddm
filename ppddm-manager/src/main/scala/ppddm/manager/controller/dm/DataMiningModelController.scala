@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.FindOneAndReplaceOptions
 import ppddm.core.exception.DBException
-import ppddm.core.rest.model.{Agent, DataMiningModel, SelectionStatus, WeakModel}
+import ppddm.core.rest.model._
 import ppddm.manager.Manager
 import ppddm.manager.exception.DataIntegrityException
 
@@ -130,7 +130,7 @@ object DataMiningModelController {
 
     val agentsWhoseValidationResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all will have the results from the same Agents at any instant in time
       .weak_models.flatMap { weakModel => // for each WeakModel of this BoostedModel
-      weakModel.validation_statistics
+      weakModel.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics])
         .filter(s => s.agent_model.agent_id != s.agent_statistics.agent_id)
         .map(_.agent_statistics) // Collect the Agents from whom statistics are received
         .toSet // Convert to a Set

@@ -79,7 +79,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
                   calculated_test_statistics = None,
                   selection_status = None
                 ))
-              modelTestRequest = ModelTestRequest(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, boostedModels)
+              modelTestRequest = ModelTestRequest(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, boostedModels, "test")
             }
 
             // Complete promise and cancel the scheduler

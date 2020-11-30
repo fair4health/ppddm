@@ -95,7 +95,7 @@ object DataMiningOrchestrator {
         project.get.project_type match {
           case ProjectType.PREDICTION => PredictionMiningProcessor.processPredictionMining(dataMiningModel)
           case ProjectType.ASSOCIATION => AssociationMiningProcessor.processAssociationMining(dataMiningModel)
-          case _ => throw new IllegalArgumentException(s"")
+          case unknownType => throw new IllegalArgumentException(s"Unknown Project Type:$unknownType")
         }
       }
     }

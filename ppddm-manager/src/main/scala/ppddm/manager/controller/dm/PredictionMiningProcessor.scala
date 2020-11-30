@@ -212,8 +212,13 @@ object PredictionMiningProcessor {
 
         logger.debug("There are no remaining Agents being waited for validation results. So, I will invoke the test endpoints of the Agents and " +
           s"update the state to TESTING for this DataMiningModel:${dataMiningModel.model_id.get}")
-        // Calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
-        newDataMiningModel = Aggregator.aggregate(newDataMiningModel)
+        try {
+          // Calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
+          newDataMiningModel = Aggregator.aggregate(newDataMiningModel)
+        } catch {
+          case e: Exception => logger.error(s"It seems there is a data integrity issues with the DataMiningModel:${newDataMiningModel.model_id.get} " +
+            s"Since this is a Prediction model, training_statistics and validation_statistics MUST exist at this point.", e)
+        }
 
         val f = DistributedDataMiningManager.invokeAgentsModelTesting(newDataMiningModel)
         try { // Wait for the testing invocations finish for all Agents

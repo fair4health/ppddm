@@ -281,7 +281,7 @@ object DistributedDataMiningManager {
    */
   private def invokeModelTesting(agent: Agent, dataMiningModel: DataMiningModel): Future[Try[Done]] = {
     val modelTestRequest = ModelTestRequest(dataMiningModel.model_id.get, dataMiningModel.dataset.dataset_id.get,
-      agent, dataMiningModel.boosted_models.get)
+      agent, dataMiningModel.boosted_models.get, dataMiningModel.created_by)
 
     val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getTestURI(), Some(modelTestRequest))
 
@@ -397,5 +397,113 @@ object DistributedDataMiningManager {
       Done
     }
   }
+
+  // ******* FREQUENCY CALCULATION *******
+
+  /**
+   * Invokes the frequency calculation endpoint of the given Agent for the given DataMiningModel
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return
+   */
+  private def invokeARLFrequencyCalculation(agent: Agent, dataMiningModel: DataMiningModel): Future[Try[Done]] = {
+    val arlFrequencyCalculationRequest = ARLFrequencyCalculationRequest(dataMiningModel.model_id.get, dataMiningModel.dataset.dataset_id.get,
+      agent, dataMiningModel.created_by)
+
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.POST, agent.getARLFrequencyCalculationURI(), Some(arlFrequencyCalculationRequest))
+
+    logger.debug("Invoking agent frequency calculation on URI:{} for model_id: {} & model_name: {}",
+      agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[Done](agentRequest) map { result =>
+      logger.debug("Agent model frequency calculation invocation successful on URI:{} for model_id: {} & model_name: {}",
+        agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+      result
+    }
+  }
+
+  /**
+   * This function invokes the frequency calculation endpoint of each Agent corresponding to the selected
+   * Agents (DatasetSources) of the Dataset.
+   *
+   * The call on the Agents are in parallel for the given dataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def invokeAgentsARLFrequencyCalculation(dataMiningModel: DataMiningModel): Future[Done] = {
+    // Get all Agents of this DataMiningModel to which frequency calculation requests will be POSTed
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+    logger.debug("I will invoke the frequency calculation endpoints of {} agents with agent-ids: {} for {} number of BoostedModels " +
+      "where the Algorithms are {}",
+      agents.length, agents.map(_.agent_id).mkString(","), dataMiningModel.boosted_models.get.length, dataMiningModel.boosted_models.get.map(_.algorithm.name).mkString(","))
+
+    Future.sequence(agents.map(invokeARLFrequencyCalculation(_, dataMiningModel))) map { responses =>
+      val failedAgents = responses.collect { case Failure(x) => x }
+      if (failedAgents.nonEmpty) {
+        val msg = s"There are ${failedAgents.size} Agents out of ${responses.size} which returned error on frequency calculation request."
+        logger.error(msg)
+        throw AgentCommunicationException(reason = msg)
+      }
+
+      Done
+    }
+  }
+
+  /**
+   * Asks the ARLFrequencyCalculationResult from the given Agent for the given dataMiningModel.
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return An Option[ARLFrequencyCalculationResult]. If the result is None, that means the frequency calculation has not completed yet.
+   */
+  private def getARLFrequencyCalculationResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ARLFrequencyCalculationResult]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getARLFrequencyCalculationURI(dataMiningModel.model_id))
+
+    logger.debug("Asking the ARLFrequencyCalculationResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+    AgentClient.invokeHttpRequest[ARLFrequencyCalculationResult](agentRequest).map(_.toOption)
+  }
+
+//  /**
+//   * Asks the frequency calculation results of the DataMiningModel to the Agents. These Agents were previously POSTed to
+//   * start calculating the item frequencies on their datasets.
+//   * And only the Agents whose results were not received yet are POSTed.
+//   *
+//   * @param dataMiningModel
+//   * @return Returns a sequence of ARLFrequencyCalculationResult. Only the results of Agents which finished their model testing will be returned by this function.
+//   */
+//  def askAgentsARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Future[Seq[ARLFrequencyCalculationResult]] = {
+//    // Get the Agents whose ARLFrequencyCalculationResults have not been received yet
+//    val agents = DataMiningModelController.getAgentsWaitedForTestResults(dataMiningModel)
+//
+//    logger.debug("I will ask the model test results to {} agents with agent-ids: {}",
+//      agents.length, agents.map(_.agent_id).mkString(","))
+//
+//    Future.sequence(agents.map(getModelTestResultFromAgent(_, dataMiningModel))) map { responses =>
+//      responses
+//        .filter(_.isDefined) // keep only ready ModelTestResult
+//        .map(_.get) // get rid of Option
+//    }
+//  }
+//
+//  /**
+//   * Deletes the test results of the DataMiningModel indicated by the model_id on the given Agent
+//   *
+//   * @param agent
+//   * @param dataMiningModel
+//   * @return
+//   */
+//  private def deleteModelTestResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
+//    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getTestURI(dataMiningModel.model_id))
+//
+//    logger.debug("Deleting the ModelTestResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+//      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+//
+//    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
+//  }
 
 }

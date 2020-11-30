@@ -19,6 +19,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
 
   /**
    * Get classifier and paramGrid for cross validation for each classification algorithm
+   *
    * @return tuple of classifier and paramGrid
    */
   def getClassifierAndParamGrid(): (Array[PipelineStage], Array[ParamMap])
@@ -53,7 +54,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
       var numberOfFolds = 3 // Use 3+ in practice
       var maxParallelism = 2 // Evaluate up to 2 parameter settings in parallel
       var metric = "areaUnderROC" // TODO Decide which metric to use. It can be precision/recall for imbalanced data, and accuracy for others
-      algorithm.parameters.foreach( p => {
+      algorithm.parameters.foreach(p => {
         p.name match {
           case AlgorithmParameterName.NUMBER_OF_FOLDS => numberOfFolds = p.value.toInt
           case AlgorithmParameterName.MAX_PARALLELISM => maxParallelism = p.value.toInt
@@ -88,7 +89,15 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
 
       logger.debug(s"## Finish executing ${algorithm.name} ##")
 
-      WeakModel(algorithm, agent, toString(pipelineModel), AgentAlgorithmStatistics(agent, agent, algorithm, statistics), Seq.empty, None, None)
+      WeakModel(algorithm = algorithm,
+        agent = agent,
+        fitted_model = toString(pipelineModel),
+        item_frequencies = None,
+        total_record_count = None,
+        training_statistics = Some(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)),
+        validation_statistics = Some(Seq.empty[AgentAlgorithmStatistics]),
+        calculated_statistics = None,
+        weight = None)
     }
   }
 
@@ -115,7 +124,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
    * Validate a boosted model on the given dataFrame
    *
    * @param boostedModel The BoostedModel on which test is to be performed
-   * @param dataFrame The DataFrame which will be used for test on the .transform method
+   * @param dataFrame    The DataFrame which will be used for test on the .transform method
    * @return
    */
   def test(boostedModel: BoostedModel, dataFrame: DataFrame): Future[AgentAlgorithmStatistics] = {
