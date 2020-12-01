@@ -12,6 +12,10 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
+/**
+ * Processor object for the DataMiningModels whose Projects are of type ProjectType.PREDICTION
+ * Currently, this processor only supports classification type algorithms for prediction.
+ */
 object PredictionMiningProcessor {
 
   private val logger: Logger = Logger(this.getClass)

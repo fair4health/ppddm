@@ -257,8 +257,8 @@ final case class VariableConfiguration(variable: Variable,
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
-                              test_statistics: Option[Seq[AgentAlgorithmStatistics]],
-                              calculated_test_statistics: Option[Seq[Parameter]],
+                              test_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction
+                              calculated_test_statistics: Option[Seq[Parameter]], // Prediction
                               selection_status: Option[SelectionStatus]) extends ModelClass {
 
   def replaceWeakModels(weakModels: Seq[WeakModel]): BoostedModel = {
@@ -322,12 +322,13 @@ final case class BoostedModel(algorithm: Algorithm,
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
                            fitted_model: String,
-                           item_frequencies: Option[Seq[Parameter]],
-                           total_record_count: Option[Long],
-                           training_statistics: Option[AgentAlgorithmStatistics], // Includes its Agent's training statistics
-                           validation_statistics: Option[Seq[AgentAlgorithmStatistics]], // Includes other Agents' validation statistics
-                           calculated_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
-                           weight: Option[Double]) extends ModelClass {
+                           item_frequencies: Option[Seq[Parameter]], // Association
+                           total_record_count: Option[Long], // Association
+                           training_statistics: Option[AgentAlgorithmStatistics], // Prediction // Includes its Agent's training statistics
+                           validation_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction // Includes other Agents' validation statistics // Prediction
+                           calculated_statistics: Option[Seq[Parameter]], // Prediction // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
+                           weight: Option[Double] // Prediction
+                          ) extends ModelClass {
 
   def addNewValidationStatistics(validationStatistics: Seq[AgentAlgorithmStatistics]): WeakModel = {
     // Let's perform some integrity checks

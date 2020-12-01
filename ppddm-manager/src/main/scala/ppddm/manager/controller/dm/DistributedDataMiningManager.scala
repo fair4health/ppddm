@@ -468,42 +468,32 @@ object DistributedDataMiningManager {
     AgentClient.invokeHttpRequest[ARLFrequencyCalculationResult](agentRequest).map(_.toOption)
   }
 
-//  /**
-//   * Asks the frequency calculation results of the DataMiningModel to the Agents. These Agents were previously POSTed to
-//   * start calculating the item frequencies on their datasets.
-//   * And only the Agents whose results were not received yet are POSTed.
-//   *
-//   * @param dataMiningModel
-//   * @return Returns a sequence of ARLFrequencyCalculationResult. Only the results of Agents which finished their model testing will be returned by this function.
-//   */
-//  def askAgentsARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Future[Seq[ARLFrequencyCalculationResult]] = {
-//    // Get the Agents whose ARLFrequencyCalculationResults have not been received yet
-//    val agents = DataMiningModelController.getAgentsWaitedForTestResults(dataMiningModel)
-//
-//    logger.debug("I will ask the model test results to {} agents with agent-ids: {}",
-//      agents.length, agents.map(_.agent_id).mkString(","))
-//
-//    Future.sequence(agents.map(getModelTestResultFromAgent(_, dataMiningModel))) map { responses =>
-//      responses
-//        .filter(_.isDefined) // keep only ready ModelTestResult
-//        .map(_.get) // get rid of Option
-//    }
-//  }
-//
-//  /**
-//   * Deletes the test results of the DataMiningModel indicated by the model_id on the given Agent
-//   *
-//   * @param agent
-//   * @param dataMiningModel
-//   * @return
-//   */
-//  private def deleteModelTestResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
-//    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getTestURI(dataMiningModel.model_id))
-//
-//    logger.debug("Deleting the ModelTestResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
-//      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
-//
-//    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
-//  }
+  /**
+   * Asks the frequency calculation results of the DataMiningModel to the Agents. These Agents were previously POSTed to
+   * start calculating the item frequencies on their datasets.
+   * And only the Agents whose results were not received yet are POSTed.
+   *
+   * @param dataMiningModel
+   * @return Returns a sequence of ARLFrequencyCalculationResult. Only the results of Agents which finished their model testing will be returned by this function.
+   */
+  def askAgentsARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Future[Seq[ARLFrequencyCalculationResult]] = {
+    // Get the Agents whose ARLFrequencyCalculationResults have not been received yet
+    val agents = DataMiningModelController.getAgentsWaitedForARLFrequencyCalculationResults(dataMiningModel)
+
+    logger.debug("I will ask the frequency calculation results to {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(getARLFrequencyCalculationResultFromAgent(_, dataMiningModel))) map { responses =>
+      responses
+        .filter(_.isDefined) // keep if it is ready
+        .map(_.get) // get rid of Option
+    }
+  }
+
+  // TODO : Delete the frequencyCaluculationResult
+
+  // ******* ARL EXECUTION *******
+
+  // TODO: Implement the ARL Execution methods
 
 }

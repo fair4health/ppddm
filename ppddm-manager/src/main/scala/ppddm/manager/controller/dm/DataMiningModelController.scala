@@ -173,6 +173,20 @@ object DataMiningModelController {
   }
 
   /**
+   * Given the dataMiningModel, returns the sequence of Agents whose frequency calculation results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    getSelectedAgents(dataMiningModel)
+  }
+
+  /////
+  // CRUD Methods
+  /////
+
+  /**
    * Creates a new DataMiningModel on the Platform Repository
    * and starts the distributed data mining orchestration for the created DataMiningModel.
    *
@@ -182,6 +196,12 @@ object DataMiningModelController {
   def createDataMiningModel(dataMiningModel: DataMiningModel): Future[DataMiningModel] = {
     if(dataMiningModel.model_id.isDefined) {
       throw new IllegalArgumentException("If you want to create a new data mining model, please provide it WITHOUT a model_id")
+    }
+
+    // Do not allow data mining having the same algorithm more than once within the submitted DataMiningModel
+    val duplicateAlgorithms = dataMiningModel.algorithms.groupBy(_.name).collect {case (x,ys) if ys.lengthCompare(1) > 0 => x}.toSeq
+    if(duplicateAlgorithms.nonEmpty) {
+      throw new IllegalArgumentException("Duplicate Algorithms. You cannot execute data mining using the same algorithm within a Data Mining Model.")
     }
 
     // Create a new DataMiningModel object with a unique identifier
