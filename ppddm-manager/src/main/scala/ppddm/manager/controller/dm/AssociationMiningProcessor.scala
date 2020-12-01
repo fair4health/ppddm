@@ -1,12 +1,15 @@
 package ppddm.manager.controller.dm
 
+import java.util.concurrent.TimeUnit
+
 import akka.Done
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{DataMiningModel, DataMiningState}
+import ppddm.core.rest.model.{ARLFrequencyCalculationResult, BoostedModel, DataMiningModel, DataMiningState}
 import ppddm.manager.exception.DataIntegrityException
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
 /**
  * Processor object for the DataMiningModels whose Projects are of type ProjectType.ASSOCIATION
@@ -29,10 +32,9 @@ object AssociationMiningProcessor {
       case Some(DataMiningState.CALCULATING_FREQUENCY_ARL) =>
         // This DataMiningModel is still calculating the item frequencies on Agents.
         handleCalculatingFrequencyState(dataMiningModel)
-//      case Some(DataMiningState.EXECUTING_ARL) =>
-//        // This DataMiningModel's fitted_models are being validated on the other Agents. Ask to the Agents whether they are completed or not.
-//        // If they are all completed, finalize the WeakModels, create the BoostedModel to be tested
-//        handleValidationState(dataMiningModel)
+      case Some(DataMiningState.EXECUTING_ARL) =>
+        // This DataMiningModel is still executing the ARL on Agents.
+        handleExecutingARLState(dataMiningModel)
       case Some(DataMiningState.READY) | Some(DataMiningState.FINAL) =>
         // This is already in its READY or FINAL state, this block should not execute in normal circumstances.
         Future.apply(DataMiningOrchestrator.stopOrchestration(dataMiningModel.model_id.get)) // Stop the orchestration for this DataMiningModel
@@ -76,8 +78,37 @@ object AssociationMiningProcessor {
   private def handleCalculatingFrequencyState(dataMiningModel: DataMiningModel): Future[Done] = {
     logger.debug(s"The state of DataMiningModel:${dataMiningModel.model_id.get} is CALCULATING_FREQUENCY_ARL. It is now being processed by handleCalculatingFrequencyState.")
     DistributedDataMiningManager.askAgentsARLFrequencyCalculationResults(dataMiningModel) flatMap { arlFrequencyCalculationResults =>
-      null // TODO
+      // results include the ARLFrequencyCalculationResult of the Agents whose frequency calculation is completed.
+      // Others have not finished yet.
+
+      // A ARLFrequencyCalculationResult includes a sequence of WeakModel (one for each Algorithm)
+      // All ModelTrainingResults should include WeakModels of the same set of Algorithms
+
+      // TODO 1. Create a BoostedModel (if not created already) and add the WeakModels created out of the returned ARLFrequencyCalculationResult
+      // TODO 2. If there are no remaining Agents to wait for the frequency calculation results
+      // TODO 2.1. We will merge the results, find the set of the frequent items above the given support threshold
+      // TODO 2.2. We can call the arl execution endpoints of the Agents with the decided frequent item set and advance to the EXECUTING_ARL state
+      // TODO 3. Update the DataMiningModel in the database
+
+      null
     }
+  }
+
+  /**
+   * Handle the processing of a DataMiningModel who are in the EXECUTING_ARL state.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  private def handleExecutingARLState(dataMiningModel: DataMiningModel): Future[Done] = {
+
+    // TODO 1. Update the WeakModels with the received fitted_models
+    // TODO 2. If there are no remaining AGents to wait for ARL execution results
+    // TODO 2.1. Extract the statistics (rules) from the fitted_models and combine them (find a new data structure)
+    // TODO 2.2. Update the BoostedModel with this final combined statistics and finish the scheduled processing
+    // TODO 3. Update the DataMiningModel in the database
+
+    null
   }
 
 }

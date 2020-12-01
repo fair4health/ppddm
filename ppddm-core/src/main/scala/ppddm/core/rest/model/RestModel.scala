@@ -321,7 +321,7 @@ final case class BoostedModel(algorithm: Algorithm,
 
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
-                           fitted_model: String,
+                           fitted_model: Option[String],
                            item_frequencies: Option[Seq[Parameter]], // Association
                            total_record_count: Option[Long], // Association
                            training_statistics: Option[AgentAlgorithmStatistics], // Prediction // Includes its Agent's training statistics

@@ -179,7 +179,7 @@ object DataMiningModelController {
    * @return
    */
   def getAgentsWaitedForARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
-    getSelectedAgents(dataMiningModel)
+    getAgentsWaitedForTrainingResults(dataMiningModel) // We use the same mechanism
   }
 
   /////
@@ -201,7 +201,7 @@ object DataMiningModelController {
     // Do not allow data mining having the same algorithm more than once within the submitted DataMiningModel
     val duplicateAlgorithms = dataMiningModel.algorithms.groupBy(_.name).collect {case (x,ys) if ys.lengthCompare(1) > 0 => x}.toSeq
     if(duplicateAlgorithms.nonEmpty) {
-      throw new IllegalArgumentException("Duplicate Algorithms. You cannot execute data mining using the same algorithm within a Data Mining Model.")
+      throw new IllegalArgumentException("Duplicate Algorithms in DataMiningModel. You cannot execute data mining using the same algorithm within a Data Mining Model.")
     }
 
     // Create a new DataMiningModel object with a unique identifier

@@ -91,7 +91,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
 
       WeakModel(algorithm = algorithm,
         agent = agent,
-        fitted_model = toString(pipelineModel),
+        fitted_model = Some(toString(pipelineModel)),
         item_frequencies = None,
         total_record_count = None,
         training_statistics = Some(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)),
@@ -110,7 +110,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
    */
   def validate(weakModel: WeakModel, dataFrame: DataFrame): Future[AgentAlgorithmStatistics] = {
     Future {
-      val pipelineModel = fromString(weakModel.fitted_model)
+      val pipelineModel = fromString(weakModel.fitted_model.get)
       val testPredictionDF = pipelineModel.transform(dataFrame)
 
       // Calculate statistics
@@ -130,7 +130,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
   def test(boostedModel: BoostedModel, dataFrame: DataFrame): Future[AgentAlgorithmStatistics] = {
     Future {
       val testPredictionTuples = boostedModel.weak_models.map { weakModel =>
-        val pipelineModel = fromString(weakModel.fitted_model)
+        val pipelineModel = fromString(weakModel.fitted_model.get)
         (weakModel.weight.get, pipelineModel.transform(dataFrame))
       }
 
