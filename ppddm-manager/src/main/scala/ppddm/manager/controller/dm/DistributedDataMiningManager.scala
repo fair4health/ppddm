@@ -5,7 +5,8 @@ import akka.http.scaladsl.model._
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
 import ppddm.manager.client.AgentClient
-import ppddm.manager.exception.AgentCommunicationException
+import ppddm.manager.controller.project.ProjectController
+import ppddm.manager.exception.{AgentCommunicationException, DataIntegrityException}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -655,5 +656,33 @@ object DistributedDataMiningManager {
         Done
       }
     }
+
+  // ******* DELETE UTIL *******
+
+  def deleteDataMiningModelFromAgents(dataMiningModel: DataMiningModel): Future[Done] = {
+    // Retrieve the Project of this DataMiningModel to check its ProjectType
+    ProjectController.getProject(dataMiningModel.project_id) flatMap { project =>
+      if (project.isEmpty) {
+        throw DataIntegrityException(s"DataMiningManager cannot access the Project of the DataMiningModel while deleting. model_id:${dataMiningModel.model_id.get} - " +
+          s"project_id:${dataMiningModel.project_id} This should not have happened!!")
+      }
+      project.get.project_type match {
+        case ProjectType.PREDICTION =>
+          Future.sequence(Seq(
+            deleteAgentsModelTrainingResults(dataMiningModel),
+            deleteAgentsModelValidationResults(dataMiningModel),
+            deleteAgentsModelTestResults(dataMiningModel)
+          ))
+        case ProjectType.ASSOCIATION =>
+          Future.sequence(Seq(
+            deleteAgentsARLFrequencyCalculationResults(dataMiningModel),
+            deleteAgentsARLExecutionResults(dataMiningModel)
+          ))
+        case unknownType => throw new IllegalArgumentException(s"Unknown Project Type:$unknownType")
+      }
+    } map { _ =>
+      Done
+    }
+  }
 
 }
