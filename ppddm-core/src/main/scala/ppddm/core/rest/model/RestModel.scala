@@ -257,6 +257,7 @@ final case class VariableConfiguration(variable: Variable,
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
+                              combined_item_frequencies: Option[Seq[String]], // Association
                               test_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction
                               calculated_test_statistics: Option[Seq[Parameter]], // Prediction
                               selection_status: Option[SelectionStatus]) extends ModelClass {

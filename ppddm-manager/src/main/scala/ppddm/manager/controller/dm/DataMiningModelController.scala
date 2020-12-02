@@ -182,6 +182,25 @@ object DataMiningModelController {
     getAgentsWaitedForTrainingResults(dataMiningModel) // We use the same mechanism
   }
 
+  def getAlgorithmItemSetsForARLExecution(dataMiningModel: DataMiningModel): Seq[AlgorithmItemSet] = {
+    if(dataMiningModel.boosted_models.isEmpty) {
+      val msg = s"There must be at least one BoostedModel in this DataMiningModel:${dataMiningModel.model_id.get} so that " +
+        s"I can come up with the AlgorithmItemSets to be sent to ARL execution."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    }
+
+    dataMiningModel.boosted_models.get.map { boostedModel =>
+      if(boostedModel.combined_item_frequencies.isEmpty) {
+        val msg = s"Combined item frequencies do not exist for this BoostedModel of algorithm:${boostedModel.algorithm.name} " +
+          s"within the DataMiningModel:${dataMiningModel.model_id.get}. I cannot come up with the AlgorithmItemSets to be sent to ARL execution."
+        logger.error(msg)
+        throw DataIntegrityException(msg)
+      }
+      AlgorithmItemSet(boostedModel.algorithm, boostedModel.combined_item_frequencies.get)
+    }
+  }
+
   /////
   // CRUD Methods
   /////

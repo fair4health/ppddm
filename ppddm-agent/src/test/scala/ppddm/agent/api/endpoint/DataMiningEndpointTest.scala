@@ -44,6 +44,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
 
   /**
    * Asks model training result repeatedly with a scheduler and when it is ready, prepares the validation and test requests
+   *
    * @param model_id Requested model id
    * @return
    */
@@ -75,6 +76,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
                 BoostedModel(
                   algorithm = modelTestRequest.boosted_models.head.algorithm,
                   weak_models = Seq(modelTrainingResult.algorithm_training_models.head.copy(weight = Some(1.0))),
+                  combined_item_frequencies = None,
                   test_statistics = None,
                   calculated_test_statistics = None,
                   selection_status = None
@@ -96,6 +98,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
 
   /**
    * Asks model validation result repeatedly with a scheduler
+   *
    * @param model_id Requested model id
    * @return
    */

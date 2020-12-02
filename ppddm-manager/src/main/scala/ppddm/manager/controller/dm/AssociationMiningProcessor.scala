@@ -1,15 +1,14 @@
 package ppddm.manager.controller.dm
 
-import java.util.concurrent.TimeUnit
-
 import akka.Done
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{ARLFrequencyCalculationResult, BoostedModel, DataMiningModel, DataMiningState}
+import ppddm.core.rest.model.{BoostedModel, DataMiningModel, DataMiningState, WeakModel}
 import ppddm.manager.exception.DataIntegrityException
 
-import scala.concurrent.{Await, Future}
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 /**
  * Processor object for the DataMiningModels whose Projects are of type ProjectType.ASSOCIATION
@@ -31,7 +30,7 @@ object AssociationMiningProcessor {
         handleNoState(dataMiningModel)
       case Some(DataMiningState.CALCULATING_FREQUENCY_ARL) =>
         // This DataMiningModel is still calculating the item frequencies on Agents.
-        handleCalculatingFrequencyState(dataMiningModel)
+        handleCalculatingFrequencyARLState(dataMiningModel)
       case Some(DataMiningState.EXECUTING_ARL) =>
         // This DataMiningModel is still executing the ARL on Agents.
         handleExecutingARLState(dataMiningModel)
@@ -75,22 +74,85 @@ object AssociationMiningProcessor {
    * @param dataMiningModel
    * @return
    */
-  private def handleCalculatingFrequencyState(dataMiningModel: DataMiningModel): Future[Done] = {
-    logger.debug(s"The state of DataMiningModel:${dataMiningModel.model_id.get} is CALCULATING_FREQUENCY_ARL. It is now being processed by handleCalculatingFrequencyState.")
+  private def handleCalculatingFrequencyARLState(dataMiningModel: DataMiningModel): Future[Done] = {
+    logger.debug(s"The state of DataMiningModel:${dataMiningModel.model_id.get} is CALCULATING_FREQUENCY_ARL. It is now being processed by handleCalculatingFrequencyARLState.")
     DistributedDataMiningManager.askAgentsARLFrequencyCalculationResults(dataMiningModel) flatMap { arlFrequencyCalculationResults =>
       // results include the ARLFrequencyCalculationResult of the Agents whose frequency calculation is completed.
       // Others have not finished yet.
 
       // A ARLFrequencyCalculationResult includes a sequence of WeakModel (one for each Algorithm)
-      // All ModelTrainingResults should include WeakModels of the same set of Algorithms
+      // However, in our settings now, we only support one algorithm (FP-Growth) and only one WeakModel will be returned by each Agent.
 
-      // TODO 1. Create a BoostedModel (if not created already) and add the WeakModels created out of the returned ARLFrequencyCalculationResult
-      // TODO 2. If there are no remaining Agents to wait for the frequency calculation results
-      // TODO 2.1. We will merge the results, find the set of the frequent items above the given support threshold
-      // TODO 2.2. We can call the arl execution endpoints of the Agents with the decided frequent item set and advance to the EXECUTING_ARL state
-      // TODO 3. Update the DataMiningModel in the database
+      val newBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel (we know that there will only be 1 algorithms, but to be compliant with the PredictionMiningProcessor loop over it
 
-      null
+        val weakModelsOfAlgorithm = arlFrequencyCalculationResults.map { arlFrequencyCalculationResult =>
+          WeakModel(
+            algorithm = algorithm,
+            agent = arlFrequencyCalculationResult.agent,
+            fitted_model = None,
+            item_frequencies = Some(arlFrequencyCalculationResult.item_frequencies),
+            total_record_count = Some(arlFrequencyCalculationResult.total_record_count),
+            training_statistics = None,
+            validation_statistics = None,
+            calculated_statistics = None,
+            weight = None
+          )
+        }
+
+        // Check whether this DataMiningModel has already a BoostedModel for this algorithm (look up, we are looping over the algorithms)
+        val existingBoostedModel = if (dataMiningModel.boosted_models.isDefined) dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name) else None
+
+        if (existingBoostedModel.isDefined) {
+          // This means we previously created a BoostedModel for this algorithm and saved into the database.
+          // Now, new WeakModels arrived from different Agents for this BoostedModel (look up, we are looping over the algorithms)
+          logger.debug("There is already a BoostedModel for this Algorithm:{} under the DataMiningModel with model_id:{}. " +
+            "Newcoming WeakModels will be added to that BoostedModel.", algorithm.name, dataMiningModel.model_id.get)
+          existingBoostedModel.get.addNewWeakModels(weakModelsOfAlgorithm)
+        } else {
+          // This means this is the first time that we will create a BoostedModel for this algorithm
+          logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
+            algorithm.name, dataMiningModel.model_id.get)
+          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
+        }
+      }
+
+      var newDataMiningModel = dataMiningModel.withBoostedModels(newBoostedModels)
+
+      if (DataMiningModelController.getAgentsWaitedForARLFrequencyCalculationResults(newDataMiningModel).isEmpty) {
+        // If there are no remaining Agents to wait for the ARL frequency calculation results,
+        // then we will combine the frequency results, find the set of the frequent items above the given support threshold
+        // and update the BoostedModel
+        logger.debug("There are no remaining Agents being waited for frequency calculation results. So, I will calculate " +
+          "the combined item frequencies and then invoke the ARL execution endpoints of the Agents and then " +
+          s"update the state to EXECUTING_ARL for this DataMiningModel:${dataMiningModel.model_id.get}")
+
+        // TODO: Call the combine function like we do in the TESTING state of the PredictionMiningProcessor and then update the model
+
+        val f = DistributedDataMiningManager.invokeAgentsARLExecution(newDataMiningModel)
+        try { // Wait for the ARL execution invocations finish for all Agents
+          Await.result(f, Duration(30, TimeUnit.SECONDS))
+        } catch {
+          case e: java.util.concurrent.TimeoutException =>
+            logger.error("Invoking the ARK execution endpoints of {} Agents have not finished within 30 seconds " +
+              "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
+        }
+        logger.debug(s"ARL execution endpoints of the Agents have been invoked and the state for this DataMiningModel:${dataMiningModel.model_id.get} will be advanced to EXECUTING_ARL.")
+
+        // Advance the state to EXECUTING_ARL
+        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.EXECUTING_ARL)
+      } else {
+        logger.debug(s"There are still remaining Agents being waited for ARL frequency calculation results for this DataMiningModel:${dataMiningModel.model_id.get}")
+      }
+
+      // After processing the received ARLFrequencyCalculationResult, save the newDataMiningModel into the database
+      DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
+        if (res.isEmpty) {
+          throw DataIntegrityException(s"data_mining_state of the DataMiningModel cannot be updated after the ARL frequency calculation results are received from the Agents. " +
+            s"model_id:${newDataMiningModel.model_id.get}")
+        }
+        logger.debug(s"handleCalculatingFrequencyARLState finished for this DataMiningModel:${dataMiningModel.model_id.get} Its state is ${newDataMiningModel.data_mining_state.get}.")
+        Done
+      }
     }
   }
 
