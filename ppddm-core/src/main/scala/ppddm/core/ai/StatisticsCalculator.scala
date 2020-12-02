@@ -21,7 +21,7 @@ object StatisticsCalculator {
    * @return
    */
   def calculateBinaryClassificationStatistics(testPredictionDF: DataFrame): ListBuffer[Parameter] = {
-    logger.debug("Calculating statistics...")
+    logger.debug("Calculating binary classification statistics...")
     val testPredictionLabelsRDD = StatisticsCalculator.generatePredictionsLabelRDD(testPredictionDF)
     var statistics = StatisticsCalculator.generateConfusionMatrixStatistics(testPredictionLabelsRDD)
 
@@ -47,7 +47,7 @@ object StatisticsCalculator {
    * @return
    */
   def calculateMultinomialClassificationStatistics(testPredictionDF: DataFrame): ListBuffer[Parameter] = {
-    logger.debug("Calculating statistics...")
+    logger.debug("Calculating multinomial classification statistics...")
     val testPredictionLabelsRDD = StatisticsCalculator.generatePredictionsLabelRDD(testPredictionDF)
     var statistics = StatisticsCalculator.generateConfusionMatrixStatistics(testPredictionLabelsRDD)
 
@@ -68,12 +68,12 @@ object StatisticsCalculator {
   }
 
   /**
-   * Calculate statistics by combining several agent algorithm statistics
+   * Calculate statistics by combining several agents' classification algorithm statistics
    * @param agentAlgorithmStatistics
    * @return
    */
-  def combineStatistics(agentAlgorithmStatistics: Seq[AgentAlgorithmStatistics]): ListBuffer[Parameter] = {
-    logger.debug("Combining statistics...")
+  def combineClassificationStatistics(agentAlgorithmStatistics: Seq[AgentAlgorithmStatistics]): ListBuffer[Parameter] = {
+    logger.debug("Combining classification statistics...")
 
     val total = agentAlgorithmStatistics.map(s => getStatisticsValue(s.statistics, AlgorithmStatisticsName.TOTAL).toInt).sum
     val tp = agentAlgorithmStatistics.map(s => getStatisticsValue(s.statistics, AlgorithmStatisticsName.TRUE_POSITIVE).toInt).sum

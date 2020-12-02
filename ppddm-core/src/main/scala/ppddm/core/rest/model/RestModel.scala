@@ -257,7 +257,8 @@ final case class VariableConfiguration(variable: Variable,
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
-                              combined_item_frequencies: Option[Seq[String]], // Association
+                              combined_frequent_items: Option[Seq[Parameter]], // Association
+                              combined_total_record_count: Option[Long], // Association
                               test_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction
                               calculated_test_statistics: Option[Seq[Parameter]], // Prediction
                               selection_status: Option[SelectionStatus]) extends ModelClass {
@@ -316,6 +317,14 @@ final case class BoostedModel(algorithm: Algorithm,
 
   def withCalculatedTestStatistics(calculated_test_statistics: Seq[Parameter]): BoostedModel = {
     this.copy(calculated_test_statistics = Some(calculated_test_statistics))
+  }
+
+  def withCombinedFrequentItems(combined_frequent_items: Seq[Parameter]): BoostedModel = {
+    this.copy(combined_frequent_items = Some(combined_frequent_items))
+  }
+
+  def withCombinedTotalRecordCount(combined_total_record_count: Long): BoostedModel = {
+    this.copy(combined_total_record_count = Some(combined_total_record_count))
   }
 
 }

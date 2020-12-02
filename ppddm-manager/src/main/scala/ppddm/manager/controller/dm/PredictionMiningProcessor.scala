@@ -117,7 +117,7 @@ object PredictionMiningProcessor {
           // This means this is the first time that we will create a BoostedModel for this algorithm
           logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
             algorithm.name, dataMiningModel.model_id.get)
-          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
+          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
         }
 
       }
@@ -291,7 +291,7 @@ object PredictionMiningProcessor {
           s"statistics for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
 
         val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
-          val calculatedStatistics = StatisticsCalculator.combineStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
+          val calculatedStatistics = StatisticsCalculator.combineClassificationStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
           boostedModel.withCalculatedTestStatistics(calculatedStatistics)
         }
         newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)

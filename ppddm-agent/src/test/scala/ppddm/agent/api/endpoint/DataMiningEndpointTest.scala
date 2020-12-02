@@ -76,7 +76,8 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
                 BoostedModel(
                   algorithm = modelTestRequest.boosted_models.head.algorithm,
                   weak_models = Seq(modelTrainingResult.algorithm_training_models.head.copy(weight = Some(1.0))),
-                  combined_item_frequencies = None,
+                  combined_frequent_items = None,
+                  combined_total_record_count = None,
                   test_statistics = None,
                   calculated_test_statistics = None,
                   selection_status = None

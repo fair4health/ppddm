@@ -5,7 +5,7 @@ import org.apache.spark.ml.PipelineStage
 import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.StringType
-import ppddm.agent.controller.dm.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
+import ppddm.core.ai.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
 import ppddm.agent.controller.prepare.DataPreparationController
 import ppddm.agent.exception.DataMiningException
 import ppddm.core.rest.model.{VariableDataType, VariableType}

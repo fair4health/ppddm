@@ -1,11 +1,20 @@
 package ppddm.manager.controller.dm
 
+import java.util.concurrent.TimeUnit
+
 import akka.Done
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{BoostedModel, DataMiningModel, DataMiningState, WeakModel}
+import org.apache.spark.ml.fpm.FPGrowthModel
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.types.LongType
+import ppddm.core.ai.PipelineModelEncoderDecoder
+import ppddm.core.ai.transformer.ARLConfidenceLiftTransformer
+import ppddm.core.rest.model._
+import ppddm.manager.Manager
 import ppddm.manager.exception.DataIntegrityException
+import ppddm.manager.store.ManagerDataStoreManager
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -16,6 +25,9 @@ import scala.concurrent.{Await, Future}
 object AssociationMiningProcessor {
 
   private val logger: Logger = Logger(this.getClass)
+
+  protected implicit val sparkSession: SparkSession = Manager.dataMiningEngine.sparkSession
+  import sparkSession.implicits._
 
   /**
    * Handle the processing of the DataMiningModel of ProjectType.ASSOCIATION type Projects
@@ -112,7 +124,7 @@ object AssociationMiningProcessor {
           // This means this is the first time that we will create a BoostedModel for this algorithm
           logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
             algorithm.name, dataMiningModel.model_id.get)
-          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
+          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
         }
       }
 
@@ -127,6 +139,29 @@ object AssociationMiningProcessor {
           s"update the state to EXECUTING_ARL for this DataMiningModel:${dataMiningModel.model_id.get}")
 
         // TODO: Call the combine function like we do in the TESTING state of the PredictionMiningProcessor and then update the model
+        val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
+          // Find the threshold value if it is provided in the GUI. Otherwise use the default value which is 0.5
+          var threshold = 0.5
+          val minSupport = boostedModel.algorithm.parameters.filter(p => p.name == AlgorithmParameterName.MIN_SUPPORT)
+          if (!minSupport.isEmpty) {
+            threshold = minSupport.head.value.toDouble
+          }
+
+          // Create Sequence of DataFrame from the item_frequencies provided in the WeakModels. Add new "valueLong" column to cast value presented in String field to Long.
+          val itemFrequenciesSeq = boostedModel.weak_models.map(_.item_frequencies.get.toDF().withColumn("valueLong", col("value").cast(LongType)))
+          // Union all item frequencies, group them by name and sum values.
+          val combinedItemFrequencies = itemFrequenciesSeq.reduceLeft((a, b) => a.union(b)).groupBy("name").sum("valueLong").select("name", "valueLong").collect()
+          // Sum all total record counts in WeakModels so that we can find the combined support values.
+          val combinedTotalRecordCount = boostedModel.weak_models.map(_.total_record_count.get).reduceLeft((a, b) => a + b)
+          // Filter items which are above the combined threshold value. The ones who are below the threshold get eliminated.
+          val aboveThresholdItemFrequencies = combinedItemFrequencies.filter(i => (i.getLong(1).toDouble / combinedTotalRecordCount.toDouble) >= threshold)
+          // Update the boosted model
+          boostedModel.withCombinedFrequentItems(aboveThresholdItemFrequencies.map( i => Parameter(i.getString(0), DataType.INTEGER, i.getLong(1).toString)))
+                      .withCombinedTotalRecordCount(combinedTotalRecordCount)
+        }
+
+        // Update the data mining model
+        newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
 
         val f = DistributedDataMiningManager.invokeAgentsARLExecution(newDataMiningModel)
         try { // Wait for the ARL execution invocations finish for all Agents
@@ -220,6 +255,36 @@ object AssociationMiningProcessor {
 
         // TODO 2.1. Extract the statistics (rules) from the fitted_models and combine them (find a new data structure)
         // TODO 2.2. Update the BoostedModel with this final combined statistics and finish the scheduled processing
+        val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
+          // Extract the PipelineModels containing the association rules and frequent itemsets from the WeakModels
+          val pipelineModelSeq = boostedModel.weak_models map { wm =>
+            PipelineModelEncoderDecoder.fromString(wm.fitted_model.get, ManagerDataStoreManager.getTmpPath())
+          }
+          // Extract the association rules and frequent itemsets from the PipelineModels
+          val associationRulesSeq = pipelineModelSeq map { pipelineModel =>
+            pipelineModel.stages.last.asInstanceOf[FPGrowthModel].associationRules
+          }
+          val freqItemsetsSeq = pipelineModelSeq map { pipelineModel =>
+            pipelineModel.stages.last.asInstanceOf[FPGrowthModel].freqItemsets
+          }
+
+          var finalAssociationRules = associationRulesSeq.head // If there is only one agent, we will use its association rules directly
+          if (associationRulesSeq.length > 1) { // Of there are more than one agents, we will combine their results
+            // Union all the rules and eliminate the duplicates. We will calculate their confidence and lift manually below.
+            val unionedAssociationRules = associationRulesSeq.map(_.select("antecedent", "consequent")).reduceLeft((a, b) => a.union(b).distinct())
+            // Union all itemsets by summing their frequencies. We will use these while calculating confidence and lift manually below.
+            val unionedFreqItems = freqItemsetsSeq.reduceLeft((a, b) => a.union(b)).groupBy("items").sum("freq").collect()
+
+            // Calculate confidence and lift
+            val arlConfidenceLiftTransformer = new ARLConfidenceLiftTransformer()
+              .setFreqItems(unionedFreqItems)
+              .setTotalRecordCount(boostedModel.combined_total_record_count.get)
+            finalAssociationRules = arlConfidenceLiftTransformer.transform(unionedAssociationRules)
+          }
+          finalAssociationRules.show()
+
+          // TODO boostedModel.withARLStatistics here
+        }
 
         // Advance the state to READY
         newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)

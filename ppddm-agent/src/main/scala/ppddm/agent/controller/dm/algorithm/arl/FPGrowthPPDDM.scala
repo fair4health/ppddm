@@ -3,7 +3,7 @@ package ppddm.agent.controller.dm.algorithm.arl
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.fpm.{FPGrowth, FPGrowthModel}
 import org.apache.spark.sql.DataFrame
-import ppddm.agent.controller.dm.transformer.StringVectorAssembler
+import ppddm.core.ai.transformer.StringVectorAssembler
 import ppddm.core.rest.model.{ARLModel, Agent, Algorithm, AlgorithmParameterName}
 
 import scala.concurrent.ExecutionContext.Implicits.global

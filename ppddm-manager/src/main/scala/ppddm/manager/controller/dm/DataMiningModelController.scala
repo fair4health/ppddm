@@ -198,13 +198,13 @@ object DataMiningModelController {
     }
 
     dataMiningModel.boosted_models.get.map { boostedModel =>
-      if(boostedModel.combined_item_frequencies.isEmpty) {
+      if(boostedModel.combined_frequent_items.isEmpty) {
         val msg = s"Combined item frequencies do not exist for this BoostedModel of algorithm:${boostedModel.algorithm.name} " +
           s"within the DataMiningModel:${dataMiningModel.model_id.get}. I cannot come up with the AlgorithmItemSets to be sent to ARL execution."
         logger.error(msg)
         throw DataIntegrityException(msg)
       }
-      AlgorithmItemSet(boostedModel.algorithm, boostedModel.combined_item_frequencies.get)
+      AlgorithmItemSet(boostedModel.algorithm, boostedModel.combined_frequent_items.get.map(_.name))
     }
   }
 
