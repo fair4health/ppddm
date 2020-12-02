@@ -182,6 +182,13 @@ object DataMiningModelController {
     getAgentsWaitedForTrainingResults(dataMiningModel) // We use the same mechanism
   }
 
+  /**
+   * Given the DataMiningModel with at least one BoostedModel in it, returns a sequence of AlgorithmItemSet.
+   * This DataMiningModel's project's type must be ProjectType.ASSOCIATION, otherwise DataIntegrityException is thrown.
+   *
+   * @param dataMiningModel
+   * @return
+   */
   def getAlgorithmItemSetsForARLExecution(dataMiningModel: DataMiningModel): Seq[AlgorithmItemSet] = {
     if(dataMiningModel.boosted_models.isEmpty) {
       val msg = s"There must be at least one BoostedModel in this DataMiningModel:${dataMiningModel.model_id.get} so that " +
@@ -199,6 +206,24 @@ object DataMiningModelController {
       }
       AlgorithmItemSet(boostedModel.algorithm, boostedModel.combined_item_frequencies.get)
     }
+  }
+
+  /**
+   * Given the dataMiningModel, returns the sequence of Agents whose ARL execution results have not been received yet.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def getAgentsWaitedForARLExecutionResults(dataMiningModel: DataMiningModel): Seq[Agent] = {
+    checkBoostedModelIntegrity(dataMiningModel)
+
+    // Use the first BoostedModel since all BoostedModels will contain results from the very same Agents at any instant in time.
+    // Indeed, for Association, we already have only one BoostedModel within its DataMiningModel
+    val agentsWhoseARLExecutionRestulsAlreadyReceived = dataMiningModel.boosted_models.get.head
+      .weak_models // Get the WeakModels of the BoostedModel
+      .map(_.agent) // Collect the Agents of the WeakModels.
+
+    (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseARLExecutionRestulsAlreadyReceived).toSeq
   }
 
   /////

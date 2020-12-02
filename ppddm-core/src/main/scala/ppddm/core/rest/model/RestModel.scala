@@ -331,6 +331,18 @@ final case class WeakModel(algorithm: Algorithm,
                            weight: Option[Double] // Prediction
                           ) extends ModelClass {
 
+  def withFittedModel(fitted_model: String): WeakModel = {
+    if(this.fitted_model.isDefined) {
+      val msg = "You are trying to replace an already existing fitted_model in this WeakModel. This is not allowed."
+      throw new IllegalArgumentException(msg)
+    }
+    if(this.item_frequencies.isEmpty) {
+      val msg = "While assigning a fitted_model to a WeakModel, the WeakModel must have the item_frequencies (considering the ARL mining)"
+      throw new IllegalArgumentException(msg)
+    }
+    this.copy(fitted_model = Some(fitted_model))
+  }
+
   def addNewValidationStatistics(validationStatistics: Seq[AgentAlgorithmStatistics]): WeakModel = {
     // Let's perform some integrity checks
 

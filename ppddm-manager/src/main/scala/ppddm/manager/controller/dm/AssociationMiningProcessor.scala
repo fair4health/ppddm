@@ -163,14 +163,86 @@ object AssociationMiningProcessor {
    * @return
    */
   private def handleExecutingARLState(dataMiningModel: DataMiningModel): Future[Done] = {
+    logger.debug(s"The state of DataMiningModel:${dataMiningModel.model_id.get} is EXECUTING_ARL. It is now being processed by handleExecutingARLState.")
+    DistributedDataMiningManager.askAgentsARLExecutionResults(dataMiningModel) flatMap { arlExecutionResults =>
+      // ARLExecutionResults of the Agents whose ARL execution is completed.
+      // Others have not finished yet.
 
-    // TODO 1. Update the WeakModels with the received fitted_models
-    // TODO 2. If there are no remaining AGents to wait for ARL execution results
-    // TODO 2.1. Extract the statistics (rules) from the fitted_models and combine them (find a new data structure)
-    // TODO 2.2. Update the BoostedModel with this final combined statistics and finish the scheduled processing
-    // TODO 3. Update the DataMiningModel in the database
+      // An ARLExecutionResults includes a sequence of ARLModels (one for each Algorithm)
 
-    null
+      val updatedBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel (we know that there will only be 1 algorithms, but to be compliant with the PredictionMiningProcessor loop over it
+
+        // Let's do some integrity checks
+        if (dataMiningModel.boosted_models.isEmpty) {
+          throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
+            s"I am trying to the process handleExecutingARLState and there must have been a BoostedModel for each Algorithm.")
+        }
+
+        val boostedModelOption = dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name)
+        if (boostedModelOption.isEmpty) {
+          throw DataIntegrityException(s"Sweet Jesus! I am processing the handleExecutingARLState of this DataMiningModel:${dataMiningModel.model_id.get}, " +
+            s"however there is no corresponding BoostedModel for this Algorithm:${algorithm.name}")
+        }
+
+        val boostedModel = boostedModelOption.get
+
+        val updatedWeakModels = boostedModel.weak_models.map { weakModel =>
+          val arlExecutionResultOption = arlExecutionResults.find(_.agent.agent_id == weakModel.agent.agent_id)
+          if(arlExecutionResultOption.isDefined) {
+            val arlExecutionResult = arlExecutionResultOption.get
+            // The Agent of this WeakModel returned the ARL execution result
+            val arlModelOption = arlExecutionResult.arl_models.find(_.algorithm.name == algorithm.name)
+
+            if (arlModelOption.isEmpty) {
+              // If there is a result from an Agent, it must contain an ARLModel for each Algorithm of this DataMiningModel, because we submitted it previously for ARL execution
+              throw DataIntegrityException(s"The Algorithm with name ${algorithm.name} could not be found in the ARLExecutionResult " +
+                s" of ${arlExecutionResult.agent} for the DataMiningModel with model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name}")
+            }
+            val arlModel = arlModelOption.get
+            if(arlModel.agent.agent_id != weakModel.agent.agent_id) {
+              throw DataIntegrityException(s"The agent of the ARLModel is different than the agent of the WeakModel it is being assigned to! This means " +
+                s"the agent of the ARLModel is also different than the agent of the encapsulating ARLExecutionResult. This cannot happen!!!")
+            }
+            weakModel.withFittedModel(arlModel.fitted_model)
+          } else {
+            // The Agent of this WeakModel has not finished the ARL execution yet
+            weakModel
+          }
+        }
+        boostedModel.replaceWeakModels(updatedWeakModels)
+      }
+
+      var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
+
+      if (DataMiningModelController.getAgentsWaitedForARLExecutionResults(newDataMiningModel).isEmpty) {
+        logger.debug("There are no remaining Agents being waited for ARL execution results. So, I will calculate the " +
+          s"association rules (statistics) for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
+
+        // TODO 2.1. Extract the statistics (rules) from the fitted_models and combine them (find a new data structure)
+        // TODO 2.2. Update the BoostedModel with this final combined statistics and finish the scheduled processing
+
+        // Advance the state to READY
+        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
+      } else {
+        logger.debug(s"There are still remaining Agents being waited for ARL execution results of this DataMiningModel:${dataMiningModel.model_id.get}")
+      }
+
+      DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
+        if (res.isEmpty) {
+          throw DataIntegrityException(s"data_mining_state of the DataMiningModel cannot be updated after the model test results are received from the Agents. " +
+            s"model_id:${newDataMiningModel.model_id.get}")
+        }
+
+        if (newDataMiningModel.data_mining_state.get == DataMiningState.READY) {
+          // Stop the orchestration for this DataMiningModel is a separate thread, only if its state is READY
+          Future.apply(DataMiningOrchestrator.stopOrchestration(newDataMiningModel.model_id.get))
+        }
+
+        logger.debug(s"handleExecutingARLState finished for this DataMiningModel:${dataMiningModel.model_id.get} Its state is ${newDataMiningModel.data_mining_state.get}.")
+
+        Done
+      }
+    }
   }
 
 }

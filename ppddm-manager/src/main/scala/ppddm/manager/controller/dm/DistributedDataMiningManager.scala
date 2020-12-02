@@ -474,7 +474,7 @@ object DistributedDataMiningManager {
    * And only the Agents whose results were not received yet are POSTed.
    *
    * @param dataMiningModel
-   * @return Returns a sequence of ARLFrequencyCalculationResult. Only the results of Agents which finished their model testing will be returned by this function.
+   * @return Returns a sequence of ARLFrequencyCalculationResult. Only the results of Agents which finished their frequency calculation will be returned by this function.
    */
   def askAgentsARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Future[Seq[ARLFrequencyCalculationResult]] = {
     // Get the Agents whose ARLFrequencyCalculationResults have not been received yet
@@ -491,7 +491,7 @@ object DistributedDataMiningManager {
   }
 
   /**
-   * Deletes the ARLFrequencyResult of the DataMiningModel indicated by the model_id on the given Agent
+   * Deletes the ARLFrequencyCalculationResult of the DataMiningModel indicated by the model_id on the given Agent
    *
    * @param agent
    * @param dataMiningModel
@@ -500,7 +500,7 @@ object DistributedDataMiningManager {
   private def deleteARLFrequencyCalculationResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
     val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getARLFrequencyCalculationURI(dataMiningModel.model_id))
 
-    logger.debug("Deleting the ARLFrequencyResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+    logger.debug("Deleting the ARLFrequencyCalculationResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
       agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
     AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
@@ -581,79 +581,79 @@ object DistributedDataMiningManager {
         Done
       }
     }
-  //
-  //  /**
-  //   * Asks the ARLFrequencyCalculationResult from the given Agent for the given dataMiningModel.
-  //   *
-  //   * @param agent
-  //   * @param dataMiningModel
-  //   * @return An Option[ARLFrequencyCalculationResult]. If the result is None, that means the frequency calculation has not completed yet.
-  //   */
-  //  private def getARLFrequencyCalculationResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ARLFrequencyCalculationResult]] = {
-  //    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getARLFrequencyCalculationURI(dataMiningModel.model_id))
-  //
-  //    logger.debug("Asking the ARLFrequencyCalculationResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
-  //      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
-  //
-  //    AgentClient.invokeHttpRequest[ARLFrequencyCalculationResult](agentRequest).map(_.toOption)
-  //  }
-  //
-  //  /**
-  //   * Asks the frequency calculation results of the DataMiningModel to the Agents. These Agents were previously POSTed to
-  //   * start calculating the item frequencies on their datasets.
-  //   * And only the Agents whose results were not received yet are POSTed.
-  //   *
-  //   * @param dataMiningModel
-  //   * @return Returns a sequence of ARLFrequencyCalculationResult. Only the results of Agents which finished their model testing will be returned by this function.
-  //   */
-  //  def askAgentsARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Future[Seq[ARLFrequencyCalculationResult]] = {
-  //    // Get the Agents whose ARLFrequencyCalculationResults have not been received yet
-  //    val agents = DataMiningModelController.getAgentsWaitedForARLFrequencyCalculationResults(dataMiningModel)
-  //
-  //    logger.debug("I will ask the frequency calculation results to {} agents with agent-ids: {}",
-  //      agents.length, agents.map(_.agent_id).mkString(","))
-  //
-  //    Future.sequence(agents.map(getARLFrequencyCalculationResultFromAgent(_, dataMiningModel))) map { responses =>
-  //      responses
-  //        .filter(_.isDefined) // keep if it is ready
-  //        .map(_.get) // get rid of Option
-  //    }
-  //  }
-  //
-  //  /**
-  //   * Deletes the ARLFrequencyResult of the DataMiningModel indicated by the model_id on the given Agent
-  //   *
-  //   * @param agent
-  //   * @param dataMiningModel
-  //   * @return
-  //   */
-  //  private def deleteARLFrequencyCalculationResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
-  //    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getARLFrequencyCalculationURI(dataMiningModel.model_id))
-  //
-  //    logger.debug("Deleting the ARLFrequencyResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
-  //      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
-  //
-  //    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
-  //  }
-  //
-  //  /**
-  //   * Sends DELETE requests for the ARL frequency calculations to all selected Agents of the given DataMiningModel.
-  //   *
-  //   * @param dataMiningModel
-  //   * @return
-  //   */
-  //  def deleteAgentsARLFrequencyCalculationResults(dataMiningModel: DataMiningModel): Future[Done] = {
-  //    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
-  //
-  //    logger.debug("I will invoke the DELETE ARL frequency calculation endpoints of {} agents with agent-ids: {}",
-  //      agents.length, agents.map(_.agent_id).mkString(","))
-  //
-  //    Future.sequence(agents.map(deleteARLFrequencyCalculationResultFromAgent(_, dataMiningModel))) map { responses =>
-  //      if(responses.exists(_.isEmpty)) {
-  //        logger.warn("We are trying to delete the ARL frequency calculation results on Agents, however; there is an Agent whose results were not there!")
-  //      }
-  //      Done
-  //    }
-  //  }
+
+    /**
+     * Asks the ARLExecutionResults from the given Agent for the given dataMiningModel.
+     *
+     * @param agent
+     * @param dataMiningModel
+     * @return An Option[ARLExecutionResults]. If the result is None, that means the ARL execution has not completed yet.
+     */
+    private def getARLExecutionResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ARLExecutionResult]] = {
+      val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getARLExecutionURI(dataMiningModel.model_id))
+
+      logger.debug("Asking the ARLExecutionResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
+        agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+      AgentClient.invokeHttpRequest[ARLExecutionResult](agentRequest).map(_.toOption)
+    }
+
+    /**
+     * Asks the ARL execution results of the DataMiningModel to the Agents. These Agents were previously POSTed to
+     * start executing ARL algorithms on their datasets.
+     * And only the Agents whose results were not received yet are POSTed.
+     *
+     * @param dataMiningModel
+     * @return Returns a sequence of ARLExecutionResult. Only the results of Agents which finished their ARL execution will be returned by this function.
+     */
+    def askAgentsARLExecutionResults(dataMiningModel: DataMiningModel): Future[Seq[ARLExecutionResult]] = {
+      // Get the Agents whose ARLExecutionResult have not been received yet
+      val agents = DataMiningModelController.getAgentsWaitedForARLExecutionResults(dataMiningModel)
+
+      logger.debug("I will ask the ARL execution results to {} agents with agent-ids: {}",
+        agents.length, agents.map(_.agent_id).mkString(","))
+
+      Future.sequence(agents.map(getARLExecutionResultFromAgent(_, dataMiningModel))) map { responses =>
+        responses
+          .filter(_.isDefined) // keep if it is ready
+          .map(_.get) // get rid of Option
+      }
+    }
+
+    /**
+     * Deletes the ARLExecutionResult of the DataMiningModel indicated by the model_id on the given Agent
+     *
+     * @param agent
+     * @param dataMiningModel
+     * @return
+     */
+    private def deleteARLExecutionResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
+      val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getARLExecutionURI(dataMiningModel.model_id))
+
+      logger.debug("Deleting the ARLExecutionResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+        agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+
+      AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
+    }
+
+    /**
+     * Sends DELETE requests for the ARL executions to all selected Agents of the given DataMiningModel.
+     *
+     * @param dataMiningModel
+     * @return
+     */
+    def deleteAgentsARLExecutionResults(dataMiningModel: DataMiningModel): Future[Done] = {
+      val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+      logger.debug("I will invoke the DELETE ARL execution endpoints of {} agents with agent-ids: {}",
+        agents.length, agents.map(_.agent_id).mkString(","))
+
+      Future.sequence(agents.map(deleteARLExecutionResultFromAgent(_, dataMiningModel))) map { responses =>
+        if(responses.exists(_.isEmpty)) {
+          logger.warn("We are trying to delete the ARL execution results on Agents, however; there is an Agent whose results were not there!")
+        }
+        Done
+      }
+    }
 
 }
