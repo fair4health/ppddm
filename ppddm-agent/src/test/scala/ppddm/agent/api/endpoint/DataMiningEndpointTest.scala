@@ -78,6 +78,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
                   weak_models = Seq(modelTrainingResult.algorithm_training_models.head.copy(weight = Some(1.0))),
                   combined_frequent_items = None,
                   combined_total_record_count = None,
+                  combined_association_rules = None,
                   test_statistics = None,
                   calculated_test_statistics = None,
                   selection_status = None
