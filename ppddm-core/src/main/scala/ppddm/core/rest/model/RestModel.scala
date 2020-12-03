@@ -259,6 +259,7 @@ final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
                               combined_frequent_items: Option[Seq[Parameter]], // Association
                               combined_total_record_count: Option[Long], // Association
+                              combined_association_rules: Option[Seq[AssociationRule]], // Association
                               test_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction
                               calculated_test_statistics: Option[Seq[Parameter]], // Prediction
                               selection_status: Option[SelectionStatus]) extends ModelClass {
@@ -327,17 +328,23 @@ final case class BoostedModel(algorithm: Algorithm,
     this.copy(combined_total_record_count = Some(combined_total_record_count))
   }
 
+  def withCombinedAssociationRules(combined_association_rules: Seq[AssociationRule]): BoostedModel = {
+    this.copy(combined_association_rules = Some(combined_association_rules))
+  }
+
 }
 
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
-                           fitted_model: Option[String],
-                           item_frequencies: Option[Seq[Parameter]], // Association
-                           total_record_count: Option[Long], // Association
+                           fitted_model: Option[String], // Prediction
                            training_statistics: Option[AgentAlgorithmStatistics], // Prediction // Includes its Agent's training statistics
                            validation_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction // Includes other Agents' validation statistics // Prediction
                            calculated_statistics: Option[Seq[Parameter]], // Prediction // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
-                           weight: Option[Double] // Prediction
+                           weight: Option[Double], // Prediction
+                           item_frequencies: Option[Seq[Parameter]], // Association // Frequency of items in the agent. Generated in the 1st step, that is frequency calculation
+                           total_record_count: Option[Long], // Association // Total number of records in the agent. Generated in the 1st step, that is frequency calculation
+                           frequent_itemsets: Option[Seq[FrequentItemset]], // Association // Frequency of itemsets that are above the min support (threshold). Generated in the 2nd step, that is ARL model execution
+                           association_rules: Option[Seq[AssociationRule]] // Association // Association rules with confidence and lift. Generated in the 2nd step, that is ARL model execution
                           ) extends ModelClass {
 
   def withFittedModel(fitted_model: String): WeakModel = {
@@ -392,6 +399,10 @@ final case class WeakModel(algorithm: Algorithm,
 
   def withWeight(weight: Double): WeakModel = {
     this.copy(weight = Some(weight))
+  }
+
+  def withFreqItemsetAndAssociationRules(frequent_itemsets: Seq[FrequentItemset], association_rules: Seq[AssociationRule]): WeakModel = {
+    this.copy(frequent_itemsets = Some(frequent_itemsets), association_rules = Some(association_rules))
   }
 
 }
@@ -485,4 +496,13 @@ final case class ARLExecutionResult(model_id: String,
 
 final case class ARLModel(algorithm: Algorithm,
                           agent: Agent,
-                          fitted_model: String) extends ModelClass
+                          frequent_itemsets: Seq[FrequentItemset],
+                          association_rules: Seq[AssociationRule]) extends ModelClass
+
+final case class FrequentItemset(items: Seq[String],
+                                 freq: Long) extends ModelClass
+
+final case class AssociationRule(antecedent: Seq[String],
+                                 consequent: Seq[String],
+                                 confidence: Double,
+                                 lift: Double) extends ModelClass

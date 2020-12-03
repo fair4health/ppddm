@@ -221,7 +221,7 @@ object DataMiningModelController {
     // Indeed, for Association, we already have only one BoostedModel within its DataMiningModel
     val agentsWhoseARLExecutionRestulsAlreadyReceived = dataMiningModel.boosted_models.get.head
       .weak_models // Get the WeakModels of the BoostedModel
-      .filter(_.fitted_model.isDefined) // If fitted_model is set, it means ARL Execution Result has been retrieved. Otherwise, having a weak model means that only item frequency result has been retrieved
+      .filter(_.association_rules.isDefined) // If association_rules (or frequent_items) is set, it means ARL Execution Result has been retrieved. Otherwise, having a weak model means that only item frequency result has been retrieved
       .map(_.agent) // Collect the Agents of the WeakModels.
 
     (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseARLExecutionRestulsAlreadyReceived).toSeq

@@ -92,12 +92,15 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
       WeakModel(algorithm = algorithm,
         agent = agent,
         fitted_model = Some(toString(pipelineModel)),
-        item_frequencies = None,
-        total_record_count = None,
         training_statistics = Some(AgentAlgorithmStatistics(agent, agent, algorithm, statistics)),
         validation_statistics = Some(Seq.empty[AgentAlgorithmStatistics]),
         calculated_statistics = None,
-        weight = None)
+        weight = None,
+        item_frequencies = None,
+        total_record_count = None,
+        frequent_itemsets = None,
+        association_rules = None
+      )
     }
   }
 

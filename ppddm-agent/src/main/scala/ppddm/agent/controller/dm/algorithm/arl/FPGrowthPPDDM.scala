@@ -4,7 +4,7 @@ import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.fpm.{FPGrowth, FPGrowthModel}
 import org.apache.spark.sql.DataFrame
 import ppddm.core.ai.transformer.StringVectorAssembler
-import ppddm.core.rest.model.{ARLModel, Agent, Algorithm, AlgorithmParameterName}
+import ppddm.core.rest.model.{ARLModel, Agent, Algorithm, AlgorithmParameterName, AssociationRule, FrequentItemset}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -39,14 +39,19 @@ case class FPGrowthPPDDM(override val agent: Agent, override val algorithm: Algo
       val pipeline = new Pipeline().setStages(Array(fpGrowth))
       val model = pipeline.fit(itemsDataFrame)
 
-      // Display frequent itemsets.
-      model.stages.last.asInstanceOf[FPGrowthModel].freqItemsets.show()
-      // Display generated association rules.
-      model.stages.last.asInstanceOf[FPGrowthModel].associationRules.show()
+
+      val freqItemsetsDF = model.stages.last.asInstanceOf[FPGrowthModel].freqItemsets
+      freqItemsetsDF.show() // Display frequent itemsets.
+
+      val associationRulesDF = model.stages.last.asInstanceOf[FPGrowthModel].associationRules
+      associationRulesDF.show() // Display generated association rules.
 
       logger.debug(s"## Finish executing ${algorithm.name} ##")
 
-      ARLModel(algorithm, agent, toString(model))
+      val freqItemsets = freqItemsetsDF.collect().map(b => FrequentItemset(b.getSeq[String](0), b.getLong(1)))
+      val associationRules = associationRulesDF.collect().map(ar => AssociationRule(ar.getSeq[String](0), ar.getSeq[String](1), ar.getDouble(2), ar.getDouble(3)))
+
+      ARLModel(algorithm, agent, freqItemsets, associationRules)
     }
   }
 }

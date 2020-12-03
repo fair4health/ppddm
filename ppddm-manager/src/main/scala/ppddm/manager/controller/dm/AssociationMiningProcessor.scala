@@ -4,16 +4,13 @@ import java.util.concurrent.TimeUnit
 
 import akka.Done
 import com.typesafe.scalalogging.Logger
-import org.apache.spark.ml.fpm.FPGrowthModel
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.LongType
-import ppddm.core.ai.PipelineModelEncoderDecoder
 import ppddm.core.ai.transformer.ARLConfidenceLiftTransformer
 import ppddm.core.rest.model._
 import ppddm.manager.Manager
 import ppddm.manager.exception.DataIntegrityException
-import ppddm.manager.store.ManagerDataStoreManager
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -102,12 +99,14 @@ object AssociationMiningProcessor {
             algorithm = algorithm,
             agent = arlFrequencyCalculationResult.agent,
             fitted_model = None,
-            item_frequencies = Some(arlFrequencyCalculationResult.item_frequencies),
-            total_record_count = Some(arlFrequencyCalculationResult.total_record_count),
             training_statistics = None,
             validation_statistics = None,
             calculated_statistics = None,
-            weight = None
+            weight = None,
+            item_frequencies = Some(arlFrequencyCalculationResult.item_frequencies),
+            total_record_count = Some(arlFrequencyCalculationResult.total_record_count),
+            frequent_itemsets = None,
+            association_rules = None
           )
         }
 
@@ -124,7 +123,7 @@ object AssociationMiningProcessor {
           // This means this is the first time that we will create a BoostedModel for this algorithm
           logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
             algorithm.name, dataMiningModel.model_id.get)
-          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
+          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
         }
       }
 
@@ -138,7 +137,7 @@ object AssociationMiningProcessor {
           "the combined item frequencies and then invoke the ARL execution endpoints of the Agents and then " +
           s"update the state to EXECUTING_ARL for this DataMiningModel:${dataMiningModel.model_id.get}")
 
-        // TODO: Call the combine function like we do in the TESTING state of the PredictionMiningProcessor and then update the model
+        // Combine item frequencies and total record count
         val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
           // Find the threshold value if it is provided in the GUI. Otherwise use the default value which is 0.5
           var threshold = 0.5
@@ -238,7 +237,7 @@ object AssociationMiningProcessor {
               throw DataIntegrityException(s"The agent of the ARLModel is different than the agent of the WeakModel it is being assigned to! This means " +
                 s"the agent of the ARLModel is also different than the agent of the encapsulating ARLExecutionResult. This cannot happen!!!")
             }
-            weakModel.withFittedModel(arlModel.fitted_model)
+            weakModel.withFreqItemsetAndAssociationRules(arlModel.frequent_itemsets, arlModel.association_rules)
           } else {
             // The Agent of this WeakModel has not finished the ARL execution yet
             weakModel
@@ -253,40 +252,39 @@ object AssociationMiningProcessor {
         logger.debug("There are no remaining Agents being waited for ARL execution results. So, I will calculate the " +
           s"association rules (statistics) for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
 
-        // TODO 2.1. Extract the statistics (rules) from the fitted_models and combine them (find a new data structure)
-        // TODO 2.2. Update the BoostedModel with this final combined statistics and finish the scheduled processing
         val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
-          // Extract the PipelineModels containing the association rules and frequent itemsets from the WeakModels
-          val pipelineModelSeq = boostedModel.weak_models map { wm =>
-            PipelineModelEncoderDecoder.fromString(wm.fitted_model.get, ManagerDataStoreManager.getTmpPath())
+          // Extract the association rules and frequent itemsets from the WeakModels
+          val associationRulesDFSeq = boostedModel.weak_models map { wm =>
+            wm.association_rules.get.toDF()
           }
-          // Extract the association rules and frequent itemsets from the PipelineModels
-          val associationRulesSeq = pipelineModelSeq map { pipelineModel =>
-            pipelineModel.stages.last.asInstanceOf[FPGrowthModel].associationRules
-          }
-          val freqItemsetsSeq = pipelineModelSeq map { pipelineModel =>
-            pipelineModel.stages.last.asInstanceOf[FPGrowthModel].freqItemsets
+          val freqItemsetsDFSeq = boostedModel.weak_models map { wm =>
+            wm.frequent_itemsets.get.toDF()
           }
 
-          var finalAssociationRules = associationRulesSeq.head // If there is only one agent, we will use its association rules directly
-          if (associationRulesSeq.length > 1) { // Of there are more than one agents, we will combine their results
+          var combinedAssociationRulesDF = associationRulesDFSeq.head // If there is only one agent, we will use its association rules directly
+          if (associationRulesDFSeq.length > 1) { // Of there are more than one agents, we will combine their results
             // Union all the rules and eliminate the duplicates. We will calculate their confidence and lift manually below.
-            val unionedAssociationRules = associationRulesSeq.map(_.select("antecedent", "consequent")).reduceLeft((a, b) => a.union(b).distinct())
+            val unionedAssociationRules = associationRulesDFSeq.map(_.select("antecedent", "consequent")).reduceLeft((a, b) => a.union(b).distinct())
             // Union all itemsets by summing their frequencies. We will use these while calculating confidence and lift manually below.
-            val unionedFreqItems = freqItemsetsSeq.reduceLeft((a, b) => a.union(b)).groupBy("items").sum("freq").collect()
+            val unionedFreqItems = freqItemsetsDFSeq.reduceLeft((a, b) => a.union(b)).groupBy("items").sum("freq").collect()
 
             // Calculate confidence and lift
             val arlConfidenceLiftTransformer = new ARLConfidenceLiftTransformer()
               .setFreqItems(unionedFreqItems)
               .setTotalRecordCount(boostedModel.combined_total_record_count.get)
-            finalAssociationRules = arlConfidenceLiftTransformer.transform(unionedAssociationRules)
+            combinedAssociationRulesDF = arlConfidenceLiftTransformer.transform(unionedAssociationRules)
           }
-          finalAssociationRules.show()
+          combinedAssociationRulesDF.show()
 
-          // TODO boostedModel.withARLStatistics here
+          val combinedAssociationRules = combinedAssociationRulesDF.collect().map(ar =>
+            AssociationRule(ar.getSeq[String](0), ar.getSeq[String](1), ar.getDouble(2), ar.getDouble(3)))
+
+          // Update the BoostedModel with this final combined statistics
+          boostedModel.withCombinedAssociationRules(combinedAssociationRules)
         }
+        newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
 
-        // Advance the state to READY
+        // Advance the state to READY and finish the scheduled processing
         newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
       } else {
         logger.debug(s"There are still remaining Agents being waited for ARL execution results of this DataMiningModel:${dataMiningModel.model_id.get}")
