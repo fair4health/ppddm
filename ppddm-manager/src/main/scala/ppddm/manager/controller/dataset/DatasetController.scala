@@ -156,9 +156,6 @@ object DatasetController {
     if(dataset.dataset_sources.isEmpty || dataset.dataset_sources.get.isEmpty) {
       throw new IllegalArgumentException(s"A data set must include at least one data set source at this point (while updating it). dataset_id:${dataset.dataset_id.get}")
     }
-    if(!dataset.dataset_sources.get.exists(dss => dss.selection_status.isDefined && dss.selection_status.get == SelectionStatus.SELECTED)) {
-      throw new IllegalArgumentException(s"At lease one of the data set sources of this dataset must be SELECTED while updating it. dataset_id:${dataset.dataset_id.get}")
-    }
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
       equal("dataset_id", dataset.dataset_id.get),
       dataset.withUpdatedExecutionState(),

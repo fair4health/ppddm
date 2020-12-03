@@ -4,6 +4,8 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.PipelineStage
 import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StringType
+import ppddm.core.ai.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
 import ppddm.agent.controller.prepare.DataPreparationController
 import ppddm.agent.exception.DataMiningException
 import ppddm.core.rest.model.{VariableDataType, VariableType}
@@ -65,6 +67,7 @@ object DataAnalysisManager {
         new StringIndexer()
           .setInputCol(v.variable.name)
           .setOutputCol(s"${v.variable.name}_INDEX")
+          .setStringOrderType("alphabetAsc") // options are "frequencyDesc", "frequencyAsc", "alphabetDesc", "alphabetAsc"
           .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
       })
       stringIndexerSeq.foreach(i => pipelineStages += i) // Now, DataFrame contains new columns with "_INDEX" at the end of column name
@@ -129,5 +132,23 @@ object DataAnalysisManager {
       logger.debug("Exploratory Data Analysis has been performed...")
       pipelineStages.toArray
     }
+  }
+
+  /**
+   * Applies MultipleColumnOneHotEncoder and AgeTransformer on a data frame and returns the resulting data frame
+   * @param dataFrame
+   * @return
+   */
+  def performCategoricalTransformations(dataFrame: DataFrame): DataFrame = {
+    // Find categorical variables which are in StringType
+    val inputCols = dataFrame.schema.filter(s => s.dataType == StringType && !s.name.equals("pid")).map(_.name)
+
+    // Apply MultipleColumnOneHotEncoder
+    val updateDataFrame = new MultipleColumnOneHotEncoder().setInputCols(inputCols.toArray).transform(dataFrame)
+
+    // If age column exists in the data frame, apply AgeTransformer. Otherwise return the data frame.
+    if (!updateDataFrame.schema.filter(_.name == "age").isEmpty)
+      new AgeTransformer().setInputCol("age").transform(updateDataFrame)
+    else updateDataFrame
   }
 }

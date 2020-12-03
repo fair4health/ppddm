@@ -121,15 +121,23 @@ final case class Agent(agent_id: String,
   }
 
   def getTrainingURI(model_id: Option[String] = None): String = {
-    getURI("dm/train", model_id)
+    getURI("dm/classification/train", model_id)
   }
 
   def getValidationURI(model_id: Option[String] = None): String = {
-    getURI("dm/validate", model_id)
+    getURI("dm/classification/validate", model_id)
   }
 
   def getTestURI(model_id: Option[String] = None): String = {
-    getURI("dm/test", model_id)
+    getURI("dm/classification/test", model_id)
+  }
+
+  def getARLFrequencyCalculationURI(model_id: Option[String] = None): String = {
+    getURI("dm/arl/frequency", model_id)
+  }
+
+  def getARLExecutionURI(model_id: Option[String] = None): String = {
+    getURI("dm/arl/execute", model_id)
   }
 }
 
@@ -249,8 +257,11 @@ final case class VariableConfiguration(variable: Variable,
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],
-                              test_statistics: Option[Seq[AgentAlgorithmStatistics]],
-                              calculated_test_statistics: Option[Seq[Parameter]],
+                              combined_frequent_items: Option[Seq[Parameter]], // Association
+                              combined_total_record_count: Option[Long], // Association
+                              combined_association_rules: Option[Seq[AssociationRule]], // Association
+                              test_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction
+                              calculated_test_statistics: Option[Seq[Parameter]], // Prediction
                               selection_status: Option[SelectionStatus]) extends ModelClass {
 
   def replaceWeakModels(weakModels: Seq[WeakModel]): BoostedModel = {
@@ -309,15 +320,44 @@ final case class BoostedModel(algorithm: Algorithm,
     this.copy(calculated_test_statistics = Some(calculated_test_statistics))
   }
 
+  def withCombinedFrequentItems(combined_frequent_items: Seq[Parameter]): BoostedModel = {
+    this.copy(combined_frequent_items = Some(combined_frequent_items))
+  }
+
+  def withCombinedTotalRecordCount(combined_total_record_count: Long): BoostedModel = {
+    this.copy(combined_total_record_count = Some(combined_total_record_count))
+  }
+
+  def withCombinedAssociationRules(combined_association_rules: Seq[AssociationRule]): BoostedModel = {
+    this.copy(combined_association_rules = Some(combined_association_rules))
+  }
+
 }
 
 final case class WeakModel(algorithm: Algorithm,
                            agent: Agent,
-                           fitted_model: String,
-                           training_statistics: AgentAlgorithmStatistics, // Includes its Agent's training statistics
-                           validation_statistics: Seq[AgentAlgorithmStatistics], // Includes other Agents' validation statistics
-                           calculated_statistics: Option[Seq[Parameter]], // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
-                           weight: Option[Double]) extends ModelClass {
+                           fitted_model: Option[String], // Prediction
+                           training_statistics: Option[AgentAlgorithmStatistics], // Prediction // Includes its Agent's training statistics
+                           validation_statistics: Option[Seq[AgentAlgorithmStatistics]], // Prediction // Includes other Agents' validation statistics // Prediction
+                           calculated_statistics: Option[Seq[Parameter]], // Prediction // Will be calculated after training and validation statistics are received (together with the weight of this WeakModel)
+                           weight: Option[Double], // Prediction
+                           item_frequencies: Option[Seq[Parameter]], // Association // Frequency of items in the agent. Generated in the 1st step, that is frequency calculation
+                           total_record_count: Option[Long], // Association // Total number of records in the agent. Generated in the 1st step, that is frequency calculation
+                           frequent_itemsets: Option[Seq[FrequentItemset]], // Association // Frequency of itemsets that are above the min support (threshold). Generated in the 2nd step, that is ARL model execution
+                           association_rules: Option[Seq[AssociationRule]] // Association // Association rules with confidence and lift. Generated in the 2nd step, that is ARL model execution
+                          ) extends ModelClass {
+
+  def withFittedModel(fitted_model: String): WeakModel = {
+    if(this.fitted_model.isDefined) {
+      val msg = "You are trying to replace an already existing fitted_model in this WeakModel. This is not allowed."
+      throw new IllegalArgumentException(msg)
+    }
+    if(this.item_frequencies.isEmpty) {
+      val msg = "While assigning a fitted_model to a WeakModel, the WeakModel must have the item_frequencies (considering the ARL mining)"
+      throw new IllegalArgumentException(msg)
+    }
+    this.copy(fitted_model = Some(fitted_model))
+  }
 
   def addNewValidationStatistics(validationStatistics: Seq[AgentAlgorithmStatistics]): WeakModel = {
     // Let's perform some integrity checks
@@ -338,7 +378,7 @@ final case class WeakModel(algorithm: Algorithm,
       throw new IllegalArgumentException(msg)
     }
 
-    val illegalStatistics = this.validation_statistics
+    val illegalStatistics = this.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics])
       .map(s => (s.agent_model.agent_id, s.agent_statistics.agent_id, s.algorithm.name)) // Convert to (Agent, Agent, Algorithm) to check the equality without the statistics
       .toSet
       .intersect(
@@ -350,7 +390,7 @@ final case class WeakModel(algorithm: Algorithm,
     }
 
     // We are good to go!
-    this.copy(validation_statistics = this.validation_statistics ++ validationStatistics)
+    this.copy(validation_statistics = Some(this.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics]) ++ validationStatistics))
   }
 
   def withCalculatedStatistics(calculated_statistics: Seq[Parameter]): WeakModel = {
@@ -359,6 +399,10 @@ final case class WeakModel(algorithm: Algorithm,
 
   def withWeight(weight: Double): WeakModel = {
     this.copy(weight = Some(weight))
+  }
+
+  def withFreqItemsetAndAssociationRules(frequent_itemsets: Seq[FrequentItemset], association_rules: Seq[AssociationRule]): WeakModel = {
+    this.copy(frequent_itemsets = Some(frequent_itemsets), association_rules = Some(association_rules))
   }
 
 }
@@ -396,7 +440,8 @@ final case class ModelValidationResult(model_id: String,
 final case class ModelTestRequest(model_id: String,
                                   dataset_id: String,
                                   agent: Agent,
-                                  boosted_models: Seq[BoostedModel]) extends ModelClass
+                                  boosted_models: Seq[BoostedModel],
+                                  submitted_by: String) extends ModelClass
 
 final case class ModelTestResult(model_id: String,
                                  dataset_id: String,
@@ -417,8 +462,47 @@ final case class ProspectiveStudy(prospective_study_id: Option[String],
 
 final case class PredictionRequest(data_mining_model: DataMiningModel,
                                    identifier: String,
-                                   variables: Seq[Parameter]) extends ModelClass
+                                   variables: Seq[Parameter],
+                                   submitted_by: String) extends ModelClass
 
 final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],
                                   prediction: Double) extends ModelClass
+
+final case class ARLFrequencyCalculationRequest(model_id: String,
+                                                dataset_id: String,
+                                                agent: Agent,
+                                                submitted_by: String) extends ModelClass
+
+final case class ARLFrequencyCalculationResult(model_id: String,
+                                               dataset_id: String,
+                                               agent: Agent,
+                                               item_frequencies: Seq[Parameter],
+                                               total_record_count: Long) extends ModelClass
+
+final case class AlgorithmItemSet(algorithm: Algorithm,
+                                  items: Seq[String]) extends ModelClass
+
+final case class ARLExecutionRequest(model_id: String,
+                                     dataset_id: String,
+                                     agent: Agent,
+                                     algorithm_set: Seq[AlgorithmItemSet],
+                                     submitted_by: String) extends ModelClass
+
+final case class ARLExecutionResult(model_id: String,
+                                    dataset_id: String,
+                                    agent: Agent,
+                                    arl_models: Seq[ARLModel]) extends ModelClass
+
+final case class ARLModel(algorithm: Algorithm,
+                          agent: Agent,
+                          frequent_itemsets: Seq[FrequentItemset],
+                          association_rules: Seq[AssociationRule]) extends ModelClass
+
+final case class FrequentItemset(items: Seq[String],
+                                 freq: Long) extends ModelClass
+
+final case class AssociationRule(antecedent: Seq[String],
+                                 consequent: Seq[String],
+                                 confidence: Double,
+                                 lift: Double) extends ModelClass

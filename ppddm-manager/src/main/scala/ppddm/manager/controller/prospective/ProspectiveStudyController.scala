@@ -163,7 +163,7 @@ object ProspectiveStudyController {
 
       logger.debug("Predicting with weak models...")
       val testPredictionTuples = predictionRequest.data_mining_model.getSelectedBoostedModel().weak_models.map { weakModel =>
-        val pipelineModel = PipelineModelEncoderDecoder.fromString(weakModel.fitted_model, ManagerDataStoreManager.getTmpPath())
+        val pipelineModel = PipelineModelEncoderDecoder.fromString(weakModel.fitted_model.get, ManagerDataStoreManager.getTmpPath())
         (weakModel.weight.get, pipelineModel.transform(dataFrame))
       }
 

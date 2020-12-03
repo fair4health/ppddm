@@ -63,11 +63,7 @@ trait DataMiningModelEndpoint {
                   DataMiningModelController.deleteDataMiningModel(model_id) flatMap { dataMiningModel =>
                     if(dataMiningModel.isDefined && test.isEmpty) {
                       // Delete the data for this DataMiningModel on Agents
-                      Future.sequence(Seq(
-                        DistributedDataMiningManager.deleteAgentsModelTrainingResults(dataMiningModel.get),
-                        DistributedDataMiningManager.deleteAgentsModelValidationResults(dataMiningModel.get),
-                        DistributedDataMiningManager.deleteAgentsModelTestResults(dataMiningModel.get)
-                      ))
+                      DistributedDataMiningManager.deleteDataMiningModelFromAgents(dataMiningModel.get)
                     } else {
                       Future.apply(Option.empty[DataMiningModel])
                     }
