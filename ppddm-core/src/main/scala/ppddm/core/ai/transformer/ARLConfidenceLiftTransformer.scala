@@ -32,6 +32,9 @@ class ARLConfidenceLiftTransformer(override val uid: String) extends Transformer
       // Confidence(M1 -> M2) is calculated as freq(M1 -> M2) / freq(M1)
       // Therefore, in the nominator, concatenate m1 and m2 (antecedent and consequent) and find its frequency
       // In denominator, find m1's (antecedent's) frequency
+      // In below code, row.getSeq[String](0) corresponds to getting the value of 0th column, which is "items" in Seq[String] format
+      // getLong(1) corresponds to getting value of "freq" column which is in position 1
+      // From Row datatype, this is the way to extract values.
       val nominator = $(freqItems).filter(row => row.getSeq[String](0).sorted == (m1 ++ m2).sorted).head.getLong(1)
       val denominator = $(freqItems).filter(row => row.getSeq[String](0).sorted == m1.sorted).head.getLong(1)
 

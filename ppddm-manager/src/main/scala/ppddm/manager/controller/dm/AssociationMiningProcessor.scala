@@ -153,6 +153,8 @@ object AssociationMiningProcessor {
           // Sum all total record counts in WeakModels so that we can find the combined support values.
           val combinedTotalRecordCount = boostedModel.weak_models.map(_.total_record_count.get).reduceLeft((a, b) => a + b)
           // Filter items which are above the combined threshold value. The ones who are below the threshold get eliminated.
+          // In below code, getLong(1) corresponds to getting the value of 1st column, which is "freq" in Double format.
+          // This is the way of extracting values from Raw datatype. The columns are: items(Seq[String]), freq(Double) respectively.
           val aboveThresholdItemFrequencies = combinedItemFrequencies.filter(i => (i.getLong(1).toDouble / combinedTotalRecordCount.toDouble) >= threshold)
           // Update the boosted model
           boostedModel.withCombinedFrequentItems(aboveThresholdItemFrequencies.map( i => Parameter(i.getString(0), DataType.INTEGER, i.getLong(1).toString)))
@@ -276,6 +278,9 @@ object AssociationMiningProcessor {
           }
           combinedAssociationRulesDF.show()
 
+          // In below code, row.getSeq[String](0) corresponds to getting the value of 0th column, which is "antecedent" in Seq[String] format.
+          // The same applies for the others. The columns are: antecedent(Seq[String]), consequent(Seq[String]), confidence(Double), lift(Double) respectively.
+          // From Row datatype, this is the way to extract values.
           val combinedAssociationRules = combinedAssociationRulesDF.collect().map(ar =>
             AssociationRule(ar.getSeq[String](0), ar.getSeq[String](1), ar.getDouble(2), ar.getDouble(3)))
 
