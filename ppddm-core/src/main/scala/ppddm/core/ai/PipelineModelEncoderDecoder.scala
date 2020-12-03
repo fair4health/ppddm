@@ -46,15 +46,22 @@ object PipelineModelEncoderDecoder {
    * @return A PipelineModel
    */
   def fromString(modelString: String, path: String): PipelineModel = {
-    val bytes = Base64.getDecoder.decode(modelString)
-    val stream = new ByteArrayInputStream(bytes)
-    ZipUtil.unpack(stream, new File(path))
-    val pipelineModel = PipelineModel.load(path)
-    stream.close()
+    try {
+      val bytes = Base64.getDecoder.decode(modelString)
+      val stream = new ByteArrayInputStream(bytes)
+      ZipUtil.unpack(stream, new File(path))
+      val pipelineModel = PipelineModel.load(path)
+      stream.close()
 
-    DataStoreManager.deleteDirectory(path)
+      DataStoreManager.deleteDirectory(path)
 
-    pipelineModel
+      pipelineModel
+    } catch {
+      case e:Exception =>
+        val msg = "Error while creating PipelineModel from the Base64 encoded fitted_model."
+        logger.error(msg, e)
+        throw e
+    }
   }
 
 }

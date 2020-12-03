@@ -221,6 +221,7 @@ object DataMiningModelController {
     // Indeed, for Association, we already have only one BoostedModel within its DataMiningModel
     val agentsWhoseARLExecutionRestulsAlreadyReceived = dataMiningModel.boosted_models.get.head
       .weak_models // Get the WeakModels of the BoostedModel
+      .filter(_.fitted_model.isDefined) // If fitted_model is set, it means ARL Execution Result has been retrieved. Otherwise, having a weak model means that only item frequency result has been retrieved
       .map(_.agent) // Collect the Agents of the WeakModels.
 
     (getSelectedAgents(dataMiningModel).toSet -- agentsWhoseARLExecutionRestulsAlreadyReceived).toSeq
@@ -303,12 +304,11 @@ object DataMiningModelController {
    * @return The updated DataMiningModel object if operation is successful, None otherwise.
    */
   def updateDataMiningModel(dataMiningModel: DataMiningModel): Future[Option[DataMiningModel]] = {
+    /* This if statement is commented out because when updating the data mining model with frequency result, we don't have any boosted model yet.
+       This statement is actually for prediction case. If you differentiate classification and ARL, keep this for classification.
     if(dataMiningModel.boosted_models.isEmpty || dataMiningModel.boosted_models.get.isEmpty) {
       throw new IllegalArgumentException(s"A data mining mode must include at least one boosted model at this point (while updating it). model_id:${dataMiningModel.model_id.get}")
-    }
-    if(!dataMiningModel.boosted_models.get.exists(bm => bm.selection_status.isDefined && bm.selection_status.get == SelectionStatus.SELECTED)) {
-      throw new IllegalArgumentException(s"At least one of the boosted models of this data mining model must be SELECTED while updating it. model_id:${dataMiningModel.model_id.get}")
-    }
+    }*/
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
       dataMiningModel.withUpdatedDataMiningState(),

@@ -150,7 +150,7 @@ object AssociationMiningProcessor {
           // Create Sequence of DataFrame from the item_frequencies provided in the WeakModels. Add new "valueLong" column to cast value presented in String field to Long.
           val itemFrequenciesSeq = boostedModel.weak_models.map(_.item_frequencies.get.toDF().withColumn("valueLong", col("value").cast(LongType)))
           // Union all item frequencies, group them by name and sum values.
-          val combinedItemFrequencies = itemFrequenciesSeq.reduceLeft((a, b) => a.union(b)).groupBy("name").sum("valueLong").select("name", "valueLong").collect()
+          val combinedItemFrequencies = itemFrequenciesSeq.reduceLeft((a, b) => a.union(b)).groupBy("name").sum("valueLong").collect()
           // Sum all total record counts in WeakModels so that we can find the combined support values.
           val combinedTotalRecordCount = boostedModel.weak_models.map(_.total_record_count.get).reduceLeft((a, b) => a + b)
           // Filter items which are above the combined threshold value. The ones who are below the threshold get eliminated.

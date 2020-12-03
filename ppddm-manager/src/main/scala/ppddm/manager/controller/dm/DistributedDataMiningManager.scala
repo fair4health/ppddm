@@ -437,9 +437,8 @@ object DistributedDataMiningManager {
     // Get all Agents of this DataMiningModel to which frequency calculation requests will be POSTed
     val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
 
-    logger.debug("I will invoke the frequency calculation endpoints of {} agents with agent-ids: {} for {} number of BoostedModels " +
-      "where the Algorithms are {}",
-      agents.length, agents.map(_.agent_id).mkString(","), dataMiningModel.boosted_models.get.length, dataMiningModel.boosted_models.get.map(_.algorithm.name).mkString(","))
+    logger.debug("I will invoke the frequency calculation endpoints of {} agents with agent-ids: {} for the Algorithms {}",
+      agents.length, agents.map(_.agent_id).mkString(","), dataMiningModel.algorithms.map(_.name).mkString(","))
 
     Future.sequence(agents.map(invokeARLFrequencyCalculation(_, dataMiningModel))) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }
