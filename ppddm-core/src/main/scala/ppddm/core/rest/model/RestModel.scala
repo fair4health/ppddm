@@ -203,10 +203,10 @@ final case class DataMiningModel(model_id: Option[String],
                                  dataset: Dataset,
                                  name: String,
                                  description: String,
-                                 variable_configurations: Seq[VariableConfiguration],
+                                 variable_configurations: Option[Seq[VariableConfiguration]], // Prediction
                                  algorithms: Seq[Algorithm],
-                                 training_size: Double,
-                                 test_size: Double,
+                                 training_size: Option[Double], // Prediction
+                                 test_size: Option[Double], // Prediction
                                  boosted_models: Option[Seq[BoostedModel]],
                                  data_mining_state: Option[DataMiningState],
                                  created_by: String,
@@ -253,7 +253,7 @@ final case class DataMiningModel(model_id: Option[String],
 final case class VariableConfiguration(variable: Variable,
                                        encoding_type: Option[CategoricalEncodingType],
                                        missing_data_operation: Option[MissingDataOperationType],
-                                       missing_data_specific_value: Option[Double])
+                                       missing_data_specific_value: Option[Double]) extends ModelClass
 
 final case class BoostedModel(algorithm: Algorithm,
                               weak_models: Seq[WeakModel],

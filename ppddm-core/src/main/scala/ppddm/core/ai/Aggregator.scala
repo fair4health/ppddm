@@ -35,8 +35,13 @@ object Aggregator {
 
       logger.debug("In a boosted model, calculating normalized weight of each weak model...")
       val weakModelsWithNormalizedWeight = updatedBoostedModel.weak_models map { weakModel =>
-        val normalizedWeight = weakModel.weight.get / weightSum // Normalize the weights
+        var normalizedWeight = weakModel.weight.get / weightSum // Normalize the weights
         logger.debug(s"Normalized weight of a weak model: ${normalizedWeight}")
+        if (normalizedWeight.isNaN || normalizedWeight == 0.0) {
+          logger.debug(s"We don't want normalizedWeight to be NaN or zero. Our data is not good (e.g. there may be no TP or FP). In this case, give each weak model the same weight.")
+          normalizedWeight = 1.0 / updatedBoostedModel.weak_models.length.toDouble
+          logger.debug(s"Weight of a weak model: ${normalizedWeight}")
+        }
         weakModel.withWeight(normalizedWeight)
       }
       logger.debug("Finished calculating weights.")
