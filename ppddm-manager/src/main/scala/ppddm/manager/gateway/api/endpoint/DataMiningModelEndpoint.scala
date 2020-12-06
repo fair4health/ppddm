@@ -66,7 +66,7 @@ trait DataMiningModelEndpoint {
                       // Delete the data for this DataMiningModel on Agents
                       DistributedDataMiningManager.deleteDataMiningModelFromAgents(dataMiningModel.get)
                     } else {
-                      Future { Done }//apply(Option.empty[DataMiningModel])
+                      Future { Done }
                     }
                   }
                 }
