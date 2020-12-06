@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.Authorization
 import org.junit.runner.RunWith
 import org.specs2.runner.JUnitRunner
-import ppddm.core.rest.model.DataMiningModel
+import ppddm.core.rest.model.{DataMiningModel, Project}
 import ppddm.manager.PPDDMManagerEndpointTest
 import ppddm.manager.config.ManagerConfig
 import ppddm.core.rest.model.Json4sSupport._
@@ -16,6 +16,10 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
+  val projectRequest: Project =
+    Source.fromResource("project.json").mkString
+      .extract[Project]
+
   val bareDataMiningModel: DataMiningModel =
     Source.fromResource("dataminingmodel.json").mkString
       .extract[DataMiningModel]
@@ -24,6 +28,7 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
     Source.fromResource("dataminingmodel-with-boostedmodels.json").mkString
       .extract[DataMiningModel]
 
+  var createdProject: Project = _
   var createdBareDataMiningModel: DataMiningModel = _
   var createdFullDataMiningModel: DataMiningModel = _
 
@@ -36,12 +41,21 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
       }
     }
 
+    "create a new project" in {
+      Post("/" + ManagerConfig.baseUri + "/project", projectRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual Created
+
+        createdProject = responseAs[Project]
+        createdProject.name === projectRequest.name
+      }
+    }
+
     "create a bare new data mining model" in {
-      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", bareDataMiningModel) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", bareDataMiningModel.copy(project_id = createdProject.project_id.get)) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual Created
 
         createdBareDataMiningModel = responseAs[DataMiningModel]
-        createdBareDataMiningModel.project_id shouldEqual bareDataMiningModel.project_id
+        createdBareDataMiningModel.project_id shouldEqual createdProject.project_id.get
         createdBareDataMiningModel.dataset.dataset_id.get shouldEqual bareDataMiningModel.dataset.dataset_id.get
       }
       Get("/" + ManagerConfig.baseUri + "/dm-model/" + createdBareDataMiningModel.model_id.get) ~> Authorization(bearerToken) ~> routes ~> check {
@@ -55,11 +69,11 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
     }
 
     "create a full new data mining model" in {
-      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", fullDataMiningModel) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", fullDataMiningModel.copy(project_id = createdProject.project_id.get)) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual Created
 
         createdFullDataMiningModel = responseAs[DataMiningModel]
-        createdFullDataMiningModel.project_id shouldEqual fullDataMiningModel.project_id
+        createdFullDataMiningModel.project_id shouldEqual createdProject.project_id.get
         createdFullDataMiningModel.dataset.dataset_id.get shouldEqual fullDataMiningModel.dataset.dataset_id.get
         createdFullDataMiningModel.boosted_models.get.length shouldEqual fullDataMiningModel.boosted_models.get.length
       }
@@ -86,7 +100,7 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
     "return all data mining models of project" in {
       // Add another data mining model with the same project id
       var newModelID: String = ""
-      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", bareDataMiningModel) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", bareDataMiningModel.copy(project_id = createdProject.project_id.get)) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual Created
 
         val response: DataMiningModel = responseAs[DataMiningModel]
@@ -99,16 +113,22 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
         response.length === 3
       }
       // Delete the newly added data mining model
-      Delete("/" + ManagerConfig.baseUri + "/dm-model/" + newModelID) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + ManagerConfig.baseUri + "/dm-model/" + newModelID + "?_test") ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "delete the created data mining models" in {
-      Delete("/" + ManagerConfig.baseUri + "/dm-model/" + createdBareDataMiningModel.model_id.get) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + ManagerConfig.baseUri + "/dm-model/" + createdBareDataMiningModel.model_id.get + "?_test") ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
-      Delete("/" + ManagerConfig.baseUri + "/dm-model/" + createdFullDataMiningModel.model_id.get) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + ManagerConfig.baseUri + "/dm-model/" + createdFullDataMiningModel.model_id.get + "?_test") ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "delete the project" in {
+      Delete("/" + ManagerConfig.baseUri + "/project/" + createdProject.project_id.get) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }

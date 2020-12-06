@@ -1,5 +1,6 @@
 package ppddm.manager.gateway.api.endpoint
 
+import akka.Done
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -65,7 +66,7 @@ trait DataMiningModelEndpoint {
                       // Delete the data for this DataMiningModel on Agents
                       DistributedDataMiningManager.deleteDataMiningModelFromAgents(dataMiningModel.get)
                     } else {
-                      Future.apply(Option.empty[DataMiningModel])
+                      Future { Done }//apply(Option.empty[DataMiningModel])
                     }
                   }
                 }
