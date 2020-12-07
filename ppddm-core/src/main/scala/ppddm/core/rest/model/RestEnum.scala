@@ -29,7 +29,6 @@ object MissingDataOperationType extends Enumeration {
   val SET_MIN = "set_min"
   val SET_MAX = "set_max"
   val SET_AVERAGE = "set_average"
-  val SET_MEAN = "set_mean"
   val SET_MEDIAN = "set_median"
   val SET_SPECIFIC = "set_specific"
 }

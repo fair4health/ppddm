@@ -197,7 +197,9 @@ object StatisticsCalculator {
       }
     })
 
-    tp / (tp + fp)
+    val result = tp / (tp + fp)
+
+    if (result.isNaN) 1.0 else result // If result is NaN, it means that TP + FP is zero. Your data is not good.
   }
 
   /**
@@ -217,7 +219,9 @@ object StatisticsCalculator {
       }
     })
 
-    tp / (tp + fn)
+    val result = tp / (tp + fn)
+
+    if (result.isNaN) 1.0 else result // If result is NaN, it means that TP + FN is zero. Your data is not good.
   }
 
   /**
@@ -229,6 +233,8 @@ object StatisticsCalculator {
     val precision = calculatePrecision(statistics)
     val recall = calculateRecall(statistics)
 
-    (2 * precision * recall) / (precision + recall)
+    val result = (2 * precision * recall) / (precision + recall)
+
+    if (result.isNaN) 1.0 else result // If result is NaN, it means that precision + recall is zero. Your data is not good.
   }
 }
