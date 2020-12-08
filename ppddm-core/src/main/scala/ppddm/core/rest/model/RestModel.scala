@@ -467,7 +467,8 @@ final case class PredictionRequest(data_mining_model: DataMiningModel,
 
 final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],
-                                  prediction: Double) extends ModelClass
+                                  prediction: Double,
+                                  probability: Option[Double]) extends ModelClass
 
 final case class ARLFrequencyCalculationRequest(model_id: String,
                                                 dataset_id: String,

@@ -169,10 +169,10 @@ object ProspectiveStudyController {
 
       logger.debug("Predicting with boosted model...")
       val testPredictionDF = Predictor.predictWithWeightedAverageOfPredictions(testPredictionTuples)
-      val predictionArray = testPredictionDF.select("prediction").rdd.map(r => (r.getDouble(0))).collect()
+      val pArray = testPredictionDF.select("prediction", "positiveProbability").rdd.map(r => (r.getDouble(0), r.getDouble(1))).collect()
 
       logger.debug(s"PredictionResult is ready for patient id: ${predictionRequest.identifier} and data_mining_model_id: ${predictionRequest.data_mining_model.model_id}")
-      PredictionResult(predictionRequest.identifier, predictionRequest.variables, predictionArray.head)
+      PredictionResult(predictionRequest.identifier, predictionRequest.variables, pArray.head._1, Some(pArray.head._2))
     }
   }
 }
