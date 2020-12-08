@@ -102,6 +102,7 @@ object DataAnalysisManager {
         val labelStringIndexer = new StringIndexer()
           .setInputCol(dependentVariableOption.get.variable.name)
           .setOutputCol("label")
+          .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
         pipelineStages += labelStringIndexer
       }
 
