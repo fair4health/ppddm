@@ -2,7 +2,6 @@ package ppddm.agent.api.endpoint
 
 import java.time
 import java.util.concurrent.TimeUnit
-
 import akka.Done
 import akka.actor.Cancellable
 import akka.http.scaladsl.model.StatusCodes._
@@ -12,8 +11,7 @@ import org.specs2.matcher.MatchResult
 import org.specs2.runner.JUnitRunner
 import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
-import ppddm.core.rest.model.{BoostedModel, DataPreparationRequest, ModelTestRequest, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest}
-
+import ppddm.core.rest.model.{ARLExecutionRequest, ARLFrequencyCalculationRequest, ARLFrequencyCalculationResult, AlgorithmItemSet, BoostedModel, DataPreparationRequest, ModelTestRequest, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest}
 import ppddm.core.rest.model.Json4sSupport._
 
 import scala.concurrent.Promise
@@ -34,6 +32,9 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
   lazy val modelTrainingRequest2: ModelTrainingRequest =
     Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/model-training-request2.json")).mkString
       .extract[ModelTrainingRequest]
+  lazy val arlExecutionRequest: ARLExecutionRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/arl-execution-requests/arl-execution-request.json")).mkString
+      .extract[ARLExecutionRequest]
 
   var modelTrainingResult: ModelTrainingResult = _
   var modelTestRequest: ModelTestRequest = _
@@ -253,6 +254,79 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
 
     "delete the model test result" in {
       Delete("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "start ARL frequency calculation" in {
+      val arlFrequencyCalculationRequest: ARLFrequencyCalculationRequest =
+        ARLFrequencyCalculationRequest(modelTrainingRequest1.model_id, modelTrainingRequest1.dataset_id, modelTrainingRequest1.agent, "test")
+
+      Post("/" + AgentConfig.baseUri + "/dm/arl/frequency", arlFrequencyCalculationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "ask for the ARL frequency calculation result" in {
+      val askForFrequencyCalculationResultPromise: Promise[Done] = Promise[Done]
+      var askForFrequencyCalculationResultScheduler: Option[Cancellable] = None
+
+      // Set a scheduler to ask if dataset and statistics are ready
+      askForFrequencyCalculationResultScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
+        time.Duration.ZERO,
+        time.Duration.ofSeconds(2),
+        () => {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+            if (status == OK) {
+              // Complete promise and cancel the scheduler
+              askForFrequencyCalculationResultPromise.success(Done)
+              askForFrequencyCalculationResultScheduler.get.cancel()
+            }
+          }
+        },
+        actorSystem.dispatcher
+      ))
+      // Try 10 times at 2-second intervals
+      askForFrequencyCalculationResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+    }
+
+    "start ARL execution" in {
+      Post("/" + AgentConfig.baseUri + "/dm/arl/execute", arlExecutionRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "ask for the ARL execution result" in {
+      val askForARLExecutionResultPromise: Promise[Done] = Promise[Done]
+      var askForARLExecutionResultScheduler: Option[Cancellable] = None
+
+      // Set a scheduler to ask if dataset and statistics are ready
+      askForARLExecutionResultScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
+        time.Duration.ZERO,
+        time.Duration.ofSeconds(2),
+        () => {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+            if (status == OK) {
+              // Complete promise and cancel the scheduler
+              askForARLExecutionResultPromise.success(Done)
+              askForARLExecutionResultScheduler.get.cancel()
+            }
+          }
+        },
+        actorSystem.dispatcher
+      ))
+      // Try 10 times at 2-second intervals
+      askForARLExecutionResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+    }
+
+    "delete the ARL frequency calculation result" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "delete the ARL execution result" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
