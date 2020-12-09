@@ -16,14 +16,19 @@ object Predictor {
 
     import sparkSession.implicits._
 
+    val vectorToArray = udf( (xs: org.apache.spark.ml.linalg.Vector) => xs.toArray ) // To convert Vector to Array in "probability" column
+
     if (testPredictionTuples.length == 1) { // We have only one DataFrame, return it directly as we don't need to do any calculation
       testPredictionTuples.head._2
+        .withColumn("weightedPrediction", col("prediction"))
+        .withColumn("probabilityArray", vectorToArray($"probability"))
+        .select($"pid", $"label", $"weightedPrediction",
+          $"probabilityArray".getItem(0).as("negativeProbability"),
+          $"probabilityArray".getItem(1).as("positiveProbability"))
     } else { // Predict with weighted average of predictions
-
       // Introduce three new columns: "weightedPrediction", "negativeProbability", "positiveProbability"
       // "weightedPrediction" with 0.0 predictions as negative and 1.0 predictions as positive by also multiplying them with the weight of corresponding weak model
       // "negativeProbability" and "positiveProbability" with probabilities multiplied by the weight of corresponding weak model
-      val vectorToArray = udf( (xs: org.apache.spark.ml.linalg.Vector) => xs.toArray ) // To convert Vector to Array in "probability" column
       val weightedPredictionAndProbabilityDFs = testPredictionTuples.map { t =>
         t._2.withColumn("weightedPrediction", when(col("prediction") === 0.0, -1 * t._1).otherwise(t._1))
             .withColumn("probabilityArray", vectorToArray($"probability"))

@@ -4,7 +4,7 @@
   "agent": {
     "agent_id": "test",
     "name": "test",
-    "endpoint": "test"
+    "endpoint": "http://localhost:8000/agent"
   },
   "algorithms": [
     {

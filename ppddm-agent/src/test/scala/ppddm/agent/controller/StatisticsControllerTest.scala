@@ -22,9 +22,9 @@ class StatisticsControllerTest extends Specification with SparkSessionWrapper {
              |null    |str3    |3      |
              |str4    |null    |4      |
    */
-  val tuples: Seq[(String, String, Double)] = Seq(("str1", "str1", 1), (null, "str2", 2), (null, "str3", 3), ("str4", null, 4))
-  val dataFrame: DataFrame = tuples.toDF("strings1", "strings2", "numbers")
-  val variables: Seq[Variable] = Seq(
+  lazy val tuples: Seq[(String, String, Double)] = Seq(("str1", "str1", 1), (null, "str2", 2), (null, "str3", 3), ("str4", null, 4))
+  lazy val dataFrame: DataFrame = tuples.toDF("strings1", "strings2", "numbers")
+  lazy val variables: Seq[Variable] = Seq(
     Variable(
       name = "strings1",
       description = None,
@@ -48,7 +48,7 @@ class StatisticsControllerTest extends Specification with SparkSessionWrapper {
       variable_type = "independent")
   )
 
-  val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variables)
+  lazy val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variables)
 
   sequential
 

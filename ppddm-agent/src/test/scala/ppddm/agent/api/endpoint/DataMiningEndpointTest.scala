@@ -2,7 +2,6 @@ package ppddm.agent.api.endpoint
 
 import java.time
 import java.util.concurrent.TimeUnit
-
 import akka.Done
 import akka.actor.Cancellable
 import akka.http.scaladsl.model.StatusCodes._
@@ -12,8 +11,7 @@ import org.specs2.matcher.MatchResult
 import org.specs2.runner.JUnitRunner
 import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
-import ppddm.core.rest.model.{BoostedModel, DataPreparationRequest, ModelTestRequest, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest}
-
+import ppddm.core.rest.model.{ARLExecutionRequest, ARLFrequencyCalculationRequest, ARLFrequencyCalculationResult, AlgorithmItemSet, BoostedModel, DataPreparationRequest, ModelTestRequest, ModelTrainingRequest, ModelTrainingResult, ModelValidationRequest}
 import ppddm.core.rest.model.Json4sSupport._
 
 import scala.concurrent.Promise
@@ -25,22 +23,23 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val dataPreparationRequest: DataPreparationRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-with-variables.json")).mkString
+  lazy val dataPreparationRequest: DataPreparationRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/data-preparation-request.json")).mkString
       .extract[DataPreparationRequest]
-  val modelTrainingRequest1: ModelTrainingRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/request1.json")).mkString
+  lazy val modelTrainingRequest1: ModelTrainingRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/model-training-request1.json")).mkString
       .extract[ModelTrainingRequest]
-  val modelTrainingRequest2: ModelTrainingRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/request2.json")).mkString
+  lazy val modelTrainingRequest2: ModelTrainingRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/model-training-requests/model-training-request2.json")).mkString
       .extract[ModelTrainingRequest]
-  var modelTestRequest: ModelTestRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/model-test-requests/request1.json")).mkString
-      .extract[ModelTestRequest]
+  lazy val arlExecutionRequest: ARLExecutionRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/arl-execution-requests/arl-execution-request.json")).mkString
+      .extract[ARLExecutionRequest]
 
-  val modelTrainingRequests: Seq[ModelTrainingRequest] = Seq(modelTrainingRequest1, modelTrainingRequest2)
   var modelTrainingResult: ModelTrainingResult = _
-  var modelValidationRequests: Seq[ModelValidationRequest] = Seq.empty[ModelValidationRequest]
+  var modelTestRequest: ModelTestRequest = _
+  var modelValidationRequest1: ModelValidationRequest = _
+  var modelValidationRequest2: ModelValidationRequest = _
 
   /**
    * Asks model training result repeatedly with a scheduler and when it is ready, prepares the validation and test requests
@@ -58,23 +57,23 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       time.Duration.ofSeconds(2),
       () => {
         Get("/" + AgentConfig.baseUri + "/dm/classification/train/" + model_id) ~> Authorization(bearerToken) ~> routes ~> check {
-          if (status.intValue() == 200) {
+          if (status == OK) {
             // Parse model training result
             modelTrainingResult = responseAs[ModelTrainingResult]
 
-            // Create model validation request body from training result
-            modelValidationRequests = modelValidationRequests :+ ModelValidationRequest(
-              model_id = modelTrainingResult.model_id,
-              dataset_id = modelTrainingResult.dataset_id,
-              agent = modelTrainingResult.agent,
-              weak_models = modelTrainingResult.algorithm_training_models,
-              submitted_by = "test")
-
-            // Create model test request body for only model1
             if (model_id == "model1") {
+              // Create model validation request body from training result
+              modelValidationRequest1 = ModelValidationRequest(
+                model_id = modelTrainingResult.model_id,
+                dataset_id = modelTrainingResult.dataset_id,
+                agent = modelTrainingResult.agent,
+                weak_models = modelTrainingResult.algorithm_training_models,
+                submitted_by = "test")
+
+              // Create model test request body for only model1
               val boostedModels: Seq[BoostedModel] = Seq(
                 BoostedModel(
-                  algorithm = modelTestRequest.boosted_models.head.algorithm,
+                  algorithm = modelTrainingRequest1.algorithms.head,
                   weak_models = Seq(modelTrainingResult.algorithm_training_models.head.copy(weight = Some(1.0))),
                   combined_frequent_items = None,
                   combined_total_record_count = None,
@@ -83,7 +82,15 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
                   calculated_test_statistics = None,
                   selection_status = None
                 ))
-              modelTestRequest = ModelTestRequest(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, boostedModels, "test")
+              modelTestRequest = ModelTestRequest(modelTrainingResult.model_id, modelTrainingResult.dataset_id, modelTrainingResult.agent, boostedModels, "test")
+            } else if (model_id == "model2") {
+              // Create model validation request body from training result
+              modelValidationRequest2 = ModelValidationRequest(
+                model_id = modelTrainingResult.model_id,
+                dataset_id = modelTrainingResult.dataset_id,
+                agent = modelTrainingResult.agent,
+                weak_models = modelTrainingResult.algorithm_training_models,
+                submitted_by = "test")
             }
 
             // Complete promise and cancel the scheduler
@@ -114,7 +121,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       time.Duration.ofSeconds(2),
       () => {
         Get("/" + AgentConfig.baseUri + "/dm/classification/validate/" + model_id) ~> Authorization(bearerToken) ~> routes ~> check {
-          if (status.intValue() == 200) {
+          if (status == OK) {
             askForValidationResultPromise.success(Done)
             askForValidationResultScheduler.get.cancel()
           }
@@ -144,7 +151,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ofSeconds(2),
         () => {
           Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
-            if (status.intValue() == 200) {
+            if (status == OK) {
               // Complete promise and cancel the scheduler
               askForDatasetPromise.success(Done)
               askForDatasetScheduler.get.cancel()
@@ -163,33 +170,42 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       }
     }
 
+    "ask for model training results - request1" in {
+      askForTrainingResult(modelTrainingRequest1.model_id)
+    }
+
     "start model training - request2" in {
       Post("/" + AgentConfig.baseUri + "/dm/classification/train", modelTrainingRequest2) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
-    "ask for model training results whether it is ready or not" in {
-      modelTrainingRequests.map { modelTrainingRequest =>
-        askForTrainingResult(modelTrainingRequest.model_id)
+    "ask for model training results - request2" in {
+      askForTrainingResult(modelTrainingRequest2.model_id)
+    }
+
+    "start model validation - request 1" in {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest1) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
       }
     }
 
-    "validate the model" in {
-      modelValidationRequests.map { modelValidationRequest =>
-        Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
-          status shouldEqual OK
-        }
+    "ask for model validation results - request1" in {
+      askForValidationResult(modelValidationRequest1.model_id)
+    }
+
+    "start model validation - request 2" in {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest2) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
       }
     }
 
-    "ask for model validation results" in {
-      modelValidationRequests.map { modelValidationRequest =>
-        askForValidationResult(modelValidationRequest.model_id)
-      }
+    "ask for model validation results - request2" in {
+      askForValidationResult(modelValidationRequest2.model_id)
     }
 
-    "test the boosted model" in {
+
+    "test the boosted model - request 1" in {
       Post("/" + AgentConfig.baseUri + "/dm/classification/test", modelTestRequest) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
@@ -205,7 +221,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ofSeconds(2),
         () => {
           Get("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
-            if (status.intValue() == 200) {
+            if (status == OK) {
               // Complete promise and cancel the scheduler
               askForTestResultPromise.success(Done)
               askForTestResultScheduler.get.cancel()
@@ -218,30 +234,105 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       askForTestResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
     }
 
-    "delete the created dataset and statistics" in {
-      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+    "delete the training results" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest1.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest2.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
-    "delete the training model" in {
-      modelTrainingRequests.map { modelTrainingRequest =>
-        Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
-          status shouldEqual OK
-        }
+    "delete the validation results" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest1.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
       }
-    }
-
-    "delete the validation result" in {
-      modelValidationRequests.map { modelValidationRequest =>
-        Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
-          status shouldEqual OK
-        }
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest2.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
       }
     }
 
     "delete the model test result" in {
       Delete("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "start ARL frequency calculation" in {
+      val arlFrequencyCalculationRequest: ARLFrequencyCalculationRequest =
+        ARLFrequencyCalculationRequest(modelTrainingRequest1.model_id, modelTrainingRequest1.dataset_id, modelTrainingRequest1.agent, "test")
+
+      Post("/" + AgentConfig.baseUri + "/dm/arl/frequency", arlFrequencyCalculationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "ask for the ARL frequency calculation result" in {
+      val askForFrequencyCalculationResultPromise: Promise[Done] = Promise[Done]
+      var askForFrequencyCalculationResultScheduler: Option[Cancellable] = None
+
+      // Set a scheduler to ask if dataset and statistics are ready
+      askForFrequencyCalculationResultScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
+        time.Duration.ZERO,
+        time.Duration.ofSeconds(2),
+        () => {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+            if (status == OK) {
+              // Complete promise and cancel the scheduler
+              askForFrequencyCalculationResultPromise.success(Done)
+              askForFrequencyCalculationResultScheduler.get.cancel()
+            }
+          }
+        },
+        actorSystem.dispatcher
+      ))
+      // Try 10 times at 2-second intervals
+      askForFrequencyCalculationResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+    }
+
+    "start ARL execution" in {
+      Post("/" + AgentConfig.baseUri + "/dm/arl/execute", arlExecutionRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "ask for the ARL execution result" in {
+      val askForARLExecutionResultPromise: Promise[Done] = Promise[Done]
+      var askForARLExecutionResultScheduler: Option[Cancellable] = None
+
+      // Set a scheduler to ask if dataset and statistics are ready
+      askForARLExecutionResultScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
+        time.Duration.ZERO,
+        time.Duration.ofSeconds(2),
+        () => {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+            if (status == OK) {
+              // Complete promise and cancel the scheduler
+              askForARLExecutionResultPromise.success(Done)
+              askForARLExecutionResultScheduler.get.cancel()
+            }
+          }
+        },
+        actorSystem.dispatcher
+      ))
+      // Try 10 times at 2-second intervals
+      askForARLExecutionResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+    }
+
+    "delete the ARL frequency calculation result" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "delete the ARL execution result" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "delete the created dataset and statistics" in {
+      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
       }
     }
