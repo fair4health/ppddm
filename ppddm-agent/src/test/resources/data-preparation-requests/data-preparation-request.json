@@ -7,17 +7,31 @@
     "description": "Contains birthdate and gender",
     "variables": [
       {
-        "name": "Birthdate",
-        "fhir_query": "/Patient",
-        "fhir_path": "value:Patient.birthDate",
-        "variable_data_type": "categorical",
-        "variable_type": "independent"
-      },
-      {
         "name": "gender",
         "fhir_query": "/Patient",
         "fhir_path": "value:Patient.gender",
         "variable_data_type": "categorical",
+        "variable_type": "independent"
+      },
+      {
+        "name": "age",
+        "fhir_query": "/Patient",
+        "fhir_path": "value:Patient.birthDate.getPeriod($this, now(), 'years')",
+        "variable_data_type": "numeric",
+        "variable_type": "independent"
+      },
+      {
+        "name": "number_of_medications",
+        "fhir_query": "/Observation?code=35000",
+        "fhir_path": "value:Observation.valueQuantity.value",
+        "variable_data_type": "numeric",
+        "variable_type": "independent"
+      },
+      {
+        "name": "insulin",
+        "fhir_query": "/MedicationStatement?code=A10AD04",
+        "fhir_path": "value:exists",
+        "variable_data_type": "numeric",
         "variable_type": "dependent"
       }
     ],
@@ -26,7 +40,7 @@
   },
   "eligibility_criteria": [
     {
-      "fhir_query": "/Patient"
+      "fhir_query": "/Patient?address-country=test-country"
     }
   ],
   "agent": {

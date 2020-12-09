@@ -1,0 +1,811 @@
+{
+  "resourceType": "Bundle",
+  "type": "batch",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-1",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011301"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1922-06-21",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-1"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-2",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011302"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1955-02-20",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-2"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-3",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011303"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1926-06-16",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-3"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-4",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011304"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1941-06-20",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-4"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-5",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011305"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1923-07-17",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-5"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-6",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011306"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1934-03-05",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-6"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-7",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011307"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1923-06-28",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-7"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-8",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011308"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1920-12-26",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-8"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-9",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "011309"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1927-01-29",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-9"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "test-patient-10",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Patient-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-10-19T18:55:16.835Z"
+        },
+        "identifier": [
+          {
+            "system": "http://f4h.srdc.com.tr/fhir/demos/patient_id",
+            "value": "0113010"
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1957-11-09",
+        "address": [
+          {
+            "country": "test-country"
+          }
+        ]
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Patient/test-patient-10"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-1",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20001"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-1"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 3,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-1"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-2",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20002"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-2"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 2,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-2"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-3",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20003"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-3"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 5,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-3"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-4",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20004"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-4"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 0,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-4"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-5",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20005"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-5"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 1,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-5"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-6",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20006"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-6"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 5,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-6"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-7",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20007"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-7"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 1,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-7"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-8",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20008"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-8"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 0,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-8"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-9",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "20009"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-9"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 2,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-9"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "test-observation-10",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/Observation-lab-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:48:38.721Z"
+        },
+        "identifier": [
+          {
+            "value": "200010"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "code": "35000"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-10"
+        },
+        "effectiveDateTime": "2010-07-17T00:00:00.000Z",
+        "valueQuantity": {
+          "value": 0,
+          "unit": "count",
+          "system": "http://unitsofmeasure.org",
+          "code": "count"
+        }
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "Observation/test-observation-10"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "test-medication-1",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/MedicationStatement-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:45:47.349Z"
+        },
+        "identifier": [
+          {
+            "value": "30001"
+          }
+        ],
+        "status": "completed",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.whocc.no/atc",
+              "code": "A10AD04"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-1"
+        },
+        "effectiveDateTime": "2010-07-09T00:00:00.000Z"
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "MedicationStatement/test-medication-1"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "test-medication-4",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/MedicationStatement-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:45:47.349Z"
+        },
+        "identifier": [
+          {
+            "value": "30001"
+          }
+        ],
+        "status": "completed",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.whocc.no/atc",
+              "code": "A10AD04"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-4"
+        },
+        "effectiveDateTime": "2010-07-09T00:00:00.000Z"
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "MedicationStatement/test-medication-4"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "id": "test-medication-7",
+        "meta": {
+          "profile": [
+            "http://hl7.eu/fhir/f4h/StructureDefinition/MedicationStatement-eu-f4h"
+          ],
+          "versionId": "1",
+          "lastUpdated": "2020-11-07T14:45:47.349Z"
+        },
+        "identifier": [
+          {
+            "value": "30001"
+          }
+        ],
+        "status": "completed",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.whocc.no/atc",
+              "code": "A10AD04"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/test-patient-7"
+        },
+        "effectiveDateTime": "2010-07-09T00:00:00.000Z"
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "MedicationStatement/test-medication-7"
+      }
+    }
+  ]
+}

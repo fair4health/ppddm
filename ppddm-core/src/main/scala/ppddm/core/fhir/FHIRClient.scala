@@ -49,23 +49,10 @@ class FHIRClient(host: String,
       }))(Keep.left)
       .run()
 
-  def searchByUrl(query: String): Future[JObject] = {
-    logger.debug("Querying FHIR with {}", query)
-    //Separate the resource type and parameters
-    val resourceTypeAndParams = query.split("\\?")
-    val resourceType = Try(resourceTypeAndParams(0)).getOrElse("")
-    val params = Try(resourceTypeAndParams(1)).getOrElse("")
-
-    // Prepare http request
-    val request = HttpRequest(
-      uri = Uri(s"$fhirServerBaseURI$resourceType" + "/_search"), // use /_search endpoint to expand query size
-      method = HttpMethods.POST,
-      headers = defaultHeaders
-    ).withEntity(ContentTypes.`application/x-www-form-urlencoded`, params)
-
+  private def processRequest(httpRequest: HttpRequest): Future[JObject] = {
     // This is actually queue request but cant call it to prevent infinite loop
     val responsePromise = Promise[HttpResponse]()
-    val responseFuture = queue.offer(request -> responsePromise).flatMap {
+    val responseFuture = queue.offer(httpRequest -> responsePromise).flatMap {
       case QueueOfferResult.Enqueued => responsePromise.future
       case QueueOfferResult.Dropped => Future.failed(new RuntimeException("Queue overflowed. Try again later."))
       case QueueOfferResult.Failure(ex) => Future.failed(ex)
@@ -82,6 +69,35 @@ class FHIRClient(host: String,
         }
     }
   }
+
+  def searchByUrl(query: String): Future[JObject] = {
+    logger.debug("Querying FHIR with {}", query)
+    //Separate the resource type and parameters
+    val resourceTypeAndParams = query.split("\\?")
+    val resourceType = Try(resourceTypeAndParams(0)).getOrElse("")
+    val params = Try(resourceTypeAndParams(1)).getOrElse("")
+
+    // Prepare http request
+    val request = HttpRequest(
+      uri = Uri(s"$fhirServerBaseURI$resourceType" + "/_search"), // use /_search endpoint to expand query size
+      method = HttpMethods.POST,
+      headers = defaultHeaders
+    ).withEntity(ContentTypes.`application/x-www-form-urlencoded`, params)
+
+    processRequest(request)
+  }
+
+  def postBundle(bundle: String) = {
+    // Prepare http request
+    val request = HttpRequest(
+      uri = Uri(fhirServerBaseURI), // POST to base URI for batch Bundle transactions
+      method = HttpMethods.POST,
+      headers = defaultHeaders
+    ).withEntity(ContentTypes.`application/json`, bundle)
+
+    processRequest(request)
+  }
+
 }
 
 object FHIRClient {

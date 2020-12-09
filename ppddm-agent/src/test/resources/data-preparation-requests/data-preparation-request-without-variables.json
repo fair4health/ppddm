@@ -10,7 +10,7 @@
   },
   "eligibility_criteria": [
     {
-      "fhir_query": "/Patient"
+      "fhir_query": "/Patient?address-country=test-country"
     }
   ],
   "agent": {

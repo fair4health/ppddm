@@ -24,14 +24,14 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val dataPreparationRequestWithVariables: DataPreparationRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-with-variables.json")).mkString
+  lazy val dataPreparationRequestWithVariables: DataPreparationRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/data-preparation-request.json")).mkString
       .extract[DataPreparationRequest]
-  val dataPreparationRequestWithoutVariables: DataPreparationRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-without-variables.json")).mkString
+  lazy val dataPreparationRequestWithoutVariables: DataPreparationRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/data-preparation-request-without-variables.json")).mkString
       .extract[DataPreparationRequest]
-  val dataPreparationRequestOfZeroPatients: DataPreparationRequest =
-    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/request-of-zero-patients.json")).mkString
+  lazy val dataPreparationRequestOfZeroPatients: DataPreparationRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/data-preparation-request-of-zero-patients.json")).mkString
       .extract[DataPreparationRequest]
 
   sequential
@@ -71,7 +71,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ofSeconds(2),
         () => {
           Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithVariables.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
-            if (status.intValue() == 200) {
+            if (status == OK) {
               askForDatasetPromise.success(Done)
               askForDatasetScheduler.get.cancel()
             }
@@ -104,7 +104,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ofSeconds(2),
         () => {
           Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestOfZeroPatients.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
-            if (status.intValue() == 200) {
+            if (status == OK) {
               askForDatasetPromise.success(Done)
               askForDatasetScheduler.get.cancel()
             }
