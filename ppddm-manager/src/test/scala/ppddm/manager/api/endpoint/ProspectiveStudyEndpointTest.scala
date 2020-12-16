@@ -20,11 +20,11 @@ class ProspectiveStudyEndpointTest extends PPDDMManagerEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val predictionRequest: PredictionRequest =
+  lazy val predictionRequest: PredictionRequest =
     Source.fromResource("prospective-prediction-request.json").mkString
       .extract[PredictionRequest]
 
-  val prospectiveStudy: ProspectiveStudy =
+  lazy val prospectiveStudy: ProspectiveStudy =
     Source.fromResource("prospective-study.json").mkString
       .extract[ProspectiveStudy]
 
