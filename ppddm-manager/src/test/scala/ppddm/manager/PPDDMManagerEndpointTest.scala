@@ -26,7 +26,7 @@ trait PPDDMManagerEndpointTest extends Specification with Specs2RouteTest with B
   // Start PPDDM Manager
   override def beforeAll(): Unit = {
     ManagerSetup.init
-    bearerToken = OAuth2BearerToken(AuthManager.getAccessToken)
+    bearerToken = OAuth2BearerToken(AuthManager.getAccessToken.getOrElse("some-test-token-which-will-be-ignored"))
     routes = mainRoute(ManagerConfig.baseUri)
   }
   // Drop the database created for tests

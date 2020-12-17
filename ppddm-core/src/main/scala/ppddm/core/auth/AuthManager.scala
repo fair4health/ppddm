@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
+import scala.util.Try
 
 /**
  * This object manages the interaction with the authentication server and performs introspection queries
@@ -39,13 +40,8 @@ object AuthManager {
   // Default headers
   private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
 
-  def getAccessToken: String = {
-    if(loginResponse.isEmpty) {
-      val msg = s"There is no loginResponse (an accessToken) belonging to the ${this.username} to be used for the introspection requests."
-      logger.error(msg)
-      throw AuthException(msg)
-    }
-    loginResponse.get.access_token
+  def getAccessToken: Option[String] = {
+    Try(loginResponse.get.access_token).toOption
   }
 
   def init(loginURL: String, introspectionURL: String, username: String, password: String)(implicit system: ActorSystem): Unit = {
