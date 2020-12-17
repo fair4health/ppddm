@@ -12,9 +12,9 @@ import ppddm.core.rest.model.ProjectType.ProjectType
 import ppddm.core.rest.model.SelectionStatus.SelectionStatus
 import ppddm.core.rest.model.VariableDataType.VariableDataType
 import ppddm.core.rest.model.VariableType.VariableType
-import ppddm.core.util.URLUtil
+import ppddm.core.util.{JsonClass, URLUtil}
 
-sealed class ModelClass
+sealed class ModelClass extends JsonClass
 
 case class Project(project_id: Option[String],
                    name: String,

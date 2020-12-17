@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.http.caching.LfuCache
 import akka.http.caching.scaladsl.Cache
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.Accept
+import akka.http.scaladsl.model.headers.{Accept, Authorization, OAuth2BearerToken}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import com.typesafe.scalalogging.Logger
@@ -39,7 +39,18 @@ object AuthManager {
   // Default headers
   private val defaultHeaders = List(Accept(MediaTypes.`application/json`))
 
+  def getAccessToken: String = {
+    if(loginResponse.isEmpty) {
+      val msg = s"There is no loginResponse (an accessToken) belonging to the ${this.username} to be used for the introspection requests."
+      logger.error(msg)
+      throw AuthException(msg)
+    }
+    loginResponse.get.access_token
+  }
+
   def init(loginURL: String, introspectionURL: String, username: String, password: String)(implicit system: ActorSystem): Unit = {
+    logger.info("Initializing the AuthManager...")
+
     this.system = system
     this.loginURL = loginURL
     this.introspectionURL = introspectionURL
@@ -81,6 +92,7 @@ object AuthManager {
     logger.debug(s"Logging into ${this.loginURL} to authenticate ${this.username} and gain an accessToken to use in the " +
       s"subsequent calls (i.e. introspection)")
     /* To use the toJson, toPrettyJson methods of the JsonFormatter */
+    import ppddm.core.util.JsonFormatter._
     val httpRequest = HttpRequest(
       uri = Uri(loginURL),
       method = HttpMethods.POST,
@@ -90,7 +102,6 @@ object AuthManager {
     Http().singleRequest(httpRequest) flatMap { response =>
       response.status match {
         case StatusCodes.OK =>
-          logger.debug(s"Access token for ${this.username} has been successfully retrieved from ${this.loginURL}")
           Unmarshal(response.entity)
             .to[LoginResponse]
             .recover {
@@ -117,6 +128,8 @@ object AuthManager {
           }
       }
     } map { loginResponse =>
+      logger.debug(s"Access token for ${this.username} has been successfully retrieved from ${this.loginURL}")
+      logger.debug(s"LoginResponse is $loginResponse")
       this.loginResponse = Some(loginResponse)
     }
   }
@@ -130,11 +143,10 @@ object AuthManager {
 
     logger.debug(s"Introspecting for the user's accessToken:${userAccessToken} at the endpoint: ${this.introspectionURL}")
     /* To use the toJson, toPrettyJson methods of the JsonFormatter */
-    import ppddm.core.util.JsonFormatter._
     val httpRequest = HttpRequest(
-      uri = Uri(s"${introspectionURL}?token=${this.loginResponse.get.access_token}"),
+      uri = Uri(s"${introspectionURL}?token=$userAccessToken"),
       method = HttpMethods.POST,
-      headers = defaultHeaders)
+      headers = defaultHeaders ++ List(Authorization.apply(OAuth2BearerToken.apply(this.loginResponse.get.access_token))))
 
     Http().singleRequest(httpRequest) flatMap { response =>
       response.status match {

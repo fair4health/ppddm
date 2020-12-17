@@ -17,7 +17,7 @@ class ProjectEndpointTest extends PPDDMManagerEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val projectRequest: Project =
+  lazy val projectRequest: Project =
     Source.fromResource("project.json").mkString
       .extract[Project]
 

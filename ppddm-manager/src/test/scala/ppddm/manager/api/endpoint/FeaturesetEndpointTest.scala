@@ -17,7 +17,7 @@ class FeaturesetEndpointTest extends PPDDMManagerEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val featuresetRequest: Featureset =
+  lazy val featuresetRequest: Featureset =
     Source.fromResource("featureset.json").mkString
       .extract[Featureset]
 

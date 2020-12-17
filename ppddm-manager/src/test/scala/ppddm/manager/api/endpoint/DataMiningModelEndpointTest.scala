@@ -16,15 +16,15 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val projectRequest: Project =
+  lazy val projectRequest: Project =
     Source.fromResource("project.json").mkString
       .extract[Project]
 
-  val bareDataMiningModel: DataMiningModel =
+  lazy val bareDataMiningModel: DataMiningModel =
     Source.fromResource("dataminingmodel.json").mkString
       .extract[DataMiningModel]
 
-  val fullDataMiningModel: DataMiningModel =
+  lazy val fullDataMiningModel: DataMiningModel =
     Source.fromResource("dataminingmodel-with-boostedmodels.json").mkString
       .extract[DataMiningModel]
 

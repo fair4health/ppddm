@@ -32,8 +32,14 @@ object AuthenticationController {
     // Introspect the provided accessToken through onAuth server using Akka Cache
     val authResponse = AuthManager.getOrLoad(accessToken,
       accessToken ⇒ AuthManager.introspect(accessToken)).map { authContext =>
-      logger.debug(s"Authenticated! AuthContext successfully accessed for accessToken:$accessToken")
-      true
+      if (authContext.isExpired) {
+        AuthManager.remove(accessToken)
+        logger.debug(s"AuthContext expired for accessToken:$accessToken")
+        false
+      } else {
+        logger.debug(s"Authenticated! AuthContext successfully accessed for accessToken:$accessToken")
+        true
+      }
     }
 
     try { // Wait for the result to decide the validity of the accessToken
