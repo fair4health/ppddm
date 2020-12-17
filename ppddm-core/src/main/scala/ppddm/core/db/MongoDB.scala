@@ -1,7 +1,6 @@
 package ppddm.core.db
 
 import java.util.concurrent.TimeUnit
-
 import com.typesafe.scalalogging.Logger
 import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY

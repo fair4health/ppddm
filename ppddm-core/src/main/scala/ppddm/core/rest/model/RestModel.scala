@@ -2,7 +2,6 @@ package ppddm.core.rest.model
 
 import java.time.LocalDateTime
 import java.util.UUID
-
 import ppddm.core.rest.model.AlgorithmName.AlgorithmName
 import ppddm.core.rest.model.CategoricalEncodingType.CategoricalEncodingType
 import ppddm.core.rest.model.DataMiningState.DataMiningState
@@ -29,7 +28,7 @@ case class Project(project_id: Option[String],
   }
 }
 
-case class Featureset(featureset_id: Option[String],
+final case class Featureset(featureset_id: Option[String],
                       project_id: String,
                       name: String,
                       description: String,
@@ -42,7 +41,7 @@ case class Featureset(featureset_id: Option[String],
   }
 }
 
-case class Variable(name: String,
+final case class Variable(name: String,
                     description: Option[String],
                     fhir_query: String,
                     fhir_path: String,

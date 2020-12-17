@@ -2,10 +2,11 @@ package ppddm.manager
 
 import com.typesafe.scalalogging.Logger
 import ppddm.core.ai.DataMiningEngine
+import ppddm.core.auth.AuthManager
+import ppddm.core.util.URLUtil
 import ppddm.core.db.{EmbeddedMongo, MongoDB}
 import ppddm.manager.config.ManagerConfig
 import ppddm.manager.gateway.ManagerHttpServer
-import ppddm.manager.registry.AgentRegistry
 
 /**
  * The starter object for PPDDM Manager
@@ -48,7 +49,18 @@ object Manager {
 
     /* Import the ActorSystem */
     import ppddm.manager.config.ManagerExecutionContext._
+
+    if(ManagerConfig.authEnabled) {
+      AuthManager.init(
+        URLUtil.append(ManagerConfig.authServerHost, ManagerConfig.loginPath),
+        URLUtil.append(ManagerConfig.authServerHost, ManagerConfig.introspectionPath),
+        ManagerConfig.authServerUsername,
+        ManagerConfig.authServerPassword
+      )
+    }
+
     ManagerHttpServer.start(ManagerConfig.serverHost, ManagerConfig.serverPort, ManagerConfig.baseUri)
+
   }
 
 }

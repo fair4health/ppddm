@@ -2,10 +2,9 @@ package ppddm.manager.client
 
 import akka.Done
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.unmarshalling.Unmarshal
-
 import ppddm.core.rest.model._
 import ppddm.manager.exception.AgentCommunicationException
 

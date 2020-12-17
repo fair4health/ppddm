@@ -16,7 +16,8 @@ import scala.io.Source
 @RunWith(classOf[JUnitRunner])
 class ProspectiveStudyEndpointTest extends PPDDMManagerEndpointTest {
 
-  implicit val timeout = RouteTestTimeout(30.seconds) // "make a prediction" endpoint is synchronous and takes some time to finish. Hence timeout is increased in here
+  // "make a prediction" endpoint is synchronous and takes some time to finish. Hence timeout is increased in here
+  implicit val timeout: RouteTestTimeout = RouteTestTimeout(60.seconds)
 
   import ppddm.core.util.JsonFormatter._
 
