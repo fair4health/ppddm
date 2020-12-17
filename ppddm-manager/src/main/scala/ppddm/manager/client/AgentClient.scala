@@ -2,11 +2,11 @@ package ppddm.manager.client
 
 import akka.Done
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Accept, Authorization}
 import akka.http.scaladsl.unmarshalling.Unmarshal
-
 import ppddm.core.rest.model._
+import ppddm.core.util.JsonClass
 import ppddm.manager.exception.AgentCommunicationException
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -25,7 +25,7 @@ object AgentClient {
   // TODO: How to obtain the access token? Discuss the authentication & authorization with ATOS.
   val accessToken: String = "token123"
 
-  def createHttpRequest(agent: Agent, httpMethod: HttpMethod, uri: String, entity: Option[ModelClass] = None): AgentHttpRequest = {
+  def createHttpRequest(agent: Agent, httpMethod: HttpMethod, uri: String, entity: Option[JsonClass] = None): AgentHttpRequest = {
     var request = HttpRequest(
       uri = Uri(uri),
       method = httpMethod,

@@ -3,9 +3,10 @@ package ppddm.core.util
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
-import ppddm.core.rest.model.ModelClass
 
 import scala.language.implicitConversions
+
+trait JsonClass
 
 object JsonFormatter {
 
@@ -27,7 +28,7 @@ object JsonFormatter {
   /**
    * Scala class that adds "toJson" method for JObjects
    */
-  class JsonConvertable(resource: ModelClass) {
+  class JsonConvertable(resource: JsonClass) {
     def toJson: String = {
       Serialization.write(resource)
     }
@@ -45,6 +46,6 @@ object JsonFormatter {
   /**
    * Implicit conversion that ties the new JsonConvertable class to Scala LinkedHashMaps
    */
-  implicit def convertToJson(resource: ModelClass): JsonConvertable = new JsonConvertable(resource)
+  implicit def convertToJson(resource: JsonClass): JsonConvertable = new JsonConvertable(resource)
 }
 

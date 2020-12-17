@@ -16,11 +16,11 @@ class DatasetEndpointTest extends PPDDMManagerEndpointTest {
 
   import ppddm.core.util.JsonFormatter._
 
-  val bareDataset: Dataset =
+  lazy val bareDataset: Dataset =
     Source.fromResource("dataset.json").mkString
       .extract[Dataset]
 
-  val fullDataset: Dataset =
+  lazy val fullDataset: Dataset =
     Source.fromResource("dataset-with-datasetsources.json").mkString
       .extract[Dataset]
 
