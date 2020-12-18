@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 
 trait DataMiningEndpoint extends ClassificationEndpoint with ARLEndpoint {
 
-  def dataMiningRoute(implicit accessToken: String): Route = {
+  val dataMiningRoute: Route = {
     pathPrefix("dm") {
       classificationRoute ~ arlRoute
     }

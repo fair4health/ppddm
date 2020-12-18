@@ -14,7 +14,7 @@ trait AgentEndpoint extends CorsHandler with AgentExceptionHandler with ServiceE
         rejectEmptyResponse { // Reject the empty responses
           handleExceptions(ppddmExceptionHandler) { // Exception Handling specific to PPDDM Agent
             pathPrefix(baseUri) { // Catch the baseUri at this point and do not use the baseUri in the paths of the inner routes
-              authenticateOAuth2(realm = baseUri, AuthenticationController.accessTokenAuthenticator) { implicit accessToken =>
+              authenticateBasic(realm = baseUri, AuthenticationController.idSecretAuthenticator) { _ =>
                 prepareRoute ~ serviceRoute ~ dataMiningRoute
               }
             }

@@ -9,7 +9,7 @@ import ppddm.core.rest.model.{ModelTestRequest, ModelTrainingRequest, ModelValid
 
 trait ClassificationEndpoint {
 
-  def classificationRoute(implicit accessToken: String): Route = {
+  val classificationRoute: Route = {
     pathPrefix("classification" / "train") {
       pathEndOrSingleSlash {
         post { // Submit a new model training request to this Agent

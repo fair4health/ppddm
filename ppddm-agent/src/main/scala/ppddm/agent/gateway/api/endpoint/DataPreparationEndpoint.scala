@@ -12,7 +12,7 @@ import ppddm.core.rest.model.Json4sSupport._
  */
 trait DataPreparationEndpoint {
 
-  def prepareRoute(implicit accessToken: String): Route = {
+  val prepareRoute: Route = {
     pathPrefix("prepare") {
       pathEndOrSingleSlash {
         post { // Submit a new data preparation request to this Agent

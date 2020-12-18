@@ -56,7 +56,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       time.Duration.ZERO,
       time.Duration.ofSeconds(2),
       () => {
-        Get("/" + AgentConfig.baseUri + "/dm/classification/train/" + model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        Get("/" + AgentConfig.baseUri + "/dm/classification/train/" + model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
           if (status == OK) {
             // Parse model training result
             modelTrainingResult = responseAs[ModelTrainingResult]
@@ -120,7 +120,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       time.Duration.ZERO,
       time.Duration.ofSeconds(2),
       () => {
-        Get("/" + AgentConfig.baseUri + "/dm/classification/validate/" + model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+        Get("/" + AgentConfig.baseUri + "/dm/classification/validate/" + model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
           if (status == OK) {
             askForValidationResultPromise.success(Done)
             askForValidationResultScheduler.get.cancel()
@@ -138,7 +138,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
   "Data Mining Endpoint" should {
 
     "create a dataset first" in {
-      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequest) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
 
@@ -150,7 +150,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
             if (status == OK) {
               // Complete promise and cancel the scheduler
               askForDatasetPromise.success(Done)
@@ -165,7 +165,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "start model training - request1" in {
-      Post("/" + AgentConfig.baseUri + "/dm/classification/train", modelTrainingRequest1) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/train", modelTrainingRequest1) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -175,7 +175,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "start model training - request2" in {
-      Post("/" + AgentConfig.baseUri + "/dm/classification/train", modelTrainingRequest2) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/train", modelTrainingRequest2) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -185,7 +185,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "start model validation - request 1" in {
-      Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest1) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest1) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -195,7 +195,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "start model validation - request 2" in {
-      Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest2) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/validate", modelValidationRequest2) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -206,7 +206,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
 
 
     "test the boosted model - request 1" in {
-      Post("/" + AgentConfig.baseUri + "/dm/classification/test", modelTestRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/classification/test", modelTestRequest) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -220,7 +220,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          Get("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+          Get("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
             if (status == OK) {
               // Complete promise and cancel the scheduler
               askForTestResultPromise.success(Done)
@@ -235,25 +235,25 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "delete the training results" in {
-      Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest1.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest1.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
-      Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest2.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/train/" + modelTrainingRequest2.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "delete the validation results" in {
-      Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest1.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest1.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
-      Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest2.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/validate/" + modelValidationRequest2.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "delete the model test result" in {
-      Delete("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/classification/test/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -262,7 +262,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       val arlFrequencyCalculationRequest: ARLFrequencyCalculationRequest =
         ARLFrequencyCalculationRequest(modelTrainingRequest1.model_id, modelTrainingRequest1.dataset_id, modelTrainingRequest1.agent, "test")
 
-      Post("/" + AgentConfig.baseUri + "/dm/arl/frequency", arlFrequencyCalculationRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/arl/frequency", arlFrequencyCalculationRequest) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -276,7 +276,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          Get("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
             if (status == OK) {
               // Complete promise and cancel the scheduler
               askForFrequencyCalculationResultPromise.success(Done)
@@ -291,7 +291,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "start ARL execution" in {
-      Post("/" + AgentConfig.baseUri + "/dm/arl/execute", arlExecutionRequest) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/dm/arl/execute", arlExecutionRequest) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -305,7 +305,7 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          Get("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
             if (status == OK) {
               // Complete promise and cancel the scheduler
               askForARLExecutionResultPromise.success(Done)
@@ -320,19 +320,19 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "delete the ARL frequency calculation result" in {
-      Delete("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "delete the ARL execution result" in {
-      Delete("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "delete the created dataset and statistics" in {
-      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequest.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }

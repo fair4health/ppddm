@@ -2,23 +2,26 @@ package ppddm.agent.controller.auth
 
 import akka.http.scaladsl.server.directives.Credentials
 import com.typesafe.scalalogging.Logger
+import ppddm.agent.config.AgentConfig
 
 object AuthenticationController {
 
   private val logger: Logger = Logger(this.getClass)
 
-  def accessTokenAuthenticator(credentials: Credentials): Option[String] = {
+  def idSecretAuthenticator(credentials: Credentials): Option[String] = {
     credentials match {
-      case Credentials.Provided(accessToken) if checkAccessToken(accessToken) => Some(accessToken)
+      case p @ Credentials.Provided(id) if checkIDSecret(p) => Some(id)
       case _ => None
     }
   }
 
-  private def checkAccessToken(accessToken: String): Boolean = {
-    // TODO: Introspect the provided accessToken through FAIR4Health OAuth server
-    // TODO: Use Akka Cache to prevent unnecessary introspection requests
-    logger.debug("AuthenticationController always return true, FOR NOW!")
-    true
-  }
+  private def checkIDSecret(p: Credentials.Provided): Boolean = {
+    if(!AgentConfig.authEnabled) {
+      // If the authentication is not enabled, return true for all given id-secrets
+      logger.debug("Authentication is not enabled, so I am authenticating the user with whatever is provided as id and secret.")
+      return true
+    }
 
+    p.identifier == AgentConfig.authClientID && p.verify(AgentConfig.authClientSecret)
+  }
 }

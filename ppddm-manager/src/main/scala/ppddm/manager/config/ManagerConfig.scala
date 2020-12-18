@@ -13,7 +13,6 @@ object ManagerConfig extends AppConfig {
     override lazy val baseUri: String = Try(config.getString("server.base-uri")).getOrElse("manager")
 
     /** Authentication & Authorization */
-    lazy val authEnabled: Boolean = Try(config.getBoolean("auth.enabled")).getOrElse(false)
     lazy val authServerHost: String = Try(config.getString("auth.server.host")).getOrElse("default-host")
     lazy val authServerUsername: String = Try(config.getString("auth.server.username")).getOrElse("default-user")
     lazy val authServerPassword: String = Try(config.getString("auth.server.password")).getOrElse("default-password")

@@ -7,7 +7,7 @@ import ppddm.core.rest.model.Json4sSupport._
 
 trait ServiceEndpoint {
 
-  def serviceRoute(implicit accessToken: String): Route = {
+  val serviceRoute: Route = {
     pathPrefix("metadata") {
       pathEndOrSingleSlash {
         get {
