@@ -45,19 +45,19 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "reject the request without featureSet Variable" in {
-      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestWithoutVariables) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestWithoutVariables) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual BadRequest
       }
     }
 
     "reject to get if the statistics for dataset with given id are not ready" in {
-      Get("/" + AgentConfig.baseUri + "/prepare/some-id-does-not-exist") ~> Authorization(bearerToken) ~> routes ~> check {
+      Get("/" + AgentConfig.baseUri + "/prepare/some-id-does-not-exist") ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual NotFound
       }
     }
 
     "start data preparation" in {
-      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestWithVariables) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestWithVariables) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -70,7 +70,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithVariables.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithVariables.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
             if (status == OK) {
               askForDatasetPromise.success(Done)
               askForDatasetScheduler.get.cancel()
@@ -84,13 +84,13 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "delete the created dataset and statistics" in {
-      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithVariables.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithVariables.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "start data preparation for zero (0) patients" in {
-      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestOfZeroPatients) ~> Authorization(bearerToken) ~> routes ~> check {
+      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestOfZeroPatients) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
@@ -103,7 +103,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         time.Duration.ZERO,
         time.Duration.ofSeconds(2),
         () => {
-          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestOfZeroPatients.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestOfZeroPatients.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
             if (status == OK) {
               askForDatasetPromise.success(Done)
               askForDatasetScheduler.get.cancel()
@@ -117,13 +117,13 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "delete the created dataset and statistics" in {
-      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestOfZeroPatients.dataset_id) ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestOfZeroPatients.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
     "reject to delete if the dataset and statistics for given dataset_id do not exist" in {
-      Delete("/" + AgentConfig.baseUri + "/prepare/some-id-does-not-exist") ~> Authorization(bearerToken) ~> routes ~> check {
+      Delete("/" + AgentConfig.baseUri + "/prepare/some-id-does-not-exist") ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual NotFound
       }
     }

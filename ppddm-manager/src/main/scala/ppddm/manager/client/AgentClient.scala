@@ -3,10 +3,11 @@ package ppddm.manager.client
 import akka.Done
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Accept, Authorization}
+import akka.http.scaladsl.model.headers.{Accept, Authorization, BasicHttpCredentials}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import ppddm.core.rest.model._
 import ppddm.core.util.JsonClass
+import ppddm.manager.config.ManagerConfig
 import ppddm.manager.exception.AgentCommunicationException
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -22,15 +23,12 @@ object AgentClient {
   // Default headers
   val defaultHeaders = List(Accept(MediaTypes.`application/json`))
 
-  // TODO: How to obtain the access token? Discuss the authentication & authorization with ATOS.
-  val accessToken: String = "token123"
-
   def createHttpRequest(agent: Agent, httpMethod: HttpMethod, uri: String, entity: Option[JsonClass] = None): AgentHttpRequest = {
     var request = HttpRequest(
       uri = Uri(uri),
       method = httpMethod,
-      headers = AgentClient.defaultHeaders)
-      .withHeaders(Authorization(headers.OAuth2BearerToken(AgentClient.accessToken)))
+      headers = AgentClient.defaultHeaders ++ List(Authorization(BasicHttpCredentials(ManagerConfig.authClientID, ManagerConfig.authClientSecret)))
+    )
 
     /* To use the toJson, toPrettyJson methods of the JsonFormatter */
     import ppddm.core.util.JsonFormatter._

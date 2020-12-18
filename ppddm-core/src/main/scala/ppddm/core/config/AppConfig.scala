@@ -22,6 +22,11 @@ class AppConfig {
   /** Master url of the Spark cluster */
   lazy val sparkMaster: String = Try(config.getString("spark.master")).getOrElse("local[4]")
 
+  /** Authentication & Authorization */
+  lazy val authEnabled: Boolean = Try(config.getBoolean("auth.enabled")).getOrElse(false)
+  lazy val authClientID: String = Try(config.getString("auth.client.id")).getOrElse("ppddm-manager")
+  lazy val authClientSecret: String = Try(config.getString("auth.client.secret")).getOrElse("f4IR4h3ALth")
+
   /** MongoDB Configuration */
   lazy val mongoEmbedded: Boolean = Try(config.getBoolean("mongodb.embedded")).getOrElse(false)
   lazy val mongoHost: String = Try(config.getString("mongodb.host")).getOrElse("localhost")

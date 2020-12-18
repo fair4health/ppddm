@@ -23,7 +23,7 @@ class ServiceEndpointTest extends PPDDMAgentEndpointTest {
     }
 
     "return metadata" in {
-      Get("/" + AgentConfig.baseUri + "/metadata") ~> Authorization(bearerToken) ~> routes ~> check {
+      Get("/" + AgentConfig.baseUri + "/metadata") ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
 
         val response = responseAs[Agent]

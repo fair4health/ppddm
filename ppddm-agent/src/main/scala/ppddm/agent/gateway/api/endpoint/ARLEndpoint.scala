@@ -9,7 +9,7 @@ import ppddm.core.rest.model.Json4sSupport._
 
 trait ARLEndpoint {
 
-  def arlRoute(implicit accessToken: String): Route = {
+  val arlRoute: Route = {
     pathPrefix("arl" / "frequency") {
       pathEndOrSingleSlash {
         post { // Submit a frequency calculation request to this Agent

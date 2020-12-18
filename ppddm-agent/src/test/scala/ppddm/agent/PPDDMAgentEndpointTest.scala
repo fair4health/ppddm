@@ -2,7 +2,7 @@ package ppddm.agent
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers.{BasicHttpCredentials, OAuth2BearerToken}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.Specs2RouteTest
 import org.apache.spark.sql.SparkSession
@@ -59,8 +59,8 @@ trait PPDDMAgentEndpointTest extends Specification with Specs2RouteTest with Bef
   implicit lazy val actorSystem: ActorSystem = AgentSetup.actorSystem
   implicit lazy val sparkSession: SparkSession = AgentSetup.dataMiningEngine.sparkSession
 
-  // Some token does not matter for the endpoint test
-  val bearerToken: OAuth2BearerToken = OAuth2BearerToken("some-test-token")
+  val basicHttpCredentials: BasicHttpCredentials = BasicHttpCredentials(AgentConfig.authClientID, AgentConfig.authClientSecret)
+
   // Agent endpoint routes
   val routes: Route = mainRoute(AgentConfig.baseUri)
 
