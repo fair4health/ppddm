@@ -23,34 +23,36 @@ trait ProjectEndpoint {
             }
           }
         } ~
-        get {
-          complete {
-            ProjectController.getAllProjects
-          }
-        }
-      }
-    } ~
-    pathPrefix("project" / Segment) { project_id =>
-      pathEndOrSingleSlash {
-        get {
-          complete {
-            ProjectController.getProject(project_id)
-          }
-        } ~
-        put {
-          entity(as[Project]) { project =>
+          get {
             complete {
-              ProjectController.updateProject(project)
+              ProjectController.getAllProjects
             }
           }
-        } ~
-        delete {
-          complete {
-            ProjectController.deleteProject(project_id)
-          }
+      }
+    } ~
+      pathPrefix("project" / Segment) { project_id =>
+        pathEndOrSingleSlash {
+          get {
+            complete {
+              ProjectController.getProject(project_id)
+            }
+          } ~
+            put {
+              entity(as[Project]) { project =>
+                complete {
+                  ProjectController.updateProject(project)
+                }
+              }
+            } ~
+            delete {
+              parameters("_all".?, "_test".?) { (all, test) =>
+                complete {
+                  ProjectController.deleteProject(project_id, withAssociatedResources = all.isDefined, isTest = test.isDefined)
+                }
+              }
+            }
         }
       }
-    }
   }
 
 }

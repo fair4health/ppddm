@@ -23,9 +23,11 @@ trait ProspectiveStudyEndpoint {
             }
           }
         } ~
-          get {
-            complete {
-              ProspectiveStudyController.getAllProspectiveStudies
+          get { // get all ProspectiveStudies of project
+            parameters('project_id) { project_id =>
+              complete {
+                ProspectiveStudyController.getAllProspectiveStudies(project_id)
+              }
             }
           }
       }

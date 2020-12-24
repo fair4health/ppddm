@@ -88,7 +88,7 @@ class ProspectiveStudyEndpointTest extends PPDDMManagerEndpointTest {
         val response: ProspectiveStudy = responseAs[ProspectiveStudy]
         newProspectiveStudyID = response.prospective_study_id.get
       }
-      Get("/" + ManagerConfig.baseUri + "/prospective") ~> Authorization(bearerToken) ~> routes ~> check {
+      Get("/" + ManagerConfig.baseUri + "/prospective?project_id=" + prospectiveStudy.project_id) ~> Authorization(bearerToken) ~> routes ~> check {
         status shouldEqual OK
 
         val response: Seq[ProspectiveStudy] = responseAs[Seq[ProspectiveStudy]]

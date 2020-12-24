@@ -22,7 +22,7 @@ trait DataMiningModelEndpoint {
               complete { // Create a new DataMiningModel and return the created entity
                 DataMiningModelController.createDataMiningModel(datamining_model) map { dataMiningModel =>
 
-                  if(test.isEmpty) { // Start the orchestration only if this call is NOT for testing purposes
+                  if (test.isEmpty) { // Start the orchestration only if this call is NOT for testing purposes
                     // After the DataMiningModel is saved into the database, start an orchestration process for this model
                     // so that model training, validation and testing are executed through the distributed data mining approach
                     // Do not wait this orchestration to be completed, start the orchestration and return.
@@ -61,14 +61,7 @@ trait DataMiningModelEndpoint {
             delete {
               parameters("_test".?) { test =>
                 complete { // Delete the DataMiningModel
-                  DataMiningModelController.deleteDataMiningModel(model_id) flatMap { dataMiningModel =>
-                    if(dataMiningModel.isDefined && test.isEmpty) {
-                      // Delete the data for this DataMiningModel on Agents
-                      DistributedDataMiningManager.deleteDataMiningModelFromAgents(dataMiningModel.get)
-                    } else {
-                      Future { Done }
-                    }
-                  }
+                  DataMiningModelController.deleteDataMiningModel(model_id, test.isDefined)
                 }
               }
             }

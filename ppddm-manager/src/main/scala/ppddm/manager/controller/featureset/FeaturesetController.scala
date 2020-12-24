@@ -28,10 +28,10 @@ object FeaturesetController {
    * @return The created Featureset with a unique featureset_id in it
    */
   def createFeatureset(featureset: Featureset): Future[Featureset] = {
-    if(featureset.variables.isEmpty) {
+    if (featureset.variables.isEmpty) {
       throw new IllegalArgumentException("A feature set must include at least one variable")
     }
-    if(featureset.featureset_id.isDefined) {
+    if (featureset.featureset_id.isDefined) {
       throw new IllegalArgumentException("If you want to create a new feature set, please provide it WITHOUT a featureset_id")
     }
 
@@ -88,7 +88,7 @@ object FeaturesetController {
    * @return The updated Featureset object if operation is successful, None otherwise.
    */
   def updateFeatureset(featureset: Featureset): Future[Option[Featureset]] = {
-    if(featureset.variables.isEmpty) {
+    if (featureset.variables.isEmpty) {
       throw new IllegalArgumentException("A feature set must include at least one variable")
     }
 
@@ -116,6 +116,26 @@ object FeaturesetController {
       .recover {
         case e: Exception =>
           val msg = s"Error while deleting the Featureset with featureset_id:${featureset_id} from the database."
+          throw DBException(msg, e)
+      }
+  }
+
+  /**
+   * Deletes all Feauresets of the given featureset_ids from the Platform Repository.
+   *
+   * @param featureset_ids A sequence of unique identifiers of the Featuresets to be deleted
+   * @return The number of deleted Featureset objects if the operation is successful, None otherwise
+   */
+  def deleteManyFeaturesets(featureset_ids: Seq[String]): Future[Option[Long]] = {
+    // (featureset_ids:_*) to "unroll" the collection for passing its individual elements as varargs
+    db.getCollection[Featureset](COLLECTION_NAME).deleteMany(in("featureset_id", featureset_ids:_*))
+      .headOption()
+      .map { deleteResult =>
+        deleteResult.map(_.getDeletedCount)
+      }
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while deleting the Featuresets with featureset_ids:${featureset_ids} from the database."
           throw DBException(msg, e)
       }
   }
