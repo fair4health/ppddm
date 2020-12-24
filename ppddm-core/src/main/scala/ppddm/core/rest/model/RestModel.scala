@@ -39,6 +39,10 @@ final case class Featureset(featureset_id: Option[String],
   def withUniqueFeaturesetId: Featureset = {
     this.copy(featureset_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
   }
+
+  def withNewProjectId(newProjectId: String): Featureset = {
+    this.copy(project_id = newProjectId)
+  }
 }
 
 final case class Variable(name: String,
@@ -61,6 +65,10 @@ final case class Dataset(dataset_id: Option[String],
 
   def withUniqueDatasetId: Dataset = {
     this.copy(dataset_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+  }
+
+  def withNewProjectId(newProjectId: String): Dataset = {
+    this.copy(project_id = newProjectId)
   }
 
   def withDatasetSources(dataset_sources: Seq[DatasetSource]): Dataset = {
@@ -213,6 +221,10 @@ final case class DataMiningModel(model_id: Option[String],
 
   def withUniqueModelId: DataMiningModel = {
     this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+  }
+
+  def withNewProjectId(newProjectId: String): DataMiningModel = {
+    this.copy(project_id = newProjectId)
   }
 
   def withDataMiningState(dataMiningState: DataMiningState): DataMiningModel = {
@@ -448,6 +460,7 @@ final case class ModelTestResult(model_id: String,
                                  test_statistics: Seq[AgentAlgorithmStatistics]) extends ModelClass
 
 final case class ProspectiveStudy(prospective_study_id: Option[String],
+                                  project_id: String,
                                   name: String,
                                   description: String,
                                   data_mining_model: DataMiningModel,
@@ -456,6 +469,10 @@ final case class ProspectiveStudy(prospective_study_id: Option[String],
                                   created_on: Option[LocalDateTime]) extends ModelClass {
   def withUniqueProspectiveStudyId: ProspectiveStudy = {
     this.copy(prospective_study_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+  }
+
+  def withNewProjectId(newProjectId: String): ProspectiveStudy = {
+    this.copy(project_id = newProjectId)
   }
 }
 

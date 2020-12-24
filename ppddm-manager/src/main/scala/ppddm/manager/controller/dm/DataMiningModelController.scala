@@ -327,13 +327,28 @@ object DataMiningModelController {
    * @param model_id The unique identifier of the DataMiningModel to be deleted.
    * @return The deleted Dataset object if operation is successful, None otherwise.
    */
-  def deleteDataMiningModel(model_id: String): Future[Option[DataMiningModel]] = {
+  def deleteDataMiningModel(model_id: String, isTest:Boolean = false): Future[Option[DataMiningModel]] = {
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndDelete(equal("model_id", model_id))
       .headOption()
       .recover {
         case e: Exception =>
           val msg = s"Error while deleting the DataMiningModel with model_id:${model_id}."
           throw DBException(msg, e)
+      }
+      .flatMap { dataMiningModelOption: Option[DataMiningModel] =>
+        if (dataMiningModelOption.isDefined) {
+          val dataMiningModel = dataMiningModelOption.get
+          if(isTest) { // If this is a test call, then do not invoke the Agents
+            logger.debug("This DataMiningModel deletion is for testing. DataMiningModel will only be deleted from the MongoDB database, no Agents will be invoked.")
+            Future.apply(Some(dataMiningModel))
+          } else {
+            // Delete the data for this DataMiningModel on Agents
+            DistributedDataMiningManager.deleteDataMiningModelFromAgents(dataMiningModel) map { _ => Some(dataMiningModel) }
+          }
+        }
+        else {
+          Future.apply(Option.empty[DataMiningModel])
+        }
       }
   }
 

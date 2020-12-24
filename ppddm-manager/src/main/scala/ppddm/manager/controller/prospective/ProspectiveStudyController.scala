@@ -2,7 +2,7 @@ package ppddm.manager.controller.prospective
 
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.sql.{Row, SparkSession}
-import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.Filters.{equal, in}
 import org.mongodb.scala.model.{FindOneAndReplaceOptions, ReturnDocument}
 import ppddm.core.ai.{PipelineModelEncoderDecoder, Predictor}
 import ppddm.core.exception.DBException
@@ -70,13 +70,14 @@ object ProspectiveStudyController {
   }
 
   /**
-   * Retrieves all ProspectiveStudies from the Platform Repository.
+   * Retrieves all ProspectiveStudies of a Project from the Platform Repository.
    *
-   * @return The list of all ProspectiveStudies in the Platform Repository, empty list if there are no ProspectiveStudies.
+   * @param project_id The project ID whose ProspectiveStudies are to be retrieved.
+   * @return The list of all ProspectiveStudies for the given project, empty list if there are no ProspectiveStudies.
    */
-  def getAllProspectiveStudies: Future[Seq[ProspectiveStudy]] = {
-    logger.debug(s"Retrieving all prospective studies...")
-    db.getCollection[ProspectiveStudy](COLLECTION_NAME).find().toFuture()
+  def getAllProspectiveStudies(project_id: String): Future[Seq[ProspectiveStudy]] = {
+    logger.debug(s"Retrieving all prospective studies under project: ${project_id} ...")
+    db.getCollection[ProspectiveStudy](COLLECTION_NAME).find(equal("project_id", project_id)).toFuture()
       .recover {
         case e: Exception =>
           val msg = s"Error while retrieving all ProspectiveStudies from the database."
@@ -121,6 +122,26 @@ object ProspectiveStudyController {
       .recover {
         case e: Exception =>
           val msg = s"Error while deleting the ProspectiveStudy with prospective_study_id:${prospective_study_id} from the database."
+          throw DBException(msg, e)
+      }
+  }
+
+  /**
+   * Deletes all ProspectiveStudies of the given prospective_study_ids from the Platform Repository.
+   *
+   * @param prospective_study_ids A sequence of unique identifiers of the ProspectiveStudies to be deleted
+   * @return The number of deleted ProspectiveStudies objects if the operation is successful, None otherwise
+   */
+  def deleteManyProspectiveStudies(prospective_study_ids: Seq[String]): Future[Option[Long]] = {
+    // (prospective_study_ids:_*) to "unroll" the collection for passing its individual elements as varargs
+    db.getCollection[ProspectiveStudy](COLLECTION_NAME).deleteMany(in("prospective_study_id", prospective_study_ids:_*))
+      .headOption()
+      .map { deleteResult =>
+        deleteResult.map(_.getDeletedCount)
+      }
+      .recover {
+        case e: Exception =>
+          val msg = s"Error while deleting the ProspectiveStudies with prospective_study_ids:${prospective_study_ids} from the database."
           throw DBException(msg, e)
       }
   }
