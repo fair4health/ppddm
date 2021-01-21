@@ -40,6 +40,16 @@ if [ ! -z "$FHIR_BASEURI" ]; then
     JAVA_CMD+="-Dfhir.base-uri=$FHIR_BASEURI "
 fi
 
+if [ ! -z "$AUTH_ENABLED" ]; then
+    JAVA_CMD+="-Dauth.enabled=$AUTH_ENABLED "
+fi
+if [ ! -z "$AUTH_CLIENT_ID" ]; then
+    JAVA_CMD+="-Dauth.client.id=$AUTH_CLIENT_ID "
+fi
+if [ ! -z "$AUTH_CLIENT_SECRET" ]; then
+    JAVA_CMD+="-Dauth.client.secret=$AUTH_CLIENT_SECRET "
+fi
+
 # Delay the execution for this amount of seconds
 if [ ! -z "$DELAY_EXECUTION" ]; then
     sleep $DELAY_EXECUTION
