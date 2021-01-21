@@ -6,7 +6,6 @@ RUN mkdir -p "$PPDDM_HOME"
 WORKDIR $PPDDM_HOME
 
 COPY pom.xml .
-RUN mvn dependency:resolve
 COPY ppddm-agent .
 COPY ppddm-core .
 COPY ppddm-manager .
