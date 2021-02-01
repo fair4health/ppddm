@@ -20,6 +20,31 @@ if [ ! -z "$SPARK_MASTER" ]; then
     JAVA_CMD+="-Dspark.master=$SPARK_MASTER "
 fi
 
+if [ ! -z "$AUTH_ENABLED" ]; then
+    JAVA_CMD+="-auth.enabled=$AUTH_ENABLED "
+fi
+if [ ! -z "$AUTH_CLIENT_ID" ]; then
+    JAVA_CMD+="-auth.client.id=$AUTH_CLIENT_ID "
+fi
+if [ ! -z "$AUTH_CLIENT_SECRET" ]; then
+    JAVA_CMD+="-auth.client.secret=$AUTH_CLIENT_SECRET "
+fi
+if [ ! -z "$AUTH_SERVER_HOST" ]; then
+    JAVA_CMD+="-auth.server.host=$AUTH_SERVER_HOST "
+fi
+if [ ! -z "$AUTH_SERVER_USERNAME" ]; then
+    JAVA_CMD+="-auth.server.username=$AUTH_SERVER_USERNAME "
+fi
+if [ ! -z "$AUTH_SERVER_PASSWORD" ]; then
+    JAVA_CMD+="-auth.server.password=$AUTH_SERVER_PASSWORD "
+fi
+if [ ! -z "$AUTH_SERVER_LOGINPATH" ]; then
+    JAVA_CMD+="-auth.server.login.path=$AUTH_SERVER_LOGINPATH "
+fi
+if [ ! -z "$AUTH_SERVER_INTROSPECTIONPATH" ]; then
+    JAVA_CMD+="-auth.server.introspection.path=$AUTH_SERVER_INTROSPECTIONPATH "
+fi
+
 if [ ! -z "$AGENTS_DEFINITION" ]; then
     JAVA_CMD+="-Dagents.definition-path=$AGENTS_DEFINITION "
 fi

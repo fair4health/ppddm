@@ -41,6 +41,16 @@ if [ ! -z "$FHIR_BASEURI" ]; then
 fi
 
 if [ ! -z "$AUTH_ENABLED" ]; then
+    JAVA_CMD+="-auth.enabled=$AUTH_ENABLED "
+fi
+if [ ! -z "$AUTH_CLIENT_ID" ]; then
+    JAVA_CMD+="-auth.client.id=$AUTH_CLIENT_ID "
+fi
+if [ ! -z "$AUTH_CLIENT_SECRET" ]; then
+    JAVA_CMD+="-auth.client.secret=$AUTH_CLIENT_SECRET "
+fi
+
+if [ ! -z "$AUTH_ENABLED" ]; then
     JAVA_CMD+="-Dauth.enabled=$AUTH_ENABLED "
 fi
 if [ ! -z "$AUTH_CLIENT_ID" ]; then
