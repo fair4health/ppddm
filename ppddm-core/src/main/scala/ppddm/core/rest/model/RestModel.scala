@@ -419,6 +419,7 @@ final case class WeakModel(algorithm: Algorithm,
 }
 
 final case class Algorithm(name: AlgorithmName,
+                           display: Option[String],
                            parameters: Seq[Parameter]) extends ModelClass
 
 final case class AgentAlgorithmStatistics(agent_model: Agent,

@@ -31,18 +31,17 @@ object AlgorithmController {
     val parametersForAllAlgorithms = Seq(num_folds, max_parallelism, metric)
 
     Seq(
-      Algorithm(AlgorithmName.ARL_PREFIX_SPAN, parametersForAllAlgorithms),
-      Algorithm(AlgorithmName.ARL_FPGROWTH, parametersForAllAlgorithms),
-      Algorithm(AlgorithmName.CLASSIFICATION_SVM, parametersForAllAlgorithms ++ Seq(max_iter)),
-      Algorithm(AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION, parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
-      Algorithm(AlgorithmName.CLASSIFICATION_DECISION_TREE, parametersForAllAlgorithms ++ Seq(max_depth, min_info_gain, impurity)),
-      Algorithm(AlgorithmName.CLASSIFICATION_RANDOM_FOREST, parametersForAllAlgorithms ++ Seq(max_depth, min_info_gain, impurity, num_trees, feature_subset_strategy)),
-      Algorithm(AlgorithmName.CLASSIFICATION_GBT, parametersForAllAlgorithms ++ Seq(max_iter, max_depth, min_info_gain, feature_subset_strategy)),
-      Algorithm(AlgorithmName.CLASSIFICATION_NAIVE_BAYES, parametersForAllAlgorithms),
-      Algorithm(AlgorithmName.REGRESSION_LINEAR, parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
-      Algorithm(AlgorithmName.REGRESSION_DECISION_TREE, parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
-      Algorithm(AlgorithmName.REGRESSION_RANDOM_FOREST, parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
-      Algorithm(AlgorithmName.REGRESSION_GBT, parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param))
+      Algorithm(AlgorithmName.ARL_FPGROWTH, Some("FP Growth"), parametersForAllAlgorithms),
+      Algorithm(AlgorithmName.CLASSIFICATION_SVM, Some("Support Vector Machine (SVM)"), parametersForAllAlgorithms ++ Seq(max_iter)),
+      Algorithm(AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION, Some("Logistic Regression"), parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
+      Algorithm(AlgorithmName.CLASSIFICATION_DECISION_TREE, Some("Decision Trees"), parametersForAllAlgorithms ++ Seq(max_depth, min_info_gain, impurity)),
+      Algorithm(AlgorithmName.CLASSIFICATION_RANDOM_FOREST, Some("Random Forest"), parametersForAllAlgorithms ++ Seq(max_depth, min_info_gain, impurity, num_trees, feature_subset_strategy)),
+      Algorithm(AlgorithmName.CLASSIFICATION_GBT, Some("Gradient Boosted Trees"), parametersForAllAlgorithms ++ Seq(max_iter, max_depth, min_info_gain, feature_subset_strategy)),
+      Algorithm(AlgorithmName.CLASSIFICATION_NAIVE_BAYES, Some("Naive Bayes"), parametersForAllAlgorithms),
+      Algorithm(AlgorithmName.REGRESSION_LINEAR, Some("Linear Regression"), parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
+      Algorithm(AlgorithmName.REGRESSION_DECISION_TREE, Some("Decision Trees"), parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
+      Algorithm(AlgorithmName.REGRESSION_RANDOM_FOREST, Some("Random Forest"), parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param)),
+      Algorithm(AlgorithmName.REGRESSION_GBT, Some("Gradient Boosted Trees"), parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param))
     )
   }
 
