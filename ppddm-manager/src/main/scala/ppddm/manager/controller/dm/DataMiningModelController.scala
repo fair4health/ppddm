@@ -47,17 +47,18 @@ object DataMiningModelController {
       throw DataIntegrityException(msg)
     }
 
-    if (dataMiningModel.dataset.dataset_sources.get.exists(_.selection_status.isEmpty)) {
-      val msg = s"There is at least one DatasetSource within the Dataset of this DataMiningModel whose selection_status is None! " +
+    // Find the Agents to be connected for data mining (those are the SELECTED ones for the Dataset)
+    val selectedAgents = dataMiningModel.dataset.dataset_sources.get
+      .filter(_.selection_status == Some(SelectionStatus.SELECTED))
+
+    if (selectedAgents.isEmpty) {
+      val msg = s"There is no DatasetSource within the Dataset of this DataMiningModel whose selection_status is SELECTED! " +
         s"model_id:${dataMiningModel.model_id} model_name:${dataMiningModel.name} dataset_id:${dataMiningModel.dataset.dataset_id}"
       logger.error(msg)
       throw DataIntegrityException(msg)
     }
 
-    // Find the Agents to be connected for data mining (those are the SELECTED ones for the Dataset)
-    dataMiningModel.dataset.dataset_sources.get
-      .filter(_.selection_status.get == SelectionStatus.SELECTED)
-      .map(_.agent)
+    selectedAgents.map(_.agent)
   }
 
   /**
