@@ -2,8 +2,7 @@ package ppddm.agent.controller.dm.algorithm.arl
 
 import org.apache.spark.sql.DataFrame
 import ppddm.agent.controller.dm.algorithm.DataMiningAlgorithm
-import ppddm.agent.exception.DataMiningException
-import ppddm.core.rest.model.{ARLModel, Agent, Algorithm, AlgorithmName}
+import ppddm.core.rest.model.{ARLModel, Agent, Algorithm, AlgorithmName, DataMiningException}
 
 import scala.concurrent.Future
 

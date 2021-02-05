@@ -6,12 +6,11 @@ import akka.Done
 import com.typesafe.scalalogging.Logger
 import io.onfhir.path._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.json4s.JsonAST.JObject
 import org.json4s.{JArray, JString}
 import ppddm.agent.Agent
 import ppddm.agent.config.AgentConfig
-import ppddm.agent.exception.DataPreparationException
 import ppddm.agent.spark.NodeExecutionContext._
 import ppddm.agent.store.AgentDataStoreManager
 import ppddm.core.fhir.{FHIRClient, FHIRQuery}
@@ -22,7 +21,7 @@ import ppddm.core.util.JsonFormatter._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
-import scala.util.Try
+import scala.util.{Failure, Try}
 
 
 /**
@@ -71,106 +70,116 @@ object DataPreparationController {
           logger.debug(s"Number of workers to be run in parallel in Spark: ${numOfReturnPagesForQuery}")
 
           //Parallelize the execution and process pages in parallel
-          val rdd: RDD[Seq[Row]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
+          val rdd: RDD[Try[Seq[Row]]] = sparkSession.sparkContext.parallelize(1 to numOfReturnPagesForQuery).mapPartitions(partitionIterator => {
             partitionIterator.map { pageIndex =>
-              // Instantiate a FHIRClient and FhirPathEvaluator for each worker node
-              val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirBaseUri, AgentConfig.fhirProtocol)
-              val fhirPathEvaluator = FhirPathEvaluator()
+              Try {
+                // Instantiate a FHIRClient and FhirPathEvaluator for each worker node
+                val fhirClientPartition = FHIRClient(AgentConfig.fhirHost, AgentConfig.fhirPort, AgentConfig.fhirBaseUri, AgentConfig.fhirProtocol)
+                val fhirPathEvaluator = FhirPathEvaluator()
 
-              // Fetch the Patient resources from the FHIR Repository and collect their IDs
-              val theFuture = findEligiblePatients(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.eligibility_criteria, patientQuery, pageIndex) flatMap { eligiblePatientURIs =>
-                if (eligiblePatientURIs.isEmpty) {
-                  // No patients are eligible in the partition, so return an empty Row
-                  Future {
-                    Seq.empty[Row]
-                  }
-                } else {
-                  if (dataPreparationRequest.featureset.variables.isEmpty) {
-                    logger.warn("The feature set definition of the data preparation request does not contain any variable definitions. " +
-                      "This is probably an error. DataPreparationRequest object should have been verified upto this point.")
+                // Fetch the Patient resources from the FHIR Repository and collect their IDs
+                val theFuture = findEligiblePatients(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.eligibility_criteria, patientQuery, pageIndex) flatMap { eligiblePatientURIs =>
+                  if (eligiblePatientURIs.isEmpty) {
+                    // No patients are eligible in the partition, so return an empty Row
                     Future {
                       Seq.empty[Row]
                     }
                   } else {
-                    populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs)
-                      .map { resourceMap: Map[String, Map[String, Any]] =>
-                        convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
+                    if (dataPreparationRequest.featureset.variables.isEmpty) {
+                      logger.warn("The feature set definition of the data preparation request does not contain any variable definitions. " +
+                        "This is probably an error. DataPreparationRequest object should have been verified upto this point.")
+                      Future {
+                        Seq.empty[Row]
                       }
+                    } else {
+                      populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs)
+                        .map { resourceMap: Map[String, Map[String, Any]] =>
+                          convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
+                        }
+                    }
                   }
                 }
-              }
 
-              try { // Wait for the whole execution to be completed on a worker node
-                Await.result(theFuture, Duration(10, TimeUnit.MINUTES))
-              } catch {
-                case e: TimeoutException =>
-                  val msg = s"The data preparation cannot be completed on a worker node with pageIndex:${pageIndex} within 10 minutes."
-                  logger.error(msg, e)
-                  throw DataPreparationException(msg, e)
+                try { // Wait for the whole execution to be completed on a worker node
+                  Await.result(theFuture, Duration(10, TimeUnit.MINUTES))
+                } catch {
+                  case e: TimeoutException =>
+                    val msg = s"The data preparation cannot be completed on a worker node with pageIndex:${pageIndex} within 10 minutes."
+                    logger.error(msg, e)
+                    throw DataPreparationException(msg, e)
+                }
               }
             }
           })
 
-          // RDDs are lazy evaluated. In order to materialize the above statement, call an action on rdd such as foreach, collect, count etc.
-          val dataRowSet = rdd.collect() // Collect the Seq[Row]s from the worker nodes
-            .toSeq // Covert the Array[Seq[Row]]s to Seq[Seq[Row]]s
-            .flatten // Create a single Seq[Row] by merging all Seq[Row]s
-
-          logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
-
-          val structureSchema = DataPreparationUtil.generateSchema(dataPreparationRequest.featureset)
-
-          val dataFrame = sparkSession.createDataFrame(
-            sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
-            structureSchema)
-
           try {
+            // If any Failure is found, throw the exception and stop execution
+            rdd.filter(_.isFailure).map {
+              case Failure(e) => {
+                logger.error(e.getMessage, e)
+                throw DataPreparationException(e.getMessage, e)
+              }
+            }
+
+            // RDDs are lazy evaluated. In order to materialize the above statement, call an action on rdd such as foreach, collect, count etc.
+            val dataRowSet = rdd.collect() // Collect the Seq[Row]s from the worker nodes
+              .map(_.get) // Unwrap the Success (we know that there is no Failure since we stop execution if we find a Failure above)
+              .toSeq // Covert the Array[Seq[Row]]s to Seq[Seq[Row]]s
+              .flatten // Create a single Seq[Row] by merging all Seq[Row]s
+
+            logger.debug("Data is collected from the worker nodes. And now the DataFrame will be constructed.")
+
+            val structureSchema = DataPreparationUtil.generateSchema(dataPreparationRequest.featureset)
+
+            val dataFrame = sparkSession.createDataFrame(
+              sparkSession.sparkContext.parallelize(dataRowSet), // After collecting the data from the worker nodes, parallelize it again
+              structureSchema)
+
             // Save the dataFrame which includes the prepared data into ppddm-store/datasets/:dataset_id
-            AgentDataStoreManager.saveDataFrame(AgentDataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id), dataFrame)
-            logger.info(s"Prepared data has been successfully saved with id: ${dataPreparationRequest.dataset_id}")
-          }
-          catch {
-            case e: Exception =>
-              val msg = s"Cannot save the Dataframe of the prepared data with id: ${dataPreparationRequest.dataset_id}."
-              logger.error(msg, e)
-              throw DataPreparationException(msg, e)
-          }
+            saveDataFrame(dataPreparationRequest.dataset_id, dataFrame)
 
-          try {
             val variables = dataPreparationRequest.featureset.variables
             if (variables.isEmpty) {
               logger.warn("This should not have HAPPENED!!! There are no variables in the data preparation request.")
+              throw DataPreparationException("There are no variables in the data preparation request.")
             } else {
               val agentDataStatistics: AgentDataStatistics = StatisticsController.calculateStatistics(dataFrame, variables)
-              val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent, agentDataStatistics)
-              AgentDataStoreManager.saveDataFrame(
-                AgentDataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
-                Seq(dataPreparationResult.toJson).toDF())
-              logger.info("Calculated statistics have been successfully saved.")
+              val dataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent, agentDataStatistics, None)
+              saveDataPreparationResult(dataPreparationResult)
             }
+
+            // We print the schema and the data only for debugging purposes. Will be removed in the future.
+            dataFrame.printSchema()
+            dataFrame.show(false)
+
+            Done
           } catch {
+            case d: DataPreparationException =>
+              // Save DataPreparationResult with DataPreparationException
+              val dataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent,
+                AgentDataStatistics(0L, Seq.empty[VariableStatistics]), Some(d.getMessage))
+              saveDataPreparationResult(dataPreparationResult)
+              throw d
             case e: Exception =>
-              val msg = s"Cannot save Dataframe with id: ${dataPreparationRequest.dataset_id}."
-              logger.error(msg, e)
-              throw DataPreparationException(msg, e)
+              val msg = s"An unexpected error occurred while preparing data"
+              logger.error(msg)
+
+              // Save DataPreparationResult with Exception
+              val dataPreparationException = DataPreparationException(msg, e)
+              val dataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id, dataPreparationRequest.agent,
+                AgentDataStatistics(0L, Seq.empty[VariableStatistics]), Some(dataPreparationException.getMessage))
+              saveDataPreparationResult(dataPreparationResult)
+              throw dataPreparationException
           }
-
-          // We print the schema and the data only for debugging purposes. Will be removed in the future.
-          dataFrame.printSchema()
-          dataFrame.show(false)
-
-          Done
         } else {
           logger.info("There are no patients for the given eligibility criteria: {}", dataPreparationRequest.eligibility_criteria)
 
           logger.debug("An empty DataPreparationResult will be saved into the DataStore for Dataset:{}", dataPreparationRequest.dataset_id)
           val dataPreparationResult: DataPreparationResult = DataPreparationResult(dataPreparationRequest.dataset_id,
             dataPreparationRequest.agent,
-            AgentDataStatistics(0L, Seq.empty[VariableStatistics]))
+            AgentDataStatistics(0L, Seq.empty[VariableStatistics]), None)
 
-          AgentDataStoreManager.saveDataFrame(
-            AgentDataStoreManager.getStatisticsPath(dataPreparationRequest.dataset_id),
-            Seq(dataPreparationResult.toJson).toDF())
+          saveDataPreparationResult(dataPreparationResult)
 
           Done
         }
@@ -210,6 +219,53 @@ object DataPreparationController {
    */
   def removeInvalidChars(value: String): String = {
     value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
+  }
+
+  private def saveDataFrame(dataset_id: String, dataFrame: DataFrame): Unit = {
+    try {
+      // Save the dataFrame which includes the prepared data into ppddm-store/datasets/:dataset_id
+      AgentDataStoreManager.saveDataFrame(AgentDataStoreManager.getDatasetPath(dataset_id), dataFrame)
+      logger.info(s"Prepared data has been successfully saved with id: ${dataset_id}")
+    }
+    catch {
+      case e: Exception =>
+        try {
+          // Try saving once more
+          AgentDataStoreManager.saveDataFrame(AgentDataStoreManager.getDatasetPath(dataset_id), dataFrame)
+          logger.info(s"Prepared data has been successfully saved with id: ${dataset_id}")
+        }
+        catch {
+          case e: Exception =>
+            val msg = s"Cannot save the Dataframe of the prepared data with id: ${dataset_id} due to following error:"
+            logger.error(msg)
+            logger.error(e.getMessage)
+            throw DataPreparationException(msg, e)
+        }
+    }
+  }
+
+  private def saveDataPreparationResult(dataPreparationResult: DataPreparationResult): Unit = {
+    try {
+      AgentDataStoreManager.saveDataFrame(
+        AgentDataStoreManager.getStatisticsPath(dataPreparationResult.dataset_id),
+        Seq(dataPreparationResult.toJson).toDF())
+      logger.info("DataPreparationResult containing the calculated statistics have been successfully saved.")
+    } catch {
+      case e: Exception =>
+        try {
+          // Try saving once more
+          AgentDataStoreManager.saveDataFrame(
+            AgentDataStoreManager.getStatisticsPath(dataPreparationResult.dataset_id),
+            Seq(dataPreparationResult.toJson).toDF())
+          logger.info("DataPreparationResult containing the calculated statistics have been successfully saved.")
+        } catch {
+          case e: Exception =>
+            val msg = s"Cannot save DataPreparationResult with id: ${dataPreparationResult.dataset_id} due to following error:"
+            logger.error(msg)
+            logger.error(e.getMessage)
+            throw DataPreparationException(msg, e)
+        }
+    }
   }
 
   /**

@@ -8,9 +8,8 @@ import org.apache.spark.sql.DataFrame
 import ppddm.agent.controller.dm.ClassificationController.{SEED, TEST_SIZE, TRAINING_SIZE}
 import ppddm.agent.controller.dm.DataAnalysisManager
 import ppddm.agent.controller.dm.algorithm.DataMiningAlgorithm
-import ppddm.agent.exception.DataMiningException
 import ppddm.core.ai.{Predictor, StatisticsCalculator}
-import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, AlgorithmParameterName, BoostedModel, WeakModel}
+import ppddm.core.rest.model.{Agent, AgentAlgorithmStatistics, Algorithm, AlgorithmName, AlgorithmParameterName, BoostedModel, DataMiningException, WeakModel}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global

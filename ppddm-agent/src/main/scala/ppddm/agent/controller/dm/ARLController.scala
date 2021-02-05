@@ -2,7 +2,6 @@ package ppddm.agent.controller.dm
 
 import akka.Done
 import ppddm.agent.controller.dm.algorithm.arl.ARLAlgorithm
-import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
 import ppddm.core.rest.model._
 import ppddm.core.util.JsonFormatter._

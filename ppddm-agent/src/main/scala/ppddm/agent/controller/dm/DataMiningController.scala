@@ -3,8 +3,8 @@ package ppddm.agent.controller.dm
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import ppddm.agent.Agent
-import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
+import ppddm.core.rest.model.DataMiningException
 
 /**
  * Base Controller object for Data Mining Algorithm Execution
