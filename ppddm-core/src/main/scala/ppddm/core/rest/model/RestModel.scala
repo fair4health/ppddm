@@ -164,7 +164,8 @@ final case class DataPreparationRequest(dataset_id: String,
 
 final case class DataPreparationResult(dataset_id: String,
                                        agent: Agent,
-                                       agent_data_statistics: AgentDataStatistics) extends ModelClass
+                                       agent_data_statistics: AgentDataStatistics,
+                                       exception: Option[String]) extends ModelClass
 
 final case class Parameter(name: String,
                            data_type: DataType,
@@ -419,6 +420,7 @@ final case class WeakModel(algorithm: Algorithm,
 }
 
 final case class Algorithm(name: AlgorithmName,
+                           display: Option[String],
                            parameters: Seq[Parameter]) extends ModelClass
 
 final case class AgentAlgorithmStatistics(agent_model: Agent,
@@ -435,7 +437,8 @@ final case class ModelTrainingRequest(model_id: String,
 final case class ModelTrainingResult(model_id: String,
                                      dataset_id: String,
                                      agent: Agent,
-                                     algorithm_training_models: Seq[WeakModel]) extends ModelClass
+                                     algorithm_training_models: Seq[WeakModel],
+                                     exception: Option[String]) extends ModelClass
 
 final case class ModelValidationRequest(model_id: String,
                                         dataset_id: String,
@@ -446,7 +449,8 @@ final case class ModelValidationRequest(model_id: String,
 final case class ModelValidationResult(model_id: String,
                                        dataset_id: String,
                                        agent: Agent,
-                                       validation_statistics: Seq[AgentAlgorithmStatistics]) extends ModelClass
+                                       validation_statistics: Seq[AgentAlgorithmStatistics],
+                                       exception: Option[String]) extends ModelClass
 
 final case class ModelTestRequest(model_id: String,
                                   dataset_id: String,
@@ -457,7 +461,8 @@ final case class ModelTestRequest(model_id: String,
 final case class ModelTestResult(model_id: String,
                                  dataset_id: String,
                                  agent: Agent,
-                                 test_statistics: Seq[AgentAlgorithmStatistics]) extends ModelClass
+                                 test_statistics: Seq[AgentAlgorithmStatistics],
+                                 exception: Option[String]) extends ModelClass
 
 final case class ProspectiveStudy(prospective_study_id: Option[String],
                                   project_id: String,

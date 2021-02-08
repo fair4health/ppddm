@@ -4,8 +4,8 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.ExceptionHandler
 import com.typesafe.scalalogging.Logger
-import ppddm.agent.exception.DataPreparationException
 import ppddm.core.exception.AuthException
+import ppddm.core.rest.model.DataPreparationException
 
 
 trait AgentExceptionHandler {

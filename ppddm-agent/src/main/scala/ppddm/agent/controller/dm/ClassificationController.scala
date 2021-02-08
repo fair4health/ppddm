@@ -1,15 +1,15 @@
 package ppddm.agent.controller.dm
 
 import akka.Done
+import ppddm.agent.controller.dm.DataMiningRequestType.DataMiningRequestType
 import ppddm.agent.controller.dm.algorithm.classification.ClassificationAlgorithm
-import ppddm.agent.exception.DataMiningException
 import ppddm.agent.store.AgentDataStoreManager
 import ppddm.core.rest.model._
 import ppddm.core.util.JsonFormatter._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 /**
  * Controller object for Classification Algorithm Execution
@@ -33,35 +33,55 @@ object ClassificationController extends DataMiningController {
     logger.debug("ModelTrainingRequest received on agent:{} for model:{} for a total of {} Algorithms",
       modelTrainingRequest.agent.agent_id, modelTrainingRequest.model_id, modelTrainingRequest.algorithms.length)
 
-    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
-    val dataFrame = retrieveDataFrame(modelTrainingRequest.dataset_id)
+    try {
+      // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+      val dataFrame = retrieveDataFrame(modelTrainingRequest.dataset_id)
 
-    logger.debug(s"DataFrame for the Dataset:${modelTrainingRequest.dataset_id} is retrieved for training of ${modelTrainingRequest.algorithms.length} " +
-      s"Algorithms in DataMiningModel:${modelTrainingRequest.model_id}")
+      logger.debug(s"DataFrame for the Dataset:${modelTrainingRequest.dataset_id} is retrieved for training of ${modelTrainingRequest.algorithms.length} " +
+        s"Algorithms in DataMiningModel:${modelTrainingRequest.model_id}")
 
-    // Train and generate weak models on the dataFrame
-    val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
-      ClassificationAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
-    }
-
-    Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
-      logger.debug(s"Parallel training of the Algorithms have been completed for DataMiningModel:${modelTrainingRequest.model_id}")
-
-      val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
-        modelTrainingRequest.agent, algorithm_models)
-      try {
-        // Save the ModelTrainingResult containing the models into ppddm-store/models/:model_id
-        AgentDataStoreManager.saveDataFrame(
-          AgentDataStoreManager.getModelPath(modelTrainingRequest.model_id, DataMiningRequestType.TRAIN),
-          Seq(modelTrainingResult.toJson).toDF())
-        logger.debug(s"ModelTrainingResult has been created and persisted into the data store successfully for DataMiningModel:${modelTrainingRequest.model_id}")
-        Done
-      } catch {
-        case e: Exception =>
-          val msg = s"Cannot save the ModelTrainingResult of the model with model_id: ${modelTrainingRequest.model_id}."
-          logger.error(msg)
-          throw DataMiningException(msg, e)
+      // Train and generate weak models on the dataFrame
+      val weakModelFutures = modelTrainingRequest.algorithms map { algorithm =>
+        ClassificationAlgorithm(modelTrainingRequest.agent, algorithm).train(modelTrainingRequest.dataset_id, dataFrame)
       }
+
+      Future.sequence(weakModelFutures) map { algorithm_models => // Join the Futures
+        logger.debug(s"Parallel training of the Algorithms have been completed for DataMiningModel:${modelTrainingRequest.model_id}")
+
+        // Save the ModelTrainingResult containing the models into ppddm-store/models/:model_id
+        val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
+          modelTrainingRequest.agent, algorithm_models, None)
+        saveResult(modelTrainingResult.model_id, DataMiningRequestType.TRAIN, modelTrainingResult.toJson)
+      } recover {
+        case e: Exception =>
+          val msg = s"The following unexpected error occurred while training model:"
+          logger.error(msg)
+          logger.error(e.getMessage, e)
+
+          // Save ModelTrainingResult with DataMiningException
+          val dataMiningException = DataMiningException(e.getMessage, e)
+          val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
+            modelTrainingRequest.agent, Seq.empty, Some(dataMiningException.getMessage))
+          saveResult(modelTrainingResult.model_id, DataMiningRequestType.TRAIN, modelTrainingResult.toJson)
+          throw dataMiningException
+      }
+    } catch {
+      case d: DataMiningException =>
+        // Save ModelTrainingResult with DataMiningException
+        val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
+          modelTrainingRequest.agent, Seq.empty, Some(d.getMessage))
+        saveResult(modelTrainingResult.model_id, DataMiningRequestType.TRAIN, modelTrainingResult.toJson)
+        throw d
+      case e: Exception =>
+        val msg = s"An unexpected error occurred while training model"
+        logger.error(msg)
+
+        // Save ModelTrainingResult with DataMiningException
+        val dataMiningException = DataMiningException(msg, e)
+        val modelTrainingResult = ModelTrainingResult(modelTrainingRequest.model_id, modelTrainingRequest.dataset_id,
+          modelTrainingRequest.agent, Seq.empty, Some(dataMiningException.getMessage))
+        saveResult(modelTrainingResult.model_id, DataMiningRequestType.TRAIN, modelTrainingResult.toJson)
+        throw dataMiningException
     }
   }
 
@@ -110,40 +130,62 @@ object ClassificationController extends DataMiningController {
     logger.debug("ModelValidationRequest received on agent:{} for model:{} for a total of {} WeakModels",
       modelValidationRequest.agent.agent_id, modelValidationRequest.model_id, modelValidationRequest.weak_models.length)
 
-    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
-    val dataFrame = retrieveDataFrame(modelValidationRequest.dataset_id)
+    try {
+      // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+      val dataFrame = retrieveDataFrame(modelValidationRequest.dataset_id)
 
-    logger.debug(s"DataFrame for the Dataset:${modelValidationRequest.dataset_id} is retrieved for validation of ${modelValidationRequest.weak_models.length} " +
-      s"WeakModels in DataMiningModel:${modelValidationRequest.model_id}")
+      logger.debug(s"DataFrame for the Dataset:${modelValidationRequest.dataset_id} is retrieved for validation of ${modelValidationRequest.weak_models.length} " +
+        s"WeakModels in DataMiningModel:${modelValidationRequest.model_id}")
 
-    // Split the data into training and test. Only trainingData will be used.
-    val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+      // Split the data into training and test. Only trainingData will be used.
+      val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
-    // Train each weak model on dataFrame, and calculate statistics for each
-    val validationFutures = modelValidationRequest.weak_models.map { weakModel =>
-      ClassificationAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel, trainingData)
-    }
-
-    Future.sequence(validationFutures) map { validationResults => // Join the Futures
-      logger.debug(s"Parallel validation of the WeakModels have been completed for DataMiningModel:${modelValidationRequest.model_id}")
-
-      val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id, modelValidationRequest.agent, validationResults)
-
-      try {
-        // Save the ModelValidationResult containing the models into ppddm-store/models/:model_id
-        AgentDataStoreManager.saveDataFrame(
-          AgentDataStoreManager.getModelPath(modelValidationResult.model_id, DataMiningRequestType.VALIDATE),
-          Seq(modelValidationResult.toJson).toDF())
-        logger.debug(s"ModelValidationResult has been created and persisted into the data store successfully for DataMiningModel:${modelValidationRequest.model_id}")
-        Done
-      } catch {
-        case e: Exception =>
-          val msg = s"Cannot save the ModelValidationResult of the model with model_id: ${modelValidationResult.model_id}."
-          logger.error(msg)
-          throw DataMiningException(msg, e)
+      // Train each weak model on dataFrame, and calculate statistics for each
+      val validationFutures = modelValidationRequest.weak_models.map { weakModel =>
+        ClassificationAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel, trainingData)
       }
-    }
 
+      // TODO handle errors in futures here
+
+      Future.sequence(validationFutures) map { validationResults => // Join the Futures
+        logger.debug(s"Parallel validation of the WeakModels have been completed for DataMiningModel:${modelValidationRequest.model_id}")
+
+        // Save the ModelValidationResult containing the models into ppddm-store/models/:model_id
+        val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id,
+          modelValidationRequest.agent, validationResults, None)
+        saveResult(modelValidationResult.model_id, DataMiningRequestType.VALIDATE, modelValidationResult.toJson)
+      } recover {
+        case e: Exception =>
+          val msg = s"The following unexpected error occurred while validating model:"
+          logger.error(msg)
+          logger.error(e.getMessage, e)
+
+          // Save ModelValidationResult with DataMiningException
+          val dataMiningException = DataMiningException(e.getMessage, e)
+          val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id,
+            modelValidationRequest.agent, Seq.empty, Some(dataMiningException.getMessage))
+          saveResult(modelValidationResult.model_id, DataMiningRequestType.VALIDATE, modelValidationResult.toJson)
+          throw dataMiningException
+      }
+    } catch {
+      case d: DataMiningException =>
+        // Save ModelValidationResult with DataMiningException
+        val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id,
+          modelValidationRequest.agent, Seq.empty, Some(d.getMessage))
+        saveResult(modelValidationResult.model_id, DataMiningRequestType.VALIDATE, modelValidationResult.toJson)
+        throw d
+      case e: Exception =>
+        val msg = s"An unexpected error occurred while validating model"
+        logger.error(msg)
+        logger.error(e.getMessage, e)
+
+        // Save ModelValidationResult with Exception
+        val dataMiningException = DataMiningException(msg, e)
+        val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id,
+          modelValidationRequest.agent, Seq.empty, Some(dataMiningException.getMessage))
+        saveResult(modelValidationResult.model_id, DataMiningRequestType.VALIDATE, modelValidationResult.toJson)
+        throw dataMiningException
+    }
   }
 
   /**
@@ -191,38 +233,60 @@ object ClassificationController extends DataMiningController {
     logger.debug("ModelTestRequest received on agent:{} for model:{} for a total of {} BoostedModels",
       modelTestRequest.agent.agent_id, modelTestRequest.model_id, modelTestRequest.boosted_models.length)
 
-    // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
-    val dataFrame = retrieveDataFrame(modelTestRequest.dataset_id)
+    try {
+      // Retrieve the DataFrame object with the given dataset_id previously saved in the data store
+      val dataFrame = retrieveDataFrame(modelTestRequest.dataset_id)
 
-    logger.debug(s"DataFrame for the Dataset:${modelTestRequest.dataset_id} is retrieved for testing of ${modelTestRequest.boosted_models.length} " +
-      s"BoostedModels in DataMiningModel:${modelTestRequest.model_id}")
+      logger.debug(s"DataFrame for the Dataset:${modelTestRequest.dataset_id} is retrieved for testing of ${modelTestRequest.boosted_models.length} " +
+        s"BoostedModels in DataMiningModel:${modelTestRequest.model_id}")
 
-    // Split the data into training and test. Only testData will be used.
-    val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
+      // Split the data into training and test. Only testData will be used.
+      val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
-    // Test each boosted model on dataFrame, and calculate statistics for each
-    val testFutures = modelTestRequest.boosted_models.map { boostedModel =>
-      ClassificationAlgorithm(modelTestRequest.agent, boostedModel.algorithm).test(boostedModel, testData)
-    }
-
-    Future.sequence(testFutures) map { testResults => // Join the Futures
-      logger.debug(s"Parallel testing of the BoostedModels have been completed for DataMiningModel:${modelTestRequest.model_id}")
-
-      val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, testResults)
-
-      try {
-        // Save the ModelTestResult containing the models into ppddm-store/models/:model_id
-        AgentDataStoreManager.saveDataFrame(
-          AgentDataStoreManager.getModelPath(modelTestResult.model_id, DataMiningRequestType.TEST),
-          Seq(modelTestResult.toJson).toDF())
-        logger.debug(s"ModelTestResult has been created and persisted into the data store successfully for DataMiningModel:${modelTestRequest.model_id}")
-        Done
-      } catch {
-        case e: Exception =>
-          val msg = s"Cannot save the ModelTestResult of the model with model_id: ${modelTestResult.model_id}."
-          logger.error(msg)
-          throw DataMiningException(msg, e)
+      // Test each boosted model on dataFrame, and calculate statistics for each
+      val testFutures = modelTestRequest.boosted_models.map { boostedModel =>
+        ClassificationAlgorithm(modelTestRequest.agent, boostedModel.algorithm).test(boostedModel, testData)
       }
+
+      // TODO handle errors in futures here
+
+      Future.sequence(testFutures) map { testResults => // Join the Futures
+        logger.debug(s"Parallel testing of the BoostedModels have been completed for DataMiningModel:${modelTestRequest.model_id}")
+
+        // Save the ModelTestResult containing the models into ppddm-store/models/:model_id
+        val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id, modelTestRequest.agent, testResults, None)
+        saveResult(modelTestResult.model_id, DataMiningRequestType.TEST, modelTestResult.toJson)
+      } recover {
+        case e: Exception =>
+          val msg = s"The following unexpected error occurred while testing model:"
+          logger.error(msg)
+          logger.error(e.getMessage, e)
+
+          // Save ModelTestResult with DataMiningException
+          val dataMiningException = DataMiningException(msg, e)
+          val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id,
+            modelTestRequest.agent, Seq.empty, Some(dataMiningException.getMessage))
+          saveResult(modelTestResult.model_id, DataMiningRequestType.TEST, modelTestResult.toJson)
+          throw dataMiningException
+      }
+    } catch {
+      case d: DataMiningException =>
+        // Save ModelTestResult with DataMiningException
+        val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id,
+          modelTestRequest.agent, Seq.empty, Some(d.getMessage))
+        saveResult(modelTestResult.model_id, DataMiningRequestType.TEST, modelTestResult.toJson)
+        throw d
+      case e: Exception =>
+        val msg = s"An unexpected error occurred while testing model"
+        logger.error(msg)
+        logger.error(e.getMessage, e)
+
+        // Save ModelTestResult with Exception
+        val dataMiningException = DataMiningException(msg, e)
+        val modelTestResult = ModelTestResult(modelTestRequest.model_id, modelTestRequest.dataset_id,
+          modelTestRequest.agent, Seq.empty, Some(dataMiningException.getMessage))
+        saveResult(modelTestResult.model_id, DataMiningRequestType.TEST, modelTestResult.toJson)
+        throw dataMiningException
     }
   }
 
@@ -260,5 +324,29 @@ object ClassificationController extends DataMiningController {
     }
   }
 
+  private def saveResult(model_id: String, dataMiningRequestType: DataMiningRequestType, result: String): Done = {
+    try {
+      // Save the Model Training/Validation/Testing Result containing the models into ppddm-store/models/:model_id
+      AgentDataStoreManager.saveDataFrame(
+        AgentDataStoreManager.getModelPath(model_id, dataMiningRequestType), Seq(result).toDF())
+      logger.debug(s"Model ${dataMiningRequestType} result has been created and persisted into the data store successfully for DataMiningModel:${model_id}")
+      Done
+    } catch {
+      case e: Exception =>
+        try {
+          // Try saving once more
+          AgentDataStoreManager.saveDataFrame(
+            AgentDataStoreManager.getModelPath(model_id, dataMiningRequestType), Seq(result).toDF())
+          logger.debug(s"Model ${dataMiningRequestType} result has been created and persisted into the data store successfully for DataMiningModel:${model_id}")
+          Done
+        } catch {
+          case e: Exception =>
+            val msg = s"Cannot save the Model ${dataMiningRequestType} result of the model with model_id: ${model_id} due to following error:"
+            logger.error(msg)
+            logger.error(e.getMessage)
+            throw DataMiningException(msg, e)
+        }
+    }
+  }
 
 }

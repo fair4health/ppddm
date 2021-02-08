@@ -7,8 +7,7 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.StringType
 import ppddm.core.ai.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
 import ppddm.agent.controller.prepare.DataPreparationController
-import ppddm.agent.exception.DataMiningException
-import ppddm.core.rest.model.{VariableDataType, VariableType}
+import ppddm.core.rest.model.{DataMiningException, VariableDataType, VariableType}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
