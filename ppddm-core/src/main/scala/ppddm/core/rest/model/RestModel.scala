@@ -29,12 +29,12 @@ case class Project(project_id: Option[String],
 }
 
 final case class Featureset(featureset_id: Option[String],
-                      project_id: String,
-                      name: String,
-                      description: String,
-                      variables: Seq[Variable],
-                      created_by: String,
-                      created_on: Option[LocalDateTime]) extends ModelClass {
+                            project_id: String,
+                            name: String,
+                            description: String,
+                            variables: Seq[Variable],
+                            created_by: String,
+                            created_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueFeaturesetId: Featureset = {
     this.copy(featureset_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
@@ -46,11 +46,11 @@ final case class Featureset(featureset_id: Option[String],
 }
 
 final case class Variable(name: String,
-                    description: Option[String],
-                    fhir_query: String,
-                    fhir_path: String,
-                    variable_data_type: VariableDataType,
-                    variable_type: VariableType) extends ModelClass
+                          description: Option[String],
+                          fhir_query: String,
+                          fhir_path: String,
+                          variable_data_type: VariableDataType,
+                          variable_type: VariableType) extends ModelClass
 
 final case class Dataset(dataset_id: Option[String],
                          project_id: String,
@@ -81,23 +81,36 @@ final case class Dataset(dataset_id: Option[String],
       // Do not do anything
       dataset
     } else {
-      val selectedDataSources = dataset.dataset_sources.get.filter(s => s.selection_status.isDefined && s.selection_status.get == SelectionStatus.SELECTED)
-      if (selectedDataSources.nonEmpty) {
-        // This means there are selected data sources, the state should be FINAL
-        if (!dataset.execution_state.contains(ExecutionState.FINAL)) {
-          dataset.copy(execution_state = Some(ExecutionState.FINAL))
+      // First, check if there are any Erroneous DatasetSources.
+      // If there is, then set this Dataset's ExecutionState to ERROR
+      val erroneousDataSources = dataset.dataset_sources.get.filter(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.ERROR)
+      if (erroneousDataSources.nonEmpty) {
+        if (!dataset.execution_state.contains(ExecutionState.ERROR)) {
+          dataset.copy(execution_state = Some(ExecutionState.ERROR))
         } else {
-          // Do nothing if it is already in FINAL state
+          // Do nothing if it is already in ERROR state
           dataset
         }
       } else {
-        // Find the ExecutionState for the newly created Dataset
-        val areAllAgentsFinished = dataset.dataset_sources.get
-          // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
-          .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
-          .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's state can become READY
-        val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
-        dataset.copy(execution_state = newExecutionState)
+        // There is not error on the DatasetSources, check for other state changes. Start with the selection status.
+        val selectedDataSources = dataset.dataset_sources.get.filter(s => s.selection_status.isDefined && s.selection_status.get == SelectionStatus.SELECTED)
+        if (selectedDataSources.nonEmpty) {
+          // This means there are selected data sources, the state should be FINAL
+          if (!dataset.execution_state.contains(ExecutionState.FINAL)) {
+            dataset.copy(execution_state = Some(ExecutionState.FINAL))
+          } else {
+            // Do nothing if it is already in FINAL state
+            dataset
+          }
+        } else {
+          // Find the ExecutionState for the newly created Dataset
+          val areAllAgentsFinished = dataset.dataset_sources.get
+            // Set it to True if the execution_state is defined and it is recieved as FINAL from the Agent, False otherwise
+            .map(s => s.execution_state.isDefined && s.execution_state.get == ExecutionState.FINAL)
+            .reduceLeft((a, b) => a && b) // Logically AND the states. If all sources are True, then Dataset's state can become READY
+          val newExecutionState = if (areAllAgentsFinished) Some(ExecutionState.READY) else Some(ExecutionState.EXECUTING)
+          dataset.copy(execution_state = newExecutionState)
+        }
       }
     }
   }
@@ -109,7 +122,8 @@ final case class EligibilityCriterion(fhir_query: String,
 final case class DatasetSource(agent: Agent,
                                agent_data_statistics: Option[AgentDataStatistics],
                                selection_status: Option[SelectionStatus],
-                               execution_state: Option[ExecutionState]) extends ModelClass
+                               execution_state: Option[ExecutionState],
+                               error_message: Option[String] = None) extends ModelClass
 
 final case class Agent(agent_id: String,
                        name: String,
@@ -360,11 +374,11 @@ final case class WeakModel(algorithm: Algorithm,
                           ) extends ModelClass {
 
   def withFittedModel(fitted_model: String): WeakModel = {
-    if(this.fitted_model.isDefined) {
+    if (this.fitted_model.isDefined) {
       val msg = "You are trying to replace an already existing fitted_model in this WeakModel. This is not allowed."
       throw new IllegalArgumentException(msg)
     }
-    if(this.item_frequencies.isEmpty) {
+    if (this.item_frequencies.isEmpty) {
       val msg = "While assigning a fitted_model to a WeakModel, the WeakModel must have the item_frequencies (considering the ARL mining)"
       throw new IllegalArgumentException(msg)
     }

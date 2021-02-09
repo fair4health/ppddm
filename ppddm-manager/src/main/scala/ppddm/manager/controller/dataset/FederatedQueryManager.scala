@@ -109,7 +109,14 @@ object FederatedQueryManager {
         logger.debug("DataPreparationResults have been retrieved from all {} data sources (Agents) of the dataset.", responses.size)
         responses.map(result => { // For each DataPreparationResult
           result map { dataPreparationResult => // Create a corresponding DatasetSource object
-            DatasetSource(dataPreparationResult.agent, Some(dataPreparationResult.agent_data_statistics), None, Some(ExecutionState.FINAL))
+            if (dataPreparationResult.exception.isDefined) {
+              // There is an error on the associated agent (i.e. FHIRPath was invalid)
+              // Create the corresponding DatasetSource with the error message and set the ExecutionState to ERROR
+              DatasetSource(dataPreparationResult.agent, None, None, Some(ExecutionState.ERROR), dataPreparationResult.exception)
+            } else {
+              // Data has been successfully prepared on the Agent
+              DatasetSource(dataPreparationResult.agent, Some(dataPreparationResult.agent_data_statistics), None, Some(ExecutionState.FINAL))
+            }
           }
         })
           .filter(_.isDefined) // Keep the the data sources which produced the results

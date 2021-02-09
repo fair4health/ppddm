@@ -45,11 +45,13 @@ object SelectionStatus extends Enumeration {
  * Dataset: When a Dataset is created, it will invoke Agents to prepare their data. The ExecutionState of the Dataset
  * will be EXECUTING at this point. Once all Agents prepare their data, th ExecutionState of the Dataset will be
  * READY since the user now will select/discard the data sources of the Dataset. After this selection,
- * the ExecutionState will be FINAL.
+ * the ExecutionState will be FINAL. If one of the DatasetSources of the Dataset receives error during dataset preparation,
+ * then the ExecutionState of the dataset will be set to ERROR.
  *
  * DatasetSource: When an Agent is invoked to prepare its data, the associated DatasetSource's ExecutionState will be
  * EXECUTING. When the data is ready at the Agent, then the ExecutionState will be FINAL. Hence, DatasetSource uses only
- * two of the available ExecutionState enumeration values.
+ * two of the available ExecutionState enumeration values. If data preparation gives an error on the associated Agent of
+ * the DatasetSource then the ExecutionState will be set to ERROR.
  *
  */
 object ExecutionState extends Enumeration {
@@ -57,6 +59,7 @@ object ExecutionState extends Enumeration {
   val EXECUTING = "executing"
   val READY = "ready"
   val FINAL = "final"
+  val ERROR = "error"
 }
 
 /**
