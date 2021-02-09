@@ -1,5 +1,7 @@
 package ppddm.core.rest.model
 
+import org.glassfish.jersey.internal.Errors.ErrorMessage
+
 import java.time.LocalDateTime
 import java.util.UUID
 import ppddm.core.rest.model.AlgorithmName.AlgorithmName
@@ -231,6 +233,7 @@ final case class DataMiningModel(model_id: Option[String],
                                  test_size: Option[Double], // Prediction
                                  boosted_models: Option[Seq[BoostedModel]],
                                  data_mining_state: Option[DataMiningState],
+                                 error_message: Option[String] = None,
                                  created_by: String,
                                  created_on: Option[LocalDateTime]) extends ModelClass {
 
@@ -248,6 +251,10 @@ final case class DataMiningModel(model_id: Option[String],
 
   def withBoostedModels(boostedModels: Seq[BoostedModel]): DataMiningModel = {
     this.copy(boosted_models = Some(boostedModels))
+  }
+
+  def withError(errorMessage: String): DataMiningModel = {
+    this.copy(error_message = Some(errorMessage), data_mining_state = Some(DataMiningState.ERROR))
   }
 
   def withUpdatedDataMiningState(dataMiningModel: DataMiningModel = this): DataMiningModel = {

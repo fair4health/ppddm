@@ -48,6 +48,12 @@ object PredictionMiningProcessor {
         Future.apply(DataMiningOrchestrator.stopOrchestration(dataMiningModel.model_id.get)) // Stop the orchestration for this DataMiningModel
         val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} is already in its ${dataMiningModel.data_mining_state.get} state, why do you want me to process it within an Orchestrator!!!"
         throw DataIntegrityException(msg)
+      case Some(DataMiningState.ERROR) =>
+        // There is an exception during one of the states in one or more of the Agents. Hence, the processing for
+        // this DataMiningModel should stop
+        Future.apply(DataMiningOrchestrator.stopOrchestration(dataMiningModel.model_id.get)) // Stop the orchestration for this DataMiningModel
+        val msg = s"This DataMiningModel:${dataMiningModel.model_id.get} received an error and processing stopped! The error message is:${System.lineSeparator()}${dataMiningModel.error_message.get}"
+        throw DataIntegrityException(msg)
       case Some(state) =>
         val msg = s"Hey..! There is no such state:${state} for the DataMiningObject for Prediction projects."
         throw new IllegalArgumentException(msg)
@@ -89,60 +95,69 @@ object PredictionMiningProcessor {
       // results include the ModelTrainingResults of the Agents whose training is completed.
       // Others have not finished yet.
 
-      // A ModelTrainingResult includes a sequence of WeakModel (one for each Algorithm)
-      // All ModelTrainingResults should include WeakModels of the same set of Algorithms
+      var newDataMiningModel = dataMiningModel // create & initialize the variable
 
-      val newBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel
-
-        val weakModelsOfAlgorithm = modelTrainingResults.map { modelTrainingResult => // find the corresponding WeakModel returned by each Agent and make a sequence of it
-          val wm = modelTrainingResult.algorithm_training_models.find(_.algorithm.name == algorithm.name)
-          if (wm.isEmpty) {
-            // If there is a result from an Agent, it must contain a WeakModel for each Algorithm of this DataMiningModel, because we submitted it previously for model training
-            throw DataIntegrityException(s"The Algorithm with name ${algorithm.name} could not be found on the WeakModel " +
-              s"training results of ${modelTrainingResult.agent} for the DataMiningModel with model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name}")
-          }
-          wm.get
-        }
-
-        // Check whether this DataMiningModel has already a BoostedModel for this algorithm (look up, we are looping over the algorithms)
-        val existingBoostedModel = if (dataMiningModel.boosted_models.isDefined) dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name) else None
-
-        if (existingBoostedModel.isDefined) {
-          // This means we previously created a BoostedModel for this algorithm and saved into the database.
-          // Now, new WeakModels arrived from different Agents for this BoostedModel (look up, we are looping over the algorithms)
-          logger.debug("There is already a BoostedModel for this Algorithm:{} under the DataMiningModel with model_id:{}. " +
-            "Newcoming WeakModels will be added to that BoostedModel.", algorithm.name, dataMiningModel.model_id.get)
-          existingBoostedModel.get.addNewWeakModels(weakModelsOfAlgorithm)
-        } else {
-          // This means this is the first time that we will create a BoostedModel for this algorithm
-          logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
-            algorithm.name, dataMiningModel.model_id.get)
-          BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
-        }
-
-      }
-
-      var newDataMiningModel = dataMiningModel.withBoostedModels(newBoostedModels)
-
-      if (DataMiningModelController.getAgentsWaitedForTrainingResults(newDataMiningModel).isEmpty) {
-        // If there are no remaining Agents to wait for the training results,
-        // then we can call the model validation endpoints of the Agents and advance to the VALIDATING state
-        logger.debug("There are no remaining Agents being waited for training results. So, I will invoke the validation endpoints of the Agents and " +
-          s"update the state to VALIDATING for this DataMiningModel:${dataMiningModel.model_id.get}")
-        val f = DistributedDataMiningManager.invokeAgentsModelValidation(newDataMiningModel)
-        try { // Wait for the validate invocations finish for all Agents
-          Await.result(f, Duration(30, TimeUnit.SECONDS))
-        } catch {
-          case e: java.util.concurrent.TimeoutException =>
-            logger.error("Invoking the model validation endpoints of {} Agents have not finished within 30 seconds " +
-              "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
-        }
-
-        logger.debug(s"Model validation endpoints of the Agents have been invoked and the state for this DataMiningModel:${dataMiningModel.model_id.get} will be advanced to VALIDATING.")
-        // Advance the state to VALIDATING because the Agents started validating the WeakModels
-        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.VALIDATING)
+      // First, check whether a ModelTrainingResult is in ERROR state or not. If at least one of the result is in ERROR
+      // state, this means we cannot create any BoostedModels, hence the whole DataMiningModel should be in ERROR state.
+      val erroneousResults = modelTrainingResults.filter(r => r.exception.isDefined)
+      if(erroneousResults.nonEmpty) {
+        newDataMiningModel = dataMiningModel.withError(s"TRAINING ERROR: ${erroneousResults.map(_.exception.get).mkString(System.lineSeparator())}")
       } else {
-        logger.debug(s"There are still remaining Agents being waited for training results for this DataMiningModel:${dataMiningModel.model_id.get}")
+        // A ModelTrainingResult includes a sequence of WeakModel (one for each Algorithm)
+        // All ModelTrainingResults should include WeakModels of the same set of Algorithms
+
+        val newBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel
+
+          val weakModelsOfAlgorithm = modelTrainingResults.map { modelTrainingResult => // find the corresponding WeakModel returned by each Agent and make a sequence of it
+            val wm = modelTrainingResult.algorithm_training_models.find(_.algorithm.name == algorithm.name)
+            if (wm.isEmpty) {
+              // If there is a result from an Agent, it must contain a WeakModel for each Algorithm of this DataMiningModel, because we submitted it previously for model training
+              throw DataIntegrityException(s"The Algorithm with name ${algorithm.name} could not be found on the WeakModel " +
+                s"training results of ${modelTrainingResult.agent} for the DataMiningModel with model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name}")
+            }
+            wm.get
+          }
+
+          // Check whether this DataMiningModel has already a BoostedModel for this algorithm (look up, we are looping over the algorithms)
+          val existingBoostedModel = if (dataMiningModel.boosted_models.isDefined) dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name) else None
+
+          if (existingBoostedModel.isDefined) {
+            // This means we previously created a BoostedModel for this algorithm and saved into the database.
+            // Now, new WeakModels arrived from different Agents for this BoostedModel (look up, we are looping over the algorithms)
+            logger.debug("There is already a BoostedModel for this Algorithm:{} under the DataMiningModel with model_id:{}. " +
+              "Newcoming WeakModels will be added to that BoostedModel.", algorithm.name, dataMiningModel.model_id.get)
+            existingBoostedModel.get.addNewWeakModels(weakModelsOfAlgorithm)
+          } else {
+            // This means this is the first time that we will create a BoostedModel for this algorithm
+            logger.debug("Creating a BoostedModel for the 1st time for the Algorithm:{} under the DataMiningModel with model_id:{}",
+              algorithm.name, dataMiningModel.model_id.get)
+            BoostedModel(algorithm, weakModelsOfAlgorithm, None, None, None, None, None, None) // Create the BoostedModel for this algorithm for the first time
+          }
+
+        }
+
+        newDataMiningModel = dataMiningModel.withBoostedModels(newBoostedModels)
+
+        if (DataMiningModelController.getAgentsWaitedForTrainingResults(newDataMiningModel).isEmpty) {
+          // If there are no remaining Agents to wait for the training results,
+          // then we can call the model validation endpoints of the Agents and advance to the VALIDATING state
+          logger.debug("There are no remaining Agents being waited for training results. So, I will invoke the validation endpoints of the Agents and " +
+            s"update the state to VALIDATING for this DataMiningModel:${dataMiningModel.model_id.get}")
+          val f = DistributedDataMiningManager.invokeAgentsModelValidation(newDataMiningModel)
+          try { // Wait for the validate invocations finish for all Agents
+            Await.result(f, Duration(30, TimeUnit.SECONDS))
+          } catch {
+            case e: java.util.concurrent.TimeoutException =>
+              logger.error("Invoking the model validation endpoints of {} Agents have not finished within 30 seconds " +
+                "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
+          }
+
+          logger.debug(s"Model validation endpoints of the Agents have been invoked and the state for this DataMiningModel:${dataMiningModel.model_id.get} will be advanced to VALIDATING.")
+          // Advance the state to VALIDATING because the Agents started validating the WeakModels
+          newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.VALIDATING)
+        } else {
+          logger.debug(s"There are still remaining Agents being waited for training results for this DataMiningModel:${dataMiningModel.model_id.get}")
+        }
       }
 
       // After processing the received ModelTrainingResult, save the newDataMiningModel into the database
@@ -170,73 +185,82 @@ object PredictionMiningProcessor {
       // ModelValidationResults of the Agents whose validation is completed.
       // Others have not finished yet.
 
-      // A ModelValidationResult includes a sequence of AlgorithmStatistics (one for each Algorithm)
+      var newDataMiningModel = dataMiningModel // create & initialize the variable
 
-      val updatedBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel
-        // Find the BoostedModel of this Algorithm (I could have loop over the BoostedModels,
-        // but I wanted it to be in a similar shape with handleTrainingState)
-
-        // Let's do some integrity checks
-        if (dataMiningModel.boosted_models.isEmpty) {
-          throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
-            s"I am trying to the process handleValidationState and there must have been a BoostedModel for each Algorithm.")
-        }
-
-        val boostedModelOption = dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name)
-        if (boostedModelOption.isEmpty) {
-          throw DataIntegrityException(s"Sweet Jesus! I am processing the handleValidationState of this DataMiningModel:${dataMiningModel.model_id.get}, " +
-            s"however there is no corresponding BoostedModel for this Algorithm:${algorithm.name}")
-        }
-
-        val boostedModel = boostedModelOption.get
-        val updatedWeakModels = boostedModel.weak_models.map { weakModel => // For each WeakModel within this BoostedModel
-          val validationStatistics = modelValidationResults
-            .filterNot(_.agent.agent_id == weakModel.agent.agent_id) // Find the ModelValidationResults received from the Agents other than the training Agent of this WeakModel (we are looping over the WeakModels)
-            .map { result => // For each such ModelValidationResult
-              // find the AgentAlgorithmStatistics such that the agent who trained the fitted_model will be this weakModel's agent for the same algorithm
-              val validationStatistics = result.validation_statistics.find(vs => vs.agent_model.agent_id == weakModel.agent.agent_id && vs.algorithm.name == weakModel.algorithm.name)
-              if (validationStatistics.isEmpty) {
-                throw DataIntegrityException(s"We have a problem here!!! I cannot find the validation statistics for Algorithm:${algorithm.name} " +
-                  s"which was trained on Agent:${weakModel.agent} among the validation results coming from ${result.agent} for DataMiningModel:${dataMiningModel.model_id.get}.")
-              }
-              validationStatistics.get
-            }
-          val newWeakModel = weakModel.addNewValidationStatistics(validationStatistics)
-          newWeakModel
-        }
-        boostedModel.replaceWeakModels(updatedWeakModels)
-      }
-
-      var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
-
-      if (DataMiningModelController.getAgentsWaitedForValidationResults(newDataMiningModel).isEmpty) {
-        // If there are no remaining Agents to wait for the validation results,
-        // We can calculate the calculated_training_statistics and weights of the WeakModels.
-        // Then we can call the model testing endpoints of the Agents and advance to the TESTING state
-
-        logger.debug("There are no remaining Agents being waited for validation results. So, I will invoke the test endpoints of the Agents and " +
-          s"update the state to TESTING for this DataMiningModel:${dataMiningModel.model_id.get}")
-        try {
-          // Calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
-          newDataMiningModel = Aggregator.aggregate(newDataMiningModel)
-        } catch {
-          case e: Exception => logger.error(s"It seems there is a data integrity issues with the DataMiningModel:${newDataMiningModel.model_id.get} " +
-            s"Since this is a Prediction model, training_statistics and validation_statistics MUST exist at this point.", e)
-        }
-
-        val f = DistributedDataMiningManager.invokeAgentsModelTesting(newDataMiningModel)
-        try { // Wait for the testing invocations finish for all Agents
-          Await.result(f, Duration(30, TimeUnit.SECONDS))
-        } catch {
-          case e: java.util.concurrent.TimeoutException =>
-            logger.error("Invoking the model testing endpoints of {} Agents have not finished within 30 seconds " +
-              "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
-        }
-
-        // Advance the state to TESTING because the Agents started testing the BoostedModels
-        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.TESTING)
+      // First, check whether a ModelTrainingResult is in ERROR state or not. If at least one of the result is in ERROR
+      // state, this means we cannot update the existing BoostedModels, hence the whole DataMiningModel should be in ERROR state.
+      val erroneousResults = modelValidationResults.filter(r => r.exception.isDefined)
+      if(erroneousResults.nonEmpty) {
+        newDataMiningModel = dataMiningModel.withError(s"VALIDATION ERROR: ${erroneousResults.map(_.exception.get).mkString(System.lineSeparator())}")
       } else {
-        logger.debug(s"There are still remaining Agents being waited for validation results for this DataMiningModel:${dataMiningModel.model_id.get}")
+
+        // A ModelValidationResult includes a sequence of AlgorithmStatistics (one for each Algorithm)
+        val updatedBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel
+          // Find the BoostedModel of this Algorithm (I could have loop over the BoostedModels,
+          // but I wanted it to be in a similar shape with handleTrainingState)
+
+          // Let's do some integrity checks
+          if (dataMiningModel.boosted_models.isEmpty) {
+            throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
+              s"I am trying to the process handleValidationState and there must have been a BoostedModel for each Algorithm.")
+          }
+
+          val boostedModelOption = dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name)
+          if (boostedModelOption.isEmpty) {
+            throw DataIntegrityException(s"Sweet Jesus! I am processing the handleValidationState of this DataMiningModel:${dataMiningModel.model_id.get}, " +
+              s"however there is no corresponding BoostedModel for this Algorithm:${algorithm.name}")
+          }
+
+          val boostedModel = boostedModelOption.get
+          val updatedWeakModels = boostedModel.weak_models.map { weakModel => // For each WeakModel within this BoostedModel
+            val validationStatistics = modelValidationResults
+              .filterNot(_.agent.agent_id == weakModel.agent.agent_id) // Find the ModelValidationResults received from the Agents other than the training Agent of this WeakModel (we are looping over the WeakModels)
+              .map { result => // For each such ModelValidationResult
+                // find the AgentAlgorithmStatistics such that the agent who trained the fitted_model will be this weakModel's agent for the same algorithm
+                val validationStatistics = result.validation_statistics.find(vs => vs.agent_model.agent_id == weakModel.agent.agent_id && vs.algorithm.name == weakModel.algorithm.name)
+                if (validationStatistics.isEmpty) {
+                  throw DataIntegrityException(s"We have a problem here!!! I cannot find the validation statistics for Algorithm:${algorithm.name} " +
+                    s"which was trained on Agent:${weakModel.agent} among the validation results coming from ${result.agent} for DataMiningModel:${dataMiningModel.model_id.get}.")
+                }
+                validationStatistics.get
+              }
+            val newWeakModel = weakModel.addNewValidationStatistics(validationStatistics)
+            newWeakModel
+          }
+          boostedModel.replaceWeakModels(updatedWeakModels)
+        }
+
+        newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
+
+        if (DataMiningModelController.getAgentsWaitedForValidationResults(newDataMiningModel).isEmpty) {
+          // If there are no remaining Agents to wait for the validation results,
+          // We can calculate the calculated_training_statistics and weights of the WeakModels.
+          // Then we can call the model testing endpoints of the Agents and advance to the TESTING state
+
+          logger.debug("There are no remaining Agents being waited for validation results. So, I will invoke the test endpoints of the Agents and " +
+            s"update the state to TESTING for this DataMiningModel:${dataMiningModel.model_id.get}")
+          try {
+            // Calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
+            newDataMiningModel = Aggregator.aggregate(newDataMiningModel)
+          } catch {
+            case e: Exception => logger.error(s"It seems there is a data integrity issues with the DataMiningModel:${newDataMiningModel.model_id.get} " +
+              s"Since this is a Prediction model, training_statistics and validation_statistics MUST exist at this point.", e)
+          }
+
+          val f = DistributedDataMiningManager.invokeAgentsModelTesting(newDataMiningModel)
+          try { // Wait for the testing invocations finish for all Agents
+            Await.result(f, Duration(30, TimeUnit.SECONDS))
+          } catch {
+            case e: java.util.concurrent.TimeoutException =>
+              logger.error("Invoking the model testing endpoints of {} Agents have not finished within 30 seconds " +
+                "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
+          }
+
+          // Advance the state to TESTING because the Agents started testing the BoostedModels
+          newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.TESTING)
+        } else {
+          logger.debug(s"There are still remaining Agents being waited for validation results for this DataMiningModel:${dataMiningModel.model_id.get}")
+        }
       }
 
       DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
@@ -262,44 +286,54 @@ object PredictionMiningProcessor {
       // ModelTestResults of the Agents whose testing is completed.
       // Others have not finished yet.
 
-      // A ModelTestResult includes a sequence of AlgorithmStatistics (one for each Algorithm)
+      var newDataMiningModel = dataMiningModel // create & initialize the variable
 
-      // Let's do some integrity checks
-      if (dataMiningModel.boosted_models.isEmpty) {
-        throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
-          s"I am trying to the process handleTestingState and there must have been BoostedModel(s) in this DataMiningModel.")
-      }
-
-      val updatedBoostedModels = dataMiningModel.boosted_models.get.map { boostedModel =>
-        val testResultsOfAlgorithm = modelTestResults.map { modelTestResult =>
-          val testResultsOfAlgorithmOption = modelTestResult.test_statistics.find(_.algorithm == boostedModel.algorithm)
-          if (testResultsOfAlgorithmOption.isEmpty) {
-            throw DataIntegrityException(s"ModelTestResult received from Agent:${modelTestResult.agent.name} for DataMiningModel:${modelTestResult.model_id}, " +
-              s"however there is no result for the Algorithm:${boostedModel.algorithm.name}. This should not have happened!!!")
-          }
-          testResultsOfAlgorithmOption.get
-        }
-        boostedModel.addNewTestStatistics(testResultsOfAlgorithm)
-      }
-      var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
-
-      if (DataMiningModelController.getAgentsWaitedForTestResults(newDataMiningModel).isEmpty) {
-        // If there are no remaining Agents to wait for the test results,
-        // We can calculate the calculated_test_statistics of the BoostedModels
-
-        logger.debug("There are no remaining Agents being waited for test results. So, I will calculate the testing " +
-          s"statistics for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
-
-        val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
-          val calculatedStatistics = StatisticsCalculator.combineClassificationStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
-          boostedModel.withCalculatedTestStatistics(calculatedStatistics)
-        }
-        newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
-
-        // Advance the state to READY
-        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
+      // First, check whether a ModelTrainingResult is in ERROR state or not. If at least one of the result is in ERROR
+      // state, this means we cannot update the BoostedModels, hence the whole DataMiningModel should be in ERROR state.
+      val erroneousResults = modelTestResults.filter(r => r.exception.isDefined)
+      if(erroneousResults.nonEmpty) {
+        newDataMiningModel = dataMiningModel.withError(s"TESTING ERROR: ${erroneousResults.map(_.exception.get).mkString(System.lineSeparator())}")
       } else {
-        logger.debug(s"There are still remaining Agents being waited for test results for this DataMiningModel:${dataMiningModel.model_id.get}")
+        // A ModelTestResult includes a sequence of AlgorithmStatistics (one for each Algorithm)
+
+        // Let's do some integrity checks
+        if (dataMiningModel.boosted_models.isEmpty) {
+          throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
+            s"I am trying to the process handleTestingState and there must have been BoostedModel(s) in this DataMiningModel.")
+        }
+
+        val updatedBoostedModels = dataMiningModel.boosted_models.get.map { boostedModel =>
+          val testResultsOfAlgorithm = modelTestResults.map { modelTestResult =>
+            val testResultsOfAlgorithmOption = modelTestResult.test_statistics.find(_.algorithm == boostedModel.algorithm)
+            if (testResultsOfAlgorithmOption.isEmpty) {
+              throw DataIntegrityException(s"ModelTestResult received from Agent:${modelTestResult.agent.name} for DataMiningModel:${modelTestResult.model_id}, " +
+                s"however there is no result for the Algorithm:${boostedModel.algorithm.name}. This should not have happened!!!")
+            }
+            testResultsOfAlgorithmOption.get
+          }
+          boostedModel.addNewTestStatistics(testResultsOfAlgorithm)
+        }
+
+        newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
+
+        if (DataMiningModelController.getAgentsWaitedForTestResults(newDataMiningModel).isEmpty) {
+          // If there are no remaining Agents to wait for the test results,
+          // We can calculate the calculated_test_statistics of the BoostedModels
+
+          logger.debug("There are no remaining Agents being waited for test results. So, I will calculate the testing " +
+            s"statistics for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
+
+          val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
+            val calculatedStatistics = StatisticsCalculator.combineClassificationStatistics(boostedModel.test_statistics.get) // Combine test_statistics in BoostedModel
+            boostedModel.withCalculatedTestStatistics(calculatedStatistics)
+          }
+          newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
+
+          // Advance the state to READY
+          newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
+        } else {
+          logger.debug(s"There are still remaining Agents being waited for test results for this DataMiningModel:${dataMiningModel.model_id.get}")
+        }
       }
 
       DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
@@ -313,7 +347,7 @@ object PredictionMiningProcessor {
           Future.apply(DataMiningOrchestrator.stopOrchestration(newDataMiningModel.model_id.get))
         }
 
-        logger.debug(s"handleValidationState finished for this DataMiningModel:${dataMiningModel.model_id.get} Its state is ${newDataMiningModel.data_mining_state.get}.")
+        logger.debug(s"handleTestingState finished for this DataMiningModel:${dataMiningModel.model_id.get} Its state is ${newDataMiningModel.data_mining_state.get}.")
 
         Done
       }

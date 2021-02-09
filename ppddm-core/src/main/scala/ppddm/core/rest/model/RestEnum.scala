@@ -82,6 +82,7 @@ object DataMiningState extends Enumeration {
 
   val READY = "ready"
   val FINAL = "final"
+  val ERROR = "error"
 }
 
 object FHIRPathExpressionPrefix extends Enumeration {
