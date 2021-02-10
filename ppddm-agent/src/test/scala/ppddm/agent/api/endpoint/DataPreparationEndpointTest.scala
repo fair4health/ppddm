@@ -11,8 +11,7 @@ import org.junit.runner.RunWith
 import org.specs2.runner.JUnitRunner
 import ppddm.agent.PPDDMAgentEndpointTest
 import ppddm.agent.config.AgentConfig
-import ppddm.core.rest.model.DataPreparationRequest
-
+import ppddm.core.rest.model.{DataPreparationRequest, DataPreparationResult}
 import ppddm.core.rest.model.Json4sSupport._
 
 import scala.concurrent.Promise
@@ -32,6 +31,9 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
       .extract[DataPreparationRequest]
   lazy val dataPreparationRequestOfZeroPatients: DataPreparationRequest =
     Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/data-preparation-request-of-zero-patients.json")).mkString
+      .extract[DataPreparationRequest]
+  lazy val dataPreparationRequestWithError: DataPreparationRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/data-preparation-requests/data-preparation-request-with-error.json")).mkString
       .extract[DataPreparationRequest]
 
   sequential
@@ -80,7 +82,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         actorSystem.dispatcher
       ))
       // Try 10 times at 2-second intervals
-      askForDatasetPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+      askForDatasetPromise.isCompleted must be_==(true).eventually(20, Duration(4, TimeUnit.SECONDS))
     }
 
     "delete the created dataset and statistics" in {
@@ -113,7 +115,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         actorSystem.dispatcher
       ))
       // Try 10 times at 2-second intervals
-      askForDatasetPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+      askForDatasetPromise.isCompleted must be_==(true).eventually(20, Duration(4, TimeUnit.SECONDS))
     }
 
     "delete the created dataset and statistics" in {
@@ -126,6 +128,44 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
       Delete("/" + AgentConfig.baseUri + "/prepare/some-id-does-not-exist") ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual NotFound
       }
+    }
+
+    "start data preparation with erroneous FHIR path" in {
+      Post("/" + AgentConfig.baseUri + "/prepare", dataPreparationRequestWithError) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "ask for dataset whether it is ready or not" in {
+      val askForDatasetPromise: Promise[Done] = Promise[Done]
+      var askForDatasetScheduler: Option[Cancellable] = None
+      // Set a scheduler to ask if dataset and statistics are ready
+      askForDatasetScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
+        time.Duration.ZERO,
+        time.Duration.ofSeconds(2),
+        () => {
+          Get("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithError.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+            if (status == OK) {
+              // Parse model training result
+              val dataPreparationResult = responseAs[DataPreparationResult]
+
+              dataPreparationResult.exception must not be (null)
+
+              askForDatasetPromise.success(Done)
+              askForDatasetScheduler.get.cancel()
+            }
+          }
+        },
+        actorSystem.dispatcher
+      ))
+      // Try 10 times at 2-second intervals
+      askForDatasetPromise.isCompleted must be_==(true).eventually(20, Duration(4, TimeUnit.SECONDS))
+    }
+  }
+
+  "delete the created dataset and statistics" in {
+    Delete("/" + AgentConfig.baseUri + "/prepare/" + dataPreparationRequestWithError.dataset_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+      status shouldEqual OK
     }
   }
 

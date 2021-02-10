@@ -21,7 +21,7 @@ class AlgorithmEndpointTest extends PPDDMManagerEndpointTest {
         status shouldEqual OK
 
         val response: Seq[Algorithm] = responseAs[Seq[Algorithm]]
-        response.size shouldEqual 12
+        response.size shouldEqual 11
         // We cannot make this check because we do not create the Enumarations appropriately. The values of the Enumeration objects are not Value instances
         // response.size shouldEqual AlgorithmName.values.size
       }
