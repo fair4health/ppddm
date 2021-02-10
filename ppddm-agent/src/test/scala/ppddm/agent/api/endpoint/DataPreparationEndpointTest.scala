@@ -82,7 +82,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         actorSystem.dispatcher
       ))
       // Try 10 times at 2-second intervals
-      askForDatasetPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+      askForDatasetPromise.isCompleted must be_==(true).eventually(20, Duration(4, TimeUnit.SECONDS))
     }
 
     "delete the created dataset and statistics" in {
@@ -115,7 +115,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         actorSystem.dispatcher
       ))
       // Try 10 times at 2-second intervals
-      askForDatasetPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+      askForDatasetPromise.isCompleted must be_==(true).eventually(20, Duration(4, TimeUnit.SECONDS))
     }
 
     "delete the created dataset and statistics" in {
@@ -159,7 +159,7 @@ class DataPreparationEndpointTest extends PPDDMAgentEndpointTest {
         actorSystem.dispatcher
       ))
       // Try 10 times at 2-second intervals
-      askForDatasetPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+      askForDatasetPromise.isCompleted must be_==(true).eventually(20, Duration(4, TimeUnit.SECONDS))
     }
   }
 
