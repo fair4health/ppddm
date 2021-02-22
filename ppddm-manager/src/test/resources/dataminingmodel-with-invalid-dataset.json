@@ -1,0 +1,257 @@
+{
+  "project_id": "test-project",
+  "dataset": {
+    "dataset_id": "abfb5b18-e11a-4604-b0e1-c7e5f3cd3696",
+    "project_id": "2617a296-7f17-40b9-83eb-9d8f4dbac0a3",
+    "featureset": {
+      "featureset_id": "d7ab9bed-9602-4fc7-83f4-c23808362229",
+      "project_id": "2617a296-7f17-40b9-83eb-9d8f4dbac0a3",
+      "name": "Distributed setting test featureset",
+      "description": "Contains CKD, Heart failure, Number of prescribed drugs as independent; Hypertension as dependent variable",
+      "variables": [
+        {
+          "name": "CKD",
+          "fhir_query": "/Condition?code:sw=N18",
+          "fhir_path": "value:exists",
+          "variable_data_type": "numeric",
+          "variable_type": "independent"
+        },
+        {
+          "name": "Heart failure",
+          "fhir_query": "/Condition?code:sw=I50",
+          "fhir_path": "value:exists",
+          "variable_data_type": "numeric",
+          "variable_type": "independent"
+        },
+        {
+          "name": "Hypertension",
+          "fhir_query": "/Condition?code:sw=I10",
+          "fhir_path": "value:exists",
+          "variable_data_type": "numeric",
+          "variable_type": "dependent"
+        },
+        {
+          "name": "Number of prescribed drugs",
+          "fhir_query": "/MedicationStatement",
+          "fhir_path": "aggr:groupBy(MedicationStatement.subject.reference,count())",
+          "variable_data_type": "numeric",
+          "variable_type": "independent"
+        }
+      ],
+      "created_by": "1903",
+      "created_on": "2020-11-12T13:09:35.977"
+    },
+    "name": "F4H Use-case-2 data set",
+    "description": "Contains data of patients older than 18 and having COPD",
+    "eligibility_criteria": [
+      {
+        "fhir_query": "/Condition?code:sw=N18,I50,I10"
+      }
+    ],
+    "dataset_sources": [
+      {
+        "agent": {
+          "agent_id": "agent-1",
+          "name": "SAS",
+          "endpoint": "http://localhost:8001/agent"
+        },
+        "agent_data_statistics": {
+          "number_of_records": 100,
+          "variable_statistics": [
+            {
+              "variable": {
+                "name": "CKD",
+                "fhir_query": "/Condition?code:sw=N18",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Heartfailure",
+                "fhir_query": "/Condition?code:sw=I50",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Hypertension",
+                "fhir_query": "/Condition?code:sw=I10",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "dependent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Numberofprescribeddrugs",
+                "fhir_query": "/MedicationStatement",
+                "fhir_path": "aggr:groupBy(MedicationStatement.subject.reference,count())",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 4.0,
+              "max_value": 6.0,
+              "null_percentage": 0.0
+            }
+          ]
+        },
+        "selection_status": "discarded",
+        "execution_state": "final"
+      },
+      {
+        "agent": {
+          "agent_id": "agent-2",
+          "name": "IACS",
+          "endpoint": "http://localhost:8002/agent"
+        },
+        "agent_data_statistics": {
+          "number_of_records": 100,
+          "variable_statistics": [
+            {
+              "variable": {
+                "name": "CKD",
+                "fhir_query": "/Condition?code:sw=N18",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Heartfailure",
+                "fhir_query": "/Condition?code:sw=I50",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Hypertension",
+                "fhir_query": "/Condition?code:sw=I10",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "dependent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Numberofprescribeddrugs",
+                "fhir_query": "/MedicationStatement",
+                "fhir_path": "aggr:groupBy(MedicationStatement.subject.reference,count())",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 4.0,
+              "max_value": 6.0,
+              "null_percentage": 0.0
+            }
+          ]
+        },
+        "execution_state": "final"
+      },
+      {
+        "agent": {
+          "agent_id": "agent-3",
+          "name": "UNIGE",
+          "endpoint": "http://localhost:8003/agent"
+        },
+        "agent_data_statistics": {
+          "number_of_records": 100,
+          "variable_statistics": [
+            {
+              "variable": {
+                "name": "CKD",
+                "fhir_query": "/Condition?code:sw=N18",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Heartfailure",
+                "fhir_query": "/Condition?code:sw=I50",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Hypertension",
+                "fhir_query": "/Condition?code:sw=I10",
+                "fhir_path": "value:exists",
+                "variable_data_type": "numeric",
+                "variable_type": "dependent"
+              },
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "null_percentage": 0.0
+            },
+            {
+              "variable": {
+                "name": "Numberofprescribeddrugs",
+                "fhir_query": "/MedicationStatement",
+                "fhir_path": "aggr:groupBy(MedicationStatement.subject.reference,count())",
+                "variable_data_type": "numeric",
+                "variable_type": "independent"
+              },
+              "min_value": 4.0,
+              "max_value": 6.0,
+              "null_percentage": 0.0
+            }
+          ]
+        },
+        "selection_status": "discarded",
+        "execution_state": "final"
+      }
+    ],
+    "execution_state": "final",
+    "created_by": "1903",
+    "created_on": "2020-11-12T13:32:14.583"
+  },
+  "name": "F4H Use-case-2 model",
+  "description": "Predict 30-days readmission risk for F4H Use-case-2",
+  "algorithms": [
+    {
+      "name": "classification_logistic_regression",
+      "parameters": [
+        {
+          "name": "threshold",
+          "data_type": "double",
+          "value": "0.5"
+        }
+      ]
+    }
+  ],
+  "created_by": "1903"
+}
