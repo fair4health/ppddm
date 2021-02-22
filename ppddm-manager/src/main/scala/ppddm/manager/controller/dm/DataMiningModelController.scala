@@ -250,6 +250,10 @@ object DataMiningModelController {
       throw new IllegalArgumentException("Duplicate Algorithms in DataMiningModel. You cannot execute data mining using the same algorithm within a Data Mining Model.")
     }
 
+    // Do not allow a data mining model which has no DatasetSources in it or none of the existing Datasetsources is SELECTED
+    // This function call makes the necessary integrity checks and throws a DataIntegrityException if necessary
+    getSelectedAgents(dataMiningModel)
+
     // Create a new DataMiningModel object with a unique identifier
     val dataMiningModelWithId = dataMiningModel.withUniqueModelId
 
