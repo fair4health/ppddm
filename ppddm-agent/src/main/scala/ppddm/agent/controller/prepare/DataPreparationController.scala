@@ -50,6 +50,13 @@ object DataPreparationController {
   def startPreparation(dataPreparationRequest: DataPreparationRequest): Future[Done] = {
     logger.debug("Data preparation request received.")
 
+    if (dataPreparationRequest.featureset.variables.isEmpty) {
+      throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
+    }
+    if (dataPreparationRequest.eligibility_criteria.count(_.fhir_query.startsWith("/Patient")) > 1) { // Check if there are multiple Patient queries
+      throw DataPreparationException(s"The Eligibility Criteria in the submitted DataPreparationRequest has multiple Patient queries. It should not be more than one.")
+    }
+
     if (AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getDatasetPath(dataPreparationRequest.dataset_id)).isDefined) {
       // Check data store whether the Dataset with given dataset_id is already created and saved
       Future {
@@ -185,40 +192,6 @@ object DataPreparationController {
         }
       }
     }
-  }
-
-  /**
-   * Removes any inappropriate characters in variable names of the data preparation request and returns new one.
-   *
-   * @param dataPreparationRequest
-   * @return
-   */
-  def validatePreparationRequest(dataPreparationRequest: DataPreparationRequest): DataPreparationRequest = {
-    if (dataPreparationRequest.featureset.variables.isEmpty) {
-      throw DataPreparationException(s"The Featureset in the submitted DataPreparationRequest does not include any Variable definitions.")
-    } else {
-      if (dataPreparationRequest.eligibility_criteria.count(_.fhir_query.startsWith("/Patient")) > 1) { // Check if there are multiple Patient queries
-        throw DataPreparationException(s"The Eligibility Criteria in the submitted DataPreparationRequest has multiple Patient queries. It should not be more than one.")
-      } else {
-        dataPreparationRequest.copy(
-          featureset = dataPreparationRequest.featureset.copy( // Copy featureset with updated variables
-            variables = // Assign new variables
-              dataPreparationRequest.featureset.variables // Get Variables from Option
-                .map(variable => variable.copy(name = removeInvalidChars(variable.name))) // Remove invalid characters in variable.name
-          )
-        )
-      }
-    }
-  }
-
-  /**
-   * Removes invalid characters that prevent the recording and filtering of the Parquet files from being done correctly.
-   *
-   * @param value
-   * @return
-   */
-  def removeInvalidChars(value: String): String = {
-    value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
   }
 
   private def saveDataFrame(dataset_id: String, dataFrame: DataFrame): Unit = {

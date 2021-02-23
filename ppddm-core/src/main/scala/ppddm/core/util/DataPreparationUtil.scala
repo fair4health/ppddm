@@ -15,10 +15,20 @@ object DataPreparationUtil {
     val fields = featureset.variables
       .map(variable =>
         StructField(
-          variable.name /*.trim.replaceAll("\\s", "")*/ ,
+          removeInvalidChars(variable.name),
           if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
         )
       )
     StructType(Seq(StructField("pid", StringType, nullable = false)) ++ fields)
+  }
+
+  /**
+   * Removes invalid characters that prevent the recording and filtering of the Parquet files from being done correctly.
+   *
+   * @param value
+   * @return
+   */
+  def removeInvalidChars(value: String): String = {
+    value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
   }
 }

@@ -18,8 +18,7 @@ trait DataPreparationEndpoint {
         post { // Submit a new data preparation request to this Agent
           entity(as[DataPreparationRequest]) { dataPreparationRequest =>
             complete {
-              val validatedRequest = DataPreparationController.validatePreparationRequest(dataPreparationRequest)
-              DataPreparationController.startPreparation(validatedRequest) // Start the preparation and continue
+              DataPreparationController.startPreparation(dataPreparationRequest) // Start the preparation and continue
               StatusCodes.OK // Return the successful result after the preparation starts (do not wait for the result)
             }
           }

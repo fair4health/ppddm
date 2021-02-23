@@ -21,7 +21,7 @@
         "variable_type": "independent"
       },
       {
-        "name": "number_of_medications",
+        "name": "number of medications",
         "fhir_query": "/Observation?code=35000",
         "fhir_path": "value:Observation.valueQuantity.value",
         "variable_data_type": "numeric",
