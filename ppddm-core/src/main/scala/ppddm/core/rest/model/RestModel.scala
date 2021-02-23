@@ -50,12 +50,12 @@ final case class Featureset(featureset_id: Option[String],
     this.copy(featureset_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
   }
 
-  def withNewProjectId(newProjectId: String): Featureset = {
-    this.copy(project_id = newProjectId)
-  }
-
   def withLastUpdated: Featureset = {
     this.copy(updated_on = Some(LocalDateTime.now()))
+  }
+
+  def withNewProjectId(newProjectId: String): Featureset = {
+    this.copy(project_id = newProjectId)
   }
 }
 
@@ -99,12 +99,12 @@ final case class Dataset(dataset_id: Option[String],
     this.copy(dataset_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
   }
 
-  def withNewProjectId(newProjectId: String): Dataset = {
-    this.copy(project_id = newProjectId)
-  }
-
   def withLastUpdated: Dataset = {
     this.copy(updated_on = Some(LocalDateTime.now()))
+  }
+
+  def withNewProjectId(newProjectId: String): Dataset = {
+    this.copy(project_id = newProjectId)
   }
 
   def withDatasetSources(dataset_sources: Seq[DatasetSource]): Dataset = {
@@ -273,7 +273,12 @@ final case class DataMiningModel(model_id: Option[String],
                                  updated_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueModelId: DataMiningModel = {
-    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: DataMiningModel = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 
   def withNewProjectId(newProjectId: String): DataMiningModel = {
@@ -527,9 +532,16 @@ final case class ProspectiveStudy(prospective_study_id: Option[String],
                                   data_mining_model: DataMiningModel,
                                   predictions: Seq[PredictionResult],
                                   created_by: String,
-                                  created_on: Option[LocalDateTime]) extends ModelClass {
+                                  created_on: Option[LocalDateTime],
+                                  updated_on: Option[LocalDateTime]) extends ModelClass {
+
   def withUniqueProspectiveStudyId: ProspectiveStudy = {
-    this.copy(prospective_study_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(prospective_study_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: ProspectiveStudy = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 
   def withNewProjectId(newProjectId: String): ProspectiveStudy = {

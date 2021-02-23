@@ -99,7 +99,7 @@ object ProspectiveStudyController {
     logger.debug(s"Updating prospective study with id ${prospectiveStudy.prospective_study_id}...")
     db.getCollection[ProspectiveStudy](COLLECTION_NAME).findOneAndReplace(
       equal("prospective_study_id", prospectiveStudy.prospective_study_id.get),
-      prospectiveStudy,
+      prospectiveStudy.withLastUpdated,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
       .headOption()
       .recover {

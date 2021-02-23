@@ -91,7 +91,7 @@ object ProjectController {
   def updateProject(project: Project): Future[Option[Project]] = {
     db.getCollection[Project](COLLECTION_NAME).findOneAndReplace(
       equal("project_id", project.project_id.get),
-      project,
+      project.withLastUpdated,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
       .headOption()
       .recover {

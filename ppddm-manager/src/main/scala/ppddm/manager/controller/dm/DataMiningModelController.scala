@@ -316,7 +316,7 @@ object DataMiningModelController {
     }*/
     db.getCollection[DataMiningModel](COLLECTION_NAME).findOneAndReplace(
       equal("model_id", dataMiningModel.model_id.get),
-      dataMiningModel.withUpdatedDataMiningState(),
+      dataMiningModel.withUpdatedDataMiningState().withLastUpdated,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
       .headOption()
       .recover {
