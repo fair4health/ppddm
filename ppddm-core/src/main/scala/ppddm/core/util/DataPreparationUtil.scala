@@ -15,10 +15,11 @@ object DataPreparationUtil {
     val fields = featureset.variables
       .map(variable =>
         StructField(
-          variable.name /*.trim.replaceAll("\\s", "")*/ ,
+          variable.getMLValidName,
           if (variable.variable_data_type == VariableDataType.NUMERIC) DoubleType else StringType
         )
       )
     StructType(Seq(StructField("pid", StringType, nullable = false)) ++ fields)
   }
+
 }

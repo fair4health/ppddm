@@ -59,13 +59,13 @@ object DataAnalysisManager {
       // Find categorical variables and their column names
       val categoricalVariables = dataPreparationResult.agent_data_statistics.variable_statistics.filter( v =>
         v.variable.variable_data_type == VariableDataType.CATEGORICAL)
-      val categoricalColumns = categoricalVariables.map(cv => cv.variable.name)
+      val categoricalColumns = categoricalVariables.map(cv => cv.variable.getMLValidName)
 
       // For string type input data, first we need to encode categorical features into numbers using StringIndexer first
       val stringIndexerSeq = categoricalVariables.map(v => {
         new StringIndexer()
-          .setInputCol(v.variable.name)
-          .setOutputCol(s"${v.variable.name}_INDEX")
+          .setInputCol(v.variable.getMLValidName)
+          .setOutputCol(s"${v.variable.getMLValidName}_INDEX")
           .setStringOrderType("alphabetAsc") // options are "frequencyDesc", "frequencyAsc", "alphabetDesc", "alphabetAsc"
           .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
       })
@@ -73,8 +73,8 @@ object DataAnalysisManager {
 
       // After all categorical values are in numeric format, apply OneHotEncoder to introduce dummy variables
       val encoder = new OneHotEncoder()
-        .setInputCols(categoricalVariables.map(cv => s"${cv.variable.name}_INDEX").toArray)
-        .setOutputCols(categoricalVariables.map(cv => s"${cv.variable.name}_VEC").toArray)
+        .setInputCols(categoricalVariables.map(cv => s"${cv.variable.getMLValidName}_INDEX").toArray)
+        .setOutputCols(categoricalVariables.map(cv => s"${cv.variable.getMLValidName}_VEC").toArray)
       pipelineStages += encoder // Now, DataFrame contains new columns with "_VEC" at the end of column name
 
       /**
@@ -92,14 +92,14 @@ object DataAnalysisManager {
 
       // Introduce independent variables as Vector in "nonScaledFeatures" column. We will later convert it to "features" column.
       val vectorAssembler = new VectorAssembler()
-        .setInputCols(independentVariables.map(iv => if (categoricalColumns.contains(iv.variable.name)) s"${iv.variable.name}_VEC" else iv.variable.name).toArray) // columns that need to added to feature column
+        .setInputCols(independentVariables.map(iv => if (categoricalColumns.contains(iv.variable.getMLValidName)) s"${iv.variable.getMLValidName}_VEC" else iv.variable.getMLValidName).toArray) // columns that need to added to feature column
         .setOutputCol("nonScaledFeatures")
       pipelineStages += vectorAssembler
 
       // Introduce the dependent variable
       if (dependentVariableOption.nonEmpty) {
         val labelStringIndexer = new StringIndexer()
-          .setInputCol(dependentVariableOption.get.variable.name)
+          .setInputCol(dependentVariableOption.get.variable.getMLValidName)
           .setOutputCol("label")
           .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
         pipelineStages += labelStringIndexer
@@ -147,7 +147,7 @@ object DataAnalysisManager {
     val updateDataFrame = new MultipleColumnOneHotEncoder().setInputCols(inputCols.toArray).transform(dataFrame)
 
     // If age column exists in the data frame, apply AgeTransformer. Otherwise return the data frame.
-    if (!updateDataFrame.schema.filter(_.name == "age").isEmpty)
+    if (updateDataFrame.schema.exists(_.name.toLowerCase == "age"))
       new AgeTransformer().setInputCol("age").transform(updateDataFrame)
     else updateDataFrame
   }

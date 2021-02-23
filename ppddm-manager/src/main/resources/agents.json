@@ -2,16 +2,16 @@
   {
     "agent_id": "agent-1",
     "name": "SAS",
-    "endpoint": "http://localhost:8000/agent"
+    "endpoint": "http://localhost:8001/agent"
   },
   {
     "agent_id": "agent-2",
     "name": "IACS",
-    "endpoint": "http://localhost:8001/agent"
+    "endpoint": "http://localhost:8002/agent"
   },
   {
     "agent_id": "agent-3",
     "name": "UNIGE",
-    "endpoint": "http://localhost:8002/agent"
+    "endpoint": "http://localhost:8003/agent"
   }
 ]

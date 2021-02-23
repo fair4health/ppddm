@@ -1,9 +1,5 @@
 package ppddm.core.rest.model
 
-import org.glassfish.jersey.internal.Errors.ErrorMessage
-
-import java.time.LocalDateTime
-import java.util.UUID
 import ppddm.core.rest.model.AlgorithmName.AlgorithmName
 import ppddm.core.rest.model.CategoricalEncodingType.CategoricalEncodingType
 import ppddm.core.rest.model.DataMiningState.DataMiningState
@@ -12,9 +8,13 @@ import ppddm.core.rest.model.ExecutionState.ExecutionState
 import ppddm.core.rest.model.MissingDataOperationType.MissingDataOperationType
 import ppddm.core.rest.model.ProjectType.ProjectType
 import ppddm.core.rest.model.SelectionStatus.SelectionStatus
+import ppddm.core.rest.model.Variable.removeInvalidChars
 import ppddm.core.rest.model.VariableDataType.VariableDataType
 import ppddm.core.rest.model.VariableType.VariableType
 import ppddm.core.util.{JsonClass, URLUtil}
+
+import java.time.LocalDateTime
+import java.util.UUID
 
 sealed class ModelClass extends JsonClass
 
@@ -23,10 +23,16 @@ case class Project(project_id: Option[String],
                    description: String,
                    project_type: ProjectType,
                    created_by: String, // The user ID who creates this Project
-                   created_on: Option[LocalDateTime]) extends ModelClass {
+                   created_on: Option[LocalDateTime],
+                   updated_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueProjectId: Project = {
-    this.copy(project_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(project_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: Project = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 }
 
@@ -36,10 +42,16 @@ final case class Featureset(featureset_id: Option[String],
                             description: String,
                             variables: Seq[Variable],
                             created_by: String,
-                            created_on: Option[LocalDateTime]) extends ModelClass {
+                            created_on: Option[LocalDateTime],
+                            updated_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueFeaturesetId: Featureset = {
-    this.copy(featureset_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(featureset_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: Featureset = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 
   def withNewProjectId(newProjectId: String): Featureset = {
@@ -52,7 +64,23 @@ final case class Variable(name: String,
                           fhir_query: String,
                           fhir_path: String,
                           variable_data_type: VariableDataType,
-                          variable_type: VariableType) extends ModelClass
+                          variable_type: VariableType) extends ModelClass {
+  def getMLValidName: String = {
+    removeInvalidChars(name)
+  }
+}
+
+object Variable {
+  /**
+   * Removes invalid characters that prevent the recording and filtering of the Parquet files from being done correctly.
+   *
+   * @param value
+   * @return
+   */
+  def removeInvalidChars(value: String): String = {
+    value.trim.replaceAll("[\\s\\`\\*{}\\[\\]()>#\\+:\\~'%\\^&@<\\?;,\\\"!\\$=\\|\\.]", "")
+  }
+}
 
 final case class Dataset(dataset_id: Option[String],
                          project_id: String,
@@ -63,10 +91,16 @@ final case class Dataset(dataset_id: Option[String],
                          dataset_sources: Option[Seq[DatasetSource]],
                          execution_state: Option[ExecutionState],
                          created_by: String,
-                         created_on: Option[LocalDateTime]) extends ModelClass {
+                         created_on: Option[LocalDateTime],
+                         updated_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueDatasetId: Dataset = {
-    this.copy(dataset_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(dataset_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: Dataset = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 
   def withNewProjectId(newProjectId: String): Dataset = {
@@ -235,10 +269,16 @@ final case class DataMiningModel(model_id: Option[String],
                                  data_mining_state: Option[DataMiningState],
                                  error_message: Option[String] = None,
                                  created_by: String,
-                                 created_on: Option[LocalDateTime]) extends ModelClass {
+                                 created_on: Option[LocalDateTime],
+                                 updated_on: Option[LocalDateTime]) extends ModelClass {
 
   def withUniqueModelId: DataMiningModel = {
-    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(model_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: DataMiningModel = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 
   def withNewProjectId(newProjectId: String): DataMiningModel = {
@@ -492,9 +532,16 @@ final case class ProspectiveStudy(prospective_study_id: Option[String],
                                   data_mining_model: DataMiningModel,
                                   predictions: Seq[PredictionResult],
                                   created_by: String,
-                                  created_on: Option[LocalDateTime]) extends ModelClass {
+                                  created_on: Option[LocalDateTime],
+                                  updated_on: Option[LocalDateTime]) extends ModelClass {
+
   def withUniqueProspectiveStudyId: ProspectiveStudy = {
-    this.copy(prospective_study_id = Some(UUID.randomUUID().toString), created_on = Some(LocalDateTime.now()))
+    val now = LocalDateTime.now()
+    this.copy(prospective_study_id = Some(UUID.randomUUID().toString), created_on = Some(now), updated_on = Some(now))
+  }
+
+  def withLastUpdated: ProspectiveStudy = {
+    this.copy(updated_on = Some(LocalDateTime.now()))
   }
 
   def withNewProjectId(newProjectId: String): ProspectiveStudy = {

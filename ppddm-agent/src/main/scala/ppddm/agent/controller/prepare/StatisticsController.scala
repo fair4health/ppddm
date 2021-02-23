@@ -26,7 +26,7 @@ object StatisticsController {
     var variableStatisticsList: Seq[VariableStatistics] = Seq.empty[VariableStatistics]
 
     variables.foreach { variable =>
-      val fieldOption = dataFrame.schema.find(s => s.name == variable.name)
+      val fieldOption = dataFrame.schema.find(s => s.name == variable.getMLValidName)
       if (fieldOption.isDefined) {
         fieldOption.get match {
           case field if field.dataType == StringType => // String type

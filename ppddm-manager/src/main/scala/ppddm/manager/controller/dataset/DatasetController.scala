@@ -158,7 +158,7 @@ object DatasetController {
     }
     db.getCollection[Dataset](COLLECTION_NAME).findOneAndReplace(
       equal("dataset_id", dataset.dataset_id.get),
-      dataset.withUpdatedExecutionState(),
+      dataset.withUpdatedExecutionState().withLastUpdated,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
       .headOption()
       .recover {

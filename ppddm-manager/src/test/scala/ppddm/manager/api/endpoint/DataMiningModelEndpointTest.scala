@@ -20,6 +20,10 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
     Source.fromResource("project.json").mkString
       .extract[Project]
 
+  lazy val erroneousDataMiningModel: DataMiningModel =
+    Source.fromResource("dataminingmodel-with-invalid-dataset.json").mkString
+      .extract[DataMiningModel]
+
   lazy val bareDataMiningModel: DataMiningModel =
     Source.fromResource("dataminingmodel.json").mkString
       .extract[DataMiningModel]
@@ -47,6 +51,12 @@ class DataMiningModelEndpointTest extends PPDDMManagerEndpointTest {
 
         createdProject = responseAs[Project]
         createdProject.name === projectRequest.name
+      }
+    }
+
+    "reject creation of data mining model which does not include a valid data set" in {
+      Post("/" + ManagerConfig.baseUri + "/dm-model?_test", erroneousDataMiningModel.copy(project_id = createdProject.project_id.get)) ~> Authorization(bearerToken) ~> routes ~> check {
+        status shouldEqual InternalServerError
       }
     }
 

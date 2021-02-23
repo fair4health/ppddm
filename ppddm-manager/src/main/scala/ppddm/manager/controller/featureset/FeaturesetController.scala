@@ -94,7 +94,7 @@ object FeaturesetController {
 
     db.getCollection[Featureset](COLLECTION_NAME).findOneAndReplace(
       equal("featureset_id", featureset.featureset_id.get),
-      featureset,
+      featureset.withLastUpdated,
       FindOneAndReplaceOptions().returnDocument(ReturnDocument.AFTER))
       .headOption()
       .recover {
