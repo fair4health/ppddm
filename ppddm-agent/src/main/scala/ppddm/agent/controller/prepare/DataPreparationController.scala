@@ -568,7 +568,7 @@ object DataPreparationController {
     val isCategoricalType = variable.variable_data_type == VariableDataType.CATEGORICAL
     // If variable data type is Categorical set null otherwise 0
     val initialValue = if (isCategoricalType) null else 0.toDouble
-    var initialValuesForAllPatients: Map[String, Any] = resourceURIs.map((_ -> initialValue)).toMap
+    var initialValuesForAllResources: Map[String, Any] = resourceURIs.map((_ -> initialValue)).toMap
 
     if (resources.nonEmpty) {
       if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION_EXISTENCE)) {
@@ -580,7 +580,7 @@ object DataPreparationController {
           item -> 1.toDouble // Fill with 1 for existing resources
         }.toMap
 
-        Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+        Map(variable.name -> (initialValuesForAllResources ++ extractedValues))
       } else {
         // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
         val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
@@ -613,17 +613,17 @@ object DataPreparationController {
             })
             if (matchedEncounters.nonEmpty) {
               matchedEncounters.keys.foreach { encounterRef =>
-                initialValuesForAllPatients += (encounterRef -> keyValuePair._2)
+                initialValuesForAllResources += (encounterRef -> keyValuePair._2)
               }
             }
           }
-          Map(variable.name -> initialValuesForAllPatients)
+          Map(variable.name -> initialValuesForAllResources)
         } else {
-          Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+          Map(variable.name -> (initialValuesForAllResources ++ extractedValues))
         }
       }
     } else {
-      Map(variable.name -> initialValuesForAllPatients)
+      Map(variable.name -> initialValuesForAllResources)
     }
   }
 
@@ -645,7 +645,7 @@ object DataPreparationController {
     val isCategoricalType = variable.variable_data_type == VariableDataType.CATEGORICAL
     // If variable data type is Categorical set null otherwise 0
     val initialValue = if (isCategoricalType) null else 0.toDouble
-    var initialValuesForAllPatients: Map[String, Any] = resourceURIs.map((_ -> initialValue)).toMap
+    var initialValuesForAllResources: Map[String, Any] = resourceURIs.map((_ -> initialValue)).toMap
 
     // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.VALUE'
     val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE.length)
@@ -677,8 +677,13 @@ object DataPreparationController {
             }
           }
         }
-        // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
-        // If the system Encounter-based and is not looking for existence, get it from [Resource].encounter.reference
+        /**
+         * If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
+         * The resulting map will be in the form of: Map(Patient_id or Encounter_id -> (value, Option(date)))
+         * e.g. (Patient/p1 -> (10, Option(2020-01-12)), ...)
+         *      OR depending on Encounter-based data preparation:
+         *      (Encounter/e1 -> (10, Option(2020-01-12)))
+         */
         if (isPatient) {
           "Patient/" + (resource \ "id").asInstanceOf[JString].values -> (value, Option.empty)
         } else if (variable.fhir_query.startsWith("/Encounter")) {
@@ -717,21 +722,24 @@ object DataPreparationController {
             // If the featureset variable is looking for existence, include the date filter.
             // The date of the value must be before(equal) the end date of the encounter.
             if (lookingForExistence && dateOfResource.isDefined && (dateOfResource.get.isEqual(encounterEndDate) || dateOfResource.get.isBefore(encounterEndDate))) {
-              initialValuesForAllPatients += (encounter._1 -> keyValuePair._2._1)
+              initialValuesForAllResources += (encounter._1 -> keyValuePair._2._1)
             } else if (!lookingForExistence || dateOfResource.isEmpty) {
-              initialValuesForAllPatients += (encounter._1 -> keyValuePair._2._1)
+              initialValuesForAllResources += (encounter._1 -> keyValuePair._2._1)
             }
           }
         }
       }
-      Map(variable.name -> initialValuesForAllPatients)
+      Map(variable.name -> initialValuesForAllResources)
     } else {
-      Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+      // While merging into initialValues, omit the date values from extractedValues
+      // The form of extractedValues: Map(Patient_id or Encounter_id -> (value, Option(date)))
+      // e.g. (Encounter/e1 -> (10, Option(2020-01-12)))
+      Map(variable.name -> (initialValuesForAllResources ++ extractedValues.map {value => value._1 -> value._2._1}))
     }
   }
 
   /**
-   * Retrieves the DataPreparationResult which inlcudes the DataSourceStatistics for the given dataset_id
+   * Retrieves the DataPreparationResult which includes the DataSourceStatistics for the given dataset_id
    *
    * @param dataset_id
    * @return
