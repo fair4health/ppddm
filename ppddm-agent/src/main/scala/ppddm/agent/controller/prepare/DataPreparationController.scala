@@ -407,10 +407,7 @@ object DataPreparationController {
       encounters.foreach(encounter => {
         try {
           val encounterID = (encounter \ "id").extract[String]
-          val encounterSubject = (encounter \ "subject" \ "reference").extract[String]
-          val encounterPeriodStart = Try((encounter \ "period" \ "start").extract[String]).getOrElse(DateTime.now().toString())
-          val encounterPeriodEnd = Try((encounter \ "period" \ "end").extract[String]).getOrElse(DateTime.now().toString())
-          encounterMap += (s"Encounter/$encounterID" -> EncounterBasedItem(encounterSubject, encounterPeriodStart, encounterPeriodEnd))
+          encounterMap += (s"Encounter/$encounterID" -> extractEncounterBasedItem(encounter))
         } catch {
           case e: Exception =>
             logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
@@ -418,6 +415,19 @@ object DataPreparationController {
       })
       encounterMap
     }
+  }
+
+  /**
+   * Get the subject, periodStart and periodEnd values from the given encounter resource
+   *
+   * @param encounter   The encounter resource to be extracted
+   * @return - EncounterBasedItem
+   */
+  private def extractEncounterBasedItem(encounter: JObject): EncounterBasedItem = {
+    val encounterSubject = (encounter \ "subject" \ "reference").extract[String]
+    val encounterPeriodStart = Try((encounter \ "period" \ "start").extract[String]).getOrElse(DateTime.now().toString())
+    val encounterPeriodEnd = Try((encounter \ "period" \ "end").extract[String]).getOrElse(DateTime.now().toString())
+    EncounterBasedItem(encounterSubject, encounterPeriodStart, encounterPeriodEnd)
   }
 
   /**
@@ -494,6 +504,9 @@ object DataPreparationController {
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE_READMISSION)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE_READMISSION'
         evaluateReadmissionValue(encounterMap.get, variable)
+      } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION)) {
+        // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION'
+        evaluateHospitalizationValue(resources, variable)
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE'
         evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, resourceURIs, variable, encounterMap)
@@ -542,6 +555,56 @@ object DataPreparationController {
           nextEncounterStartDate.isAfter(currEncounterEndDate) && nextEncounterStartDate.isBefore(currEncounterEndDateXDaysAfter)
         }
         if (hasReadmission.nonEmpty) encounter._1 -> 1.toDouble
+        else encounter._1 -> 0.toDouble
+      } else {
+        // If no encounter is found for the subject, fill it with 0.
+        encounter._1 -> 0.toDouble
+      }
+    }
+    Map(variable.name -> extractedMap)
+  }
+
+  /**
+   * Counts the hospitalizations in the last 12 months. For each encounter, looks for another encounter
+   * whose periodStart date is bigger than xMonthsBefore from today. And also periodEnd date is smaller than
+   * current encounter periodStart date.
+   *
+   * @param encounters  The encounter resources
+   * @param variable    The Variables
+   * @return returns a map
+   *         Map(hospitalization_12_months -> Map(Encounter/e1 -> 3.0, Encounter/e2 -> 1.0, Encounter/e3 -> 0.0, ...))
+   */
+  def evaluateHospitalizationValue(encounters: Seq[JObject], variable: Variable): Map[String, Map[String, Any]] = {
+    var encounterMap: Map[String, EncounterBasedItem] = Map.empty
+    // For each encounter, fill the encounter based items.
+    // e.g. Map(Encounter/e1 -> EncounterBasedItem(encounterSubject, encounterStart, encounterEnd)).
+    encounters.foreach(encounter => {
+      try {
+        val encounterID = (encounter \ "id").extract[String]
+        encounterMap += (s"Encounter/$encounterID" -> extractEncounterBasedItem(encounter))
+      } catch {
+        case e: Exception =>
+          logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
+      }
+    })
+    // Get the month information from the fhir_path expression
+    val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
+    val xMonthsBefore = DateTime.now().minusMonths(month)
+    val extractedMap = encounterMap.map { encounter =>
+      // Filter the encounters by subject
+      val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
+      if (currentSubjectEncounters.nonEmpty) {
+        // Start date of the current encounter
+        val currEncounterStartDate = DateTime.parse(encounter._2.periodStart)
+        // If there is an encounter between these dates
+        val hospitalizationNum = currentSubjectEncounters.filter {e =>
+          val prevEncounterStartDate = DateTime.parse(e._2.periodStart)
+          val prevEncounterEndDate = DateTime.parse(e._2.periodEnd)
+          (!prevEncounterStartDate.isEqual(prevEncounterEndDate)) &&
+            (prevEncounterEndDate.isEqual(currEncounterStartDate) || prevEncounterEndDate.isBefore(currEncounterStartDate)) &&
+            (prevEncounterStartDate.isEqual(xMonthsBefore) || prevEncounterStartDate.isAfter(xMonthsBefore))
+        }
+        if (hospitalizationNum.nonEmpty) encounter._1 -> hospitalizationNum.size.toDouble
         else encounter._1 -> 0.toDouble
       } else {
         // If no encounter is found for the subject, fill it with 0.
