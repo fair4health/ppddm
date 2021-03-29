@@ -1,13 +1,13 @@
 package ppddm.agent.controller.prepare
 
 import java.util.concurrent.TimeUnit
+import java.time.ZonedDateTime
 
 import akka.Done
 import com.typesafe.scalalogging.Logger
 import io.onfhir.path._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.joda.time.DateTime
 import org.json4s.JsonAST.JObject
 import org.json4s.{JArray, JString}
 import ppddm.agent.Agent
@@ -425,8 +425,8 @@ object DataPreparationController {
    */
   private def extractEncounterBasedItem(encounter: JObject): EncounterBasedItem = {
     val encounterSubject = (encounter \ "subject" \ "reference").extract[String]
-    val encounterPeriodStart = Try((encounter \ "period" \ "start").extract[String]).getOrElse(DateTime.now().toString())
-    val encounterPeriodEnd = Try((encounter \ "period" \ "end").extract[String]).getOrElse(DateTime.now().toString())
+    val encounterPeriodStart = Try((encounter \ "period" \ "start").extract[String]).getOrElse(ZonedDateTime.now().toString)
+    val encounterPeriodEnd = Try((encounter \ "period" \ "end").extract[String]).getOrElse(ZonedDateTime.now().toString)
     EncounterBasedItem(encounterSubject, encounterPeriodStart, encounterPeriodEnd)
   }
 
@@ -546,12 +546,12 @@ object DataPreparationController {
       val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
       if (currentSubjectEncounters.nonEmpty) {
         // End date of the current encounter
-        val currEncounterEndDate = DateTime.parse(encounter._2.periodEnd)
+        val currEncounterEndDate = ZonedDateTime.parse(encounter._2.periodEnd)
         // Calculate X days after from the end date of the current encounter
-        val currEncounterEndDateXDaysAfter = DateTime.parse(encounter._2.periodEnd).plusDays(day)
+        val currEncounterEndDateXDaysAfter = ZonedDateTime.parse(encounter._2.periodEnd).plusDays(day)
         // If there exists an encounter between these dates, then has readmission will have value
         val hasReadmission = currentSubjectEncounters.filter {e =>
-          val nextEncounterStartDate = DateTime.parse(e._2.periodStart)
+          val nextEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
           nextEncounterStartDate.isAfter(currEncounterEndDate) && nextEncounterStartDate.isBefore(currEncounterEndDateXDaysAfter)
         }
         if (hasReadmission.nonEmpty) encounter._1 -> 1.toDouble
@@ -589,17 +589,17 @@ object DataPreparationController {
     })
     // Get the month information from the fhir_path expression
     val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
-    val xMonthsBefore = DateTime.now().minusMonths(month)
+    val xMonthsBefore = ZonedDateTime.now().minusMonths(month)
     val extractedMap = encounterMap.map { encounter =>
       // Filter the encounters by subject
       val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
       if (currentSubjectEncounters.nonEmpty) {
         // Start date of the current encounter
-        val currEncounterStartDate = DateTime.parse(encounter._2.periodStart)
+        val currEncounterStartDate = ZonedDateTime.parse(encounter._2.periodStart)
         // If there is an encounter between these dates
         val hospitalizationNum = currentSubjectEncounters.filter {e =>
-          val prevEncounterStartDate = DateTime.parse(e._2.periodStart)
-          val prevEncounterEndDate = DateTime.parse(e._2.periodEnd)
+          val prevEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
+          val prevEncounterEndDate = ZonedDateTime.parse(e._2.periodEnd)
           (!prevEncounterStartDate.isEqual(prevEncounterEndDate)) &&
             (prevEncounterEndDate.isEqual(currEncounterStartDate) || prevEncounterEndDate.isBefore(currEncounterStartDate)) &&
             (prevEncounterStartDate.isEqual(xMonthsBefore) || prevEncounterStartDate.isAfter(xMonthsBefore))
@@ -774,14 +774,14 @@ object DataPreparationController {
     // If encounterMap is defined (means that data is being prepared Encounter-based), fill the values of Encounters in the map
     if (encounterMap.isDefined) {
       extractedValues.foreach { keyValuePair =>
-        val dateOfResource = if (keyValuePair._2._2.isDefined) Option(DateTime.parse(keyValuePair._2._2.get)) else Option.empty
+        val dateOfResource = if (keyValuePair._2._2.isDefined) Option(ZonedDateTime.parse(keyValuePair._2._2.get)) else Option.empty
         val matchedEncounters = encounterMap.get.filter(e => {
           if (keyValuePair._1.startsWith("Patient")) e._2.subject == keyValuePair._1 // If the reference is a Patient resource
           else e._1 == keyValuePair._1 // If the reference is an Encounter resource
         })
         if (matchedEncounters.nonEmpty) {
           matchedEncounters.foreach { encounter =>
-            val encounterEndDate = DateTime.parse(encounter._2.periodEnd)
+            val encounterEndDate = ZonedDateTime.parse(encounter._2.periodEnd)
             // If the featureset variable is looking for existence, include the date filter.
             // The date of the value must be before(equal) the end date of the encounter.
             if (lookingForExistence && dateOfResource.isDefined && (dateOfResource.get.isEqual(encounterEndDate) || dateOfResource.get.isBefore(encounterEndDate))) {
