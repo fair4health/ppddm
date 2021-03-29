@@ -3,7 +3,7 @@
 JAVA_CMD="java -jar "
 
 if [ ! -z "$APP_NAME" ]; then
-    JAVA_CMD+="-Dapp.name=$DEPLOYMENT_NAME "
+    JAVA_CMD+="-Dapp.name=$APP_NAME "
 fi
 
 if [ ! -z "$SERVER_HOST" ]; then
