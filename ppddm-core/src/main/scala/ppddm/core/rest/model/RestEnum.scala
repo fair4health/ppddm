@@ -91,6 +91,8 @@ object FHIRPathExpressionPrefix extends Enumeration {
   val AGGREGATION_EXISTENCE = "aggr:exists:"
   val VALUE = "value:"
   val SATISFY = "satisfy:"
+  val VALUE_READMISSION = "value:readmission:"
+  val VALUE_HOSPITALIZATION = "value:hospitalization:"
 }
 
 object DataType extends Enumeration {

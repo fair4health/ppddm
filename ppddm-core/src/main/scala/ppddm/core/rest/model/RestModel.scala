@@ -596,3 +596,7 @@ final case class AssociationRule(antecedent: Seq[String],
                                  consequent: Seq[String],
                                  confidence: Double,
                                  lift: Double) extends ModelClass
+
+final case class EncounterBasedItem(subject: String,
+                                    periodStart: String,
+                                    periodEnd: String) extends ModelClass

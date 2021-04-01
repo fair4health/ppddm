@@ -1,6 +1,7 @@
 package ppddm.agent.controller.prepare
 
 import java.util.concurrent.TimeUnit
+import java.time.ZonedDateTime
 
 import akka.Done
 import com.typesafe.scalalogging.Logger
@@ -99,10 +100,21 @@ object DataPreparationController {
                         Seq.empty[Row]
                       }
                     } else {
-                      populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs)
-                        .map { resourceMap: Map[String, Map[String, Any]] =>
-                          convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
-                        }
+                      // Check if the featureset variables include an encounter type independent variable
+                      if (hasEncounterTypeVariable(dataPreparationRequest.featureset)) {
+                        findEligibleEncounters(fhirClientPartition, eligiblePatientURIs)
+                          .flatMap { encounterMap: Map[String, EncounterBasedItem] =>
+                            populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, encounterMap.keySet, Option(encounterMap))
+                              .map { resourceMap: Map[String, Map[String, Any]] =>
+                                convertToSparkRow(dataPreparationRequest.featureset, encounterMap.keySet, resourceMap)
+                              }
+                          }
+                      } else {
+                        populateVariableValues(fhirClientPartition, fhirPathEvaluator, dataPreparationRequest.featureset, eligiblePatientURIs, Option.empty)
+                          .map { resourceMap: Map[String, Map[String, Any]] =>
+                            convertToSparkRow(dataPreparationRequest.featureset, eligiblePatientURIs, resourceMap)
+                          }
+                      }
                     }
                   }
                 }
@@ -273,7 +285,7 @@ object DataPreparationController {
    * @param fhirClient        The FHIRClient
    * @param fhirPathEvaluator The FhirPathEvaluator
    * @param featureset        The Featureset which contains the Variable definitions
-   * @param patientURIs       The URIs (/Patient/12323-2312-231) of the patients
+   * @param resourceURIs       The URIs (/Patient/12323-2312-231) of the patients
    * @return A Future of the Map in the following form:
    *
    *         Map(Smoking status -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 1, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
@@ -287,9 +299,10 @@ object DataPreparationController {
    *
    */
   private def populateVariableValues(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator,
-                                     featureset: Featureset, patientURIs: Set[String]): Future[Map[String, Map[String, Any]]] = {
+                                     featureset: Featureset, resourceURIs: Set[String],
+                                     encounterMap: Option[Map[String, EncounterBasedItem]]): Future[Map[String, Map[String, Any]]] = {
     val queryFutures = featureset.variables
-      .map(fetchValuesOfVariable(fhirClient, fhirPathEvaluator, patientURIs, _)) // For each variable, fetch the values for each patient
+      .map(fetchValuesOfVariable(fhirClient, fhirPathEvaluator, resourceURIs, encounterMap, _)) // For each variable, fetch the values for each patient
 
     Future.sequence(queryFutures) // Join the parallel Futures
       .map { queryResults =>
@@ -376,6 +389,48 @@ object DataPreparationController {
   }
 
   /**
+   * Find the eligible encounters, with given patient references
+   *
+   * @param fhirClient    The FHIRClient to be used for FHIR communication
+   * @param patientURIs   The eligible Patient references
+   * @return A future in form of a map (encounterReference -> (subjectReference, encounterPeriodStart, encounterPeriodEnd)):
+   *         (Encounter/5dea8608a8273d7cac52005d44a59360 -> (Patient/7cd82663ac897d2399147b706ac5c37c, 2010-05-11T00:00:00.000Z, 2010-06-11T00:00:00.000Z),
+   *         Encounter/991e52abaae14cda69c0a3e80eaf5f4a -> (Patient/e58c39736ab87b03b72e1b0d449222dc, 2010-04-22T00:00:00.000Z, 2010-05-12T00:00:00.000Z))
+   */
+  private def findEligibleEncounters(fhirClient: FHIRClient, patientURIs: Set[String]): Future[Map[String, EncounterBasedItem]] = {
+    // Create fhir Query and collect all encounters of eligible patients
+    val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, "/Encounter", Option.empty)
+    var encounterMap: Map[String, EncounterBasedItem] = Map.empty
+    fhirQuery.getResources(fhirClient, all = true) map { encounters =>
+      // For each encounter, fill the encounter based items.
+      // e.g. Map(Encounter/e1 -> EncounterBasedItem(encounterSubject, encounterStart, encounterEnd)).
+      encounters.foreach(encounter => {
+        try {
+          val encounterID = (encounter \ "id").extract[String]
+          encounterMap += (s"Encounter/$encounterID" -> extractEncounterBasedItem(encounter))
+        } catch {
+          case e: Exception =>
+            logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
+        }
+      })
+      encounterMap
+    }
+  }
+
+  /**
+   * Get the subject, periodStart and periodEnd values from the given encounter resource
+   *
+   * @param encounter   The encounter resource to be extracted
+   * @return - EncounterBasedItem
+   */
+  private def extractEncounterBasedItem(encounter: JObject): EncounterBasedItem = {
+    val encounterSubject = (encounter \ "subject" \ "reference").extract[String]
+    val encounterPeriodStart = Try((encounter \ "period" \ "start").extract[String]).getOrElse(ZonedDateTime.now().toString)
+    val encounterPeriodEnd = Try((encounter \ "period" \ "end").extract[String]).getOrElse(ZonedDateTime.now().toString)
+    EncounterBasedItem(encounterSubject, encounterPeriodStart, encounterPeriodEnd)
+  }
+
+  /**
    * Given a list of patient URIs, find the resources of those patients according to the eligibilityCriteria defined for each resource
    * and then collect the subjects (patient IDs) of the resulting resources.
    * This will only retrieve the resources of the given patients. And then those patientIDs will be returned by this function.
@@ -424,7 +479,7 @@ object DataPreparationController {
    * This dataset corresponds to the column defined for the given variable, filled with the values of that variable for the given patients.
    *
    * @param fhirClient
-   * @param patientURIs
+   * @param resourceURIs
    * @param variable
    * @return returns a future in form of the following Map where the Map has only one entry:
    *         Map(Smoking status -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 1, Patient/7376b017a75b043a40f0f4ed654852f0 -> 0, Patient/4e6e2d0e0439cbaf75c7f914a5e111d3 -> 0,
@@ -432,22 +487,131 @@ object DataPreparationController {
    *         Patient/1f02a91bb9343781e02c7f112d7b791d -> 1, Patient/9cd69c88a9526c8a5acabe24504ae497 -> 1, Patient/50605e9eb98ebc79321a9f6b5a8fa0cf -> 1,
    *         Patient/10e5dfbc9116508271574a10beec20a7 -> 0))
    */
-  private def fetchValuesOfVariable(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, patientURIs: Set[String],
-                                    variable: Variable): Future[Map[String, Map[String, Any]]] = {
-    val fhirQuery = QueryHandler.getResourcesOfPatientsQuery(patientURIs, variable.fhir_query, Some(variable.fhir_path))
+  private def fetchValuesOfVariable(fhirClient: FHIRClient, fhirPathEvaluator: FhirPathEvaluator, resourceURIs: Set[String],
+                                    encounterMap: Option[Map[String, EncounterBasedItem]],variable: Variable): Future[Map[String, Map[String, Any]]] = {
+    // FHIR Query will differ depending on whether the data is being prepared as encounter-based or not.
+    // If the encounterMap is defined, we understand that it is encounter-based.
+    val fhirQuery: FHIRQuery =
+      if (encounterMap.isEmpty)
+        QueryHandler.getResourcesOfPatientsQuery(resourceURIs, variable.fhir_query, Some(variable.fhir_path))
+      else
+        QueryHandler.getResourcesOfEncountersQuery(resourceURIs, encounterMap.get, variable.fhir_query, Some(variable.fhir_path))
+
     fhirQuery.getResources(fhirClient, all = true) map { resources =>
       if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.AGGREGATION'
-        evaluateAggrPath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
+        evaluateAggrPath4FeatureSet(fhirPathEvaluator, resources, resourceURIs, variable, encounterMap)
+      } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE_READMISSION)) {
+        // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE_READMISSION'
+        evaluateReadmissionValue(encounterMap.get, variable)
+      } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION)) {
+        // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION'
+        evaluateHospitalizationValue(resources, variable)
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE'
-        evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, patientURIs, variable)
+        evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, resourceURIs, variable, encounterMap)
       } else {
         // Invalid FHIRPath expression
         logger.error("Invalid FHIRPath expression prefix in featureset variables: {}", variable.fhir_path)
         throw DataPreparationException(s"Invalid FHIRPath expression prefix in featureset variables: ${variable.fhir_path}")
       }
     }
+  }
+
+  /**
+   * Returns True if there is an independent variable with Encounter resource type
+   *
+   * @param featureset
+   * @return
+   */
+  private def hasEncounterTypeVariable(featureset: Featureset): Boolean = {
+    featureset.variables.exists(variable =>
+      variable.variable_type == VariableType.INDEPENDENT && variable.fhir_query.startsWith("/Encounter"))
+  }
+
+  /**
+   * Evaluates the readmission scores one by one for each encounter in the encounterMap.
+   * It calculates the period by subtracting the next_encounter_startDate from the current_encounter_endDate
+   *
+   * @param encounterMap  The encounter map in the form of (Encounter/e1 -> EncounterBasedItem(Patient/p1, 2020-01-10, 2020-02-10), ...)
+   * @param variable      The Variables
+   * @return returns a map
+   *         Map(readmitted_in_30_days -> Map(Encounter/e1 -> 1.0, Encounter/e2 -> 0.0, ...))
+   */
+  def evaluateReadmissionValue(encounterMap: Map[String, EncounterBasedItem], variable: Variable): Map[String, Map[String, Any]] = {
+    // Get the day information from the fhir_path expression
+    val day = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_READMISSION.length).toInt
+    val extractedMap = encounterMap.map { encounter =>
+      // Filter the encounters by subject
+      val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
+      if (currentSubjectEncounters.nonEmpty) {
+        // End date of the current encounter
+        val currEncounterEndDate = ZonedDateTime.parse(encounter._2.periodEnd)
+        // Calculate X days after from the end date of the current encounter
+        val currEncounterEndDateXDaysAfter = ZonedDateTime.parse(encounter._2.periodEnd).plusDays(day)
+        // If there exists an encounter between these dates, then has readmission will have value
+        val hasReadmission = currentSubjectEncounters.filter {e =>
+          val nextEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
+          nextEncounterStartDate.isAfter(currEncounterEndDate) && nextEncounterStartDate.isBefore(currEncounterEndDateXDaysAfter)
+        }
+        if (hasReadmission.nonEmpty) encounter._1 -> 1.toDouble
+        else encounter._1 -> 0.toDouble
+      } else {
+        // If no encounter is found for the subject, fill it with 0.
+        encounter._1 -> 0.toDouble
+      }
+    }
+    Map(variable.name -> extractedMap)
+  }
+
+  /**
+   * Counts the hospitalizations in the last 12 months. For each encounter, looks for another encounter
+   * whose periodStart date is bigger than xMonthsBefore from today. And also periodEnd date is smaller than
+   * current encounter periodStart date.
+   *
+   * @param encounters  The encounter resources
+   * @param variable    The Variables
+   * @return returns a map
+   *         Map(hospitalization_12_months -> Map(Encounter/e1 -> 3.0, Encounter/e2 -> 1.0, Encounter/e3 -> 0.0, ...))
+   */
+  def evaluateHospitalizationValue(encounters: Seq[JObject], variable: Variable): Map[String, Map[String, Any]] = {
+    var encounterMap: Map[String, EncounterBasedItem] = Map.empty
+    // For each encounter, fill the encounter based items.
+    // e.g. Map(Encounter/e1 -> EncounterBasedItem(encounterSubject, encounterStart, encounterEnd)).
+    encounters.foreach(encounter => {
+      try {
+        val encounterID = (encounter \ "id").extract[String]
+        encounterMap += (s"Encounter/$encounterID" -> extractEncounterBasedItem(encounter))
+      } catch {
+        case e: Exception =>
+          logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
+      }
+    })
+    // Get the month information from the fhir_path expression
+    val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
+    val xMonthsBefore = ZonedDateTime.now().minusMonths(month)
+    val extractedMap = encounterMap.map { encounter =>
+      // Filter the encounters by subject
+      val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
+      if (currentSubjectEncounters.nonEmpty) {
+        // Start date of the current encounter
+        val currEncounterStartDate = ZonedDateTime.parse(encounter._2.periodStart)
+        // If there is an encounter between these dates
+        val hospitalizationNum = currentSubjectEncounters.filter {e =>
+          val prevEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
+          val prevEncounterEndDate = ZonedDateTime.parse(e._2.periodEnd)
+          (!prevEncounterStartDate.isEqual(prevEncounterEndDate)) &&
+            (prevEncounterEndDate.isEqual(currEncounterStartDate) || prevEncounterEndDate.isBefore(currEncounterStartDate)) &&
+            (prevEncounterStartDate.isEqual(xMonthsBefore) || prevEncounterStartDate.isAfter(xMonthsBefore))
+        }
+        if (hospitalizationNum.nonEmpty) encounter._1 -> hospitalizationNum.size.toDouble
+        else encounter._1 -> 0.toDouble
+      } else {
+        // If no encounter is found for the subject, fill it with 0.
+        encounter._1 -> 0.toDouble
+      }
+    }
+    Map(variable.name -> extractedMap)
   }
 
   /**
@@ -461,13 +625,13 @@ object DataPreparationController {
    * @return returns a map in the following form:
    *         Map(Prescribed Drugs -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> 6, ...))
    */
-  def evaluateAggrPath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
-                                  variable: Variable): Map[String, Map[String, Any]] = {
+  def evaluateAggrPath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], resourceURIs: Set[String],
+                                  variable: Variable, encounterMap: Option[Map[String, EncounterBasedItem]]): Map[String, Map[String, Any]] = {
 
     val isCategoricalType = variable.variable_data_type == VariableDataType.CATEGORICAL
     // If variable data type is Categorical set null otherwise 0
     val initialValue = if (isCategoricalType) null else 0.toDouble
-    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> initialValue)).toMap
+    var initialValuesForAllResources: Map[String, Any] = resourceURIs.map((_ -> initialValue)).toMap
 
     if (resources.nonEmpty) {
       if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.AGGREGATION_EXISTENCE)) {
@@ -479,7 +643,7 @@ object DataPreparationController {
           item -> 1.toDouble // Fill with 1 for existing resources
         }.toMap
 
-        Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+        Map(variable.name -> (initialValuesForAllResources ++ extractedValues))
       } else {
         // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.AGGREGATION'
         val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.AGGREGATION.length)
@@ -490,6 +654,8 @@ object DataPreparationController {
           /**
            * complexResult is a List[(a,b)] in which we are sure that there are two tuples as follows:
            * List[(bucket -> JString(Patient/p1), (agg -> JLong(2)))
+           * OR
+           * List[(bucket -> JString(Encounter/e1), (agg -> JLong(2)))
            */
           val complexResult = item.asInstanceOf[FhirPathComplex] // retrieve as a complex result
             .json.obj // Access to the List[(String, JValue)]
@@ -501,10 +667,26 @@ object DataPreparationController {
           patientID -> aggrResult // Patient ID -> count
         }.toMap
 
-        Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+        // If encounterMap is defined (means that data is being prepared Encounter-based), fill the values of Encounters in the map
+        if (encounterMap.isDefined) {
+          extractedValues.foreach { keyValuePair =>
+            val matchedEncounters = encounterMap.get.filter(e => {
+              if (keyValuePair._1.startsWith("Patient")) e._2.subject == keyValuePair._1 // If the reference is a Patient resource
+              else e._1 == keyValuePair._1 // If the reference is an Encounter resource
+            })
+            if (matchedEncounters.nonEmpty) {
+              matchedEncounters.keys.foreach { encounterRef =>
+                initialValuesForAllResources += (encounterRef -> keyValuePair._2)
+              }
+            }
+          }
+          Map(variable.name -> initialValuesForAllResources)
+        } else {
+          Map(variable.name -> (initialValuesForAllResources ++ extractedValues))
+        }
       }
     } else {
-      Map(variable.name -> initialValuesForAllPatients)
+      Map(variable.name -> initialValuesForAllResources)
     }
   }
 
@@ -517,14 +699,16 @@ object DataPreparationController {
    * @param variable
    * @return returns a map in the following form:
    *         Map(Gender -> Map(Patient/5dea8608a8273d7cac52005d44a59360 -> male, ...))
+   *         OR
+   *         Map(Gender -> Map(Encounter/2dea8608a8273d7cac52005d44a59360 -> male, ...))
    */
-  def evaluateValuePath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], patientURIs: Set[String],
-                                   variable: Variable): Map[String, Map[String, Any]] = {
+  def evaluateValuePath4FeatureSet(fhirPathEvaluator: FhirPathEvaluator, resources: Seq[JObject], resourceURIs: Set[String],
+                                   variable: Variable, encounterMap: Option[Map[String, EncounterBasedItem]]): Map[String, Map[String, Any]] = {
 
     val isCategoricalType = variable.variable_data_type == VariableDataType.CATEGORICAL
     // If variable data type is Categorical set null otherwise 0
     val initialValue = if (isCategoricalType) null else 0.toDouble
-    val initialValuesForAllPatients: Map[String, Any] = patientURIs.map((_ -> initialValue)).toMap
+    var initialValuesForAllResources: Map[String, Any] = resourceURIs.map((_ -> initialValue)).toMap
 
     // Remove FHIR Path expression prefix 'FHIRPathExpressionPrefix.VALUE'
     val fhirPathExpression: String = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE.length)
@@ -533,7 +717,7 @@ object DataPreparationController {
     val lookingForExistence: Boolean = fhirPathExpression.startsWith("exists")
 
     val extractedValues = resources
-      .map { item => // For each resulting resource
+      .map { resource => // For each resulting resource
         /**
          * Set the value null if the variable data type is categorical or the fhir_path is not looking for existence.
          * e.g. Observation.valueQuantity.value field is numeric and fhir_path is not looking for existence,
@@ -542,7 +726,7 @@ object DataPreparationController {
          */
         var value = if (isCategoricalType || !lookingForExistence) null else 1.toDouble
         if (!lookingForExistence) {
-          val resultOption = Try(fhirPathEvaluator.evaluate(fhirPathExpression, item).headOption).getOrElse(None)
+          val resultOption = Try(fhirPathEvaluator.evaluate(fhirPathExpression, resource).headOption).getOrElse(None)
           resultOption.foreach { result =>
             // If we will get the value from the FHIRPath expression, then take it from the evaluation result
             value = result match {
@@ -556,19 +740,69 @@ object DataPreparationController {
             }
           }
         }
-        // If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
+        /**
+         * If it is Patient resource get the id from Patient.id. Otherwise, get it from [Resource].subject.reference
+         * The resulting map will be in the form of: Map(Patient_id or Encounter_id -> (value, Option(date)))
+         * e.g. (Patient/p1 -> (10, Option(2020-01-12)), ...)
+         *      OR depending on Encounter-based data preparation:
+         *      (Encounter/e1 -> (10, Option(2020-01-12)))
+         */
         if (isPatient) {
-          "Patient/" + (item \ "id").asInstanceOf[JString].values -> value
+          "Patient/" + (resource \ "id").asInstanceOf[JString].values -> (value, Option.empty)
+        } else if (variable.fhir_query.startsWith("/Encounter")) {
+          if (encounterMap.isDefined) "Encounter/" + (resource \ "id").asInstanceOf[JString].values -> (value, Option.empty)
+          else (resource \ "subject" \ "reference").asInstanceOf[JString].values -> (value, Option.empty)
         } else {
-          (item \ "subject" \ "reference").asInstanceOf[JString].values -> value
+          // Reference parameter may change depending on whether the data is being prepared as encounter-based or not.
+          // It will be either subject(Patient) or encounter-context(Encounter).
+          val referenceParameter = if (encounterMap.isDefined && !lookingForExistence) {
+            if (variable.fhir_query.startsWith("/MedicationStatement")) "context" else "encounter"
+          } else "subject"
+          // Date parameter may change depending on the resource type.
+          var dateParameter = ""
+          if (variable.fhir_query.startsWith("/Condition")) {
+            dateParameter = "onsetDateTime"
+          } else if (variable.fhir_query.startsWith("/Observation") || variable.fhir_query.startsWith("/MedicationStatement")) {
+            dateParameter = "effectiveDateTime"
+          }
+          (resource \ referenceParameter \ "reference").asInstanceOf[JString].values -> (value, Option((resource \ dateParameter).asInstanceOf[JString].values))
         }
       }
-      .toMap // Convert to Map[String, Any]
-    Map(variable.name -> (initialValuesForAllPatients ++ extractedValues))
+      .groupBy(_._1) // Group by the resource reference
+      .map(_._2.head) // Take the first value
+
+    // If encounterMap is defined (means that data is being prepared Encounter-based), fill the values of Encounters in the map
+    if (encounterMap.isDefined) {
+      extractedValues.foreach { keyValuePair =>
+        val dateOfResource = if (keyValuePair._2._2.isDefined) Option(ZonedDateTime.parse(keyValuePair._2._2.get)) else Option.empty
+        val matchedEncounters = encounterMap.get.filter(e => {
+          if (keyValuePair._1.startsWith("Patient")) e._2.subject == keyValuePair._1 // If the reference is a Patient resource
+          else e._1 == keyValuePair._1 // If the reference is an Encounter resource
+        })
+        if (matchedEncounters.nonEmpty) {
+          matchedEncounters.foreach { encounter =>
+            val encounterEndDate = ZonedDateTime.parse(encounter._2.periodEnd)
+            // If the featureset variable is looking for existence, include the date filter.
+            // The date of the value must be before(equal) the end date of the encounter.
+            if (lookingForExistence && dateOfResource.isDefined && (dateOfResource.get.isEqual(encounterEndDate) || dateOfResource.get.isBefore(encounterEndDate))) {
+              initialValuesForAllResources += (encounter._1 -> keyValuePair._2._1)
+            } else if (!lookingForExistence || dateOfResource.isEmpty) {
+              initialValuesForAllResources += (encounter._1 -> keyValuePair._2._1)
+            }
+          }
+        }
+      }
+      Map(variable.name -> initialValuesForAllResources)
+    } else {
+      // While merging into initialValues, omit the date values from extractedValues
+      // The form of extractedValues: Map(Patient_id or Encounter_id -> (value, Option(date)))
+      // e.g. (Encounter/e1 -> (10, Option(2020-01-12)))
+      Map(variable.name -> (initialValuesForAllResources ++ extractedValues.map {value => value._1 -> value._2._1}))
+    }
   }
 
   /**
-   * Retrieves the DataPreparationResult which inlcudes the DataSourceStatistics for the given dataset_id
+   * Retrieves the DataPreparationResult which includes the DataSourceStatistics for the given dataset_id
    *
    * @param dataset_id
    * @return
