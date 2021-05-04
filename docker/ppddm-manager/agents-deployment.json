@@ -13,5 +13,15 @@
     "agent_id": "agent-3",
     "name": "Agent 3",
     "endpoint": "http://f4h-ppddm-agent-3:7003/agent"
+  },
+  {
+    "agent_id": "agent-4",
+    "name": "Agent 4",
+    "endpoint": "http://f4h-ppddm-agent-4:7004/agent"
+  },
+  {
+    "agent_id": "agent-5",
+    "name": "Agent 5",
+    "endpoint": "http://f4h-ppddm-agent-5:7005/agent"
   }
 ]
