@@ -7,6 +7,7 @@ import ppddm.core.util.URLUtil
 import ppddm.core.db.{EmbeddedMongo, MongoDB}
 import ppddm.manager.config.ManagerConfig
 import ppddm.manager.gateway.ManagerHttpServer
+import ppddm.manager.registry.AgentHealthChecker
 
 /**
  * The starter object for PPDDM Manager
@@ -58,6 +59,8 @@ object Manager {
         ManagerConfig.authServerPassword
       )
     }
+
+    AgentHealthChecker.checkAllAgentsHealth()
 
     ManagerHttpServer.start(ManagerConfig.serverHost, ManagerConfig.serverPort, ManagerConfig.baseUri)
 

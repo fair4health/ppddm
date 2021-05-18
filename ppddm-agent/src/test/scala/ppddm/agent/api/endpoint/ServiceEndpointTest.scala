@@ -27,7 +27,7 @@ class ServiceEndpointTest extends PPDDMAgentEndpointTest {
         status shouldEqual OK
 
         val response = responseAs[Agent]
-        response.endpoint shouldEqual s"${AgentConfig.serverHost}:${AgentConfig.serverPort}:${AgentConfig.baseUri}"
+        response.endpoint shouldEqual AgentConfig.agentDeploymentEndpoint
       }
     }
   }

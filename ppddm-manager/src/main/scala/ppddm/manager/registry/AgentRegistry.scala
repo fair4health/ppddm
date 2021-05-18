@@ -10,6 +10,10 @@ import ppddm.manager.config.ManagerConfig
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
+/**
+ * Act as the registry of Agents. It is better to manage the registered Agents with an external service registry, but
+ * we implemented it here for practical reasons.
+ */
 object AgentRegistry {
 
   private val logger: Logger = Logger(this.getClass)
@@ -20,7 +24,7 @@ object AgentRegistry {
     val fileContent = readFileContent(ManagerConfig.agentsDefinitionPath)
     val agentList = fileContent.extract[Seq[Agent]]
     logger.info("A total of {} registered agents (data sources) have been retrieved.", agentList.size)
-    logger.info("The Manager is starting up with the following Agents: " + agentList.map(_.toPrettyJson))
+    logger.info("The Manager is starting up with the following Agents: " + agentList.map(_.toJson))
     agentList
   }
 

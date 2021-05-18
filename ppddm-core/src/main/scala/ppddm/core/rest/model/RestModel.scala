@@ -173,6 +173,10 @@ final case class Agent(agent_id: String,
     }
   }
 
+  def getMetadataURI: String = {
+    getURI("metadata")
+  }
+
   def getDataPreparationURI(dataset_id: Option[String] = None): String = {
     getURI("prepare", dataset_id)
   }

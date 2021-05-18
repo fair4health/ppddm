@@ -51,6 +51,8 @@ object AgentClient {
             typeOf[T] match {
               case t if t =:= typeOf[Done] =>
                 Future.apply(Success(Done.asInstanceOf[T]))
+              case t if t =:= typeOf[Agent] =>
+                Unmarshal(res.entity).to[Agent] map { r => Success(r.asInstanceOf[T]) }
               case t if t =:= typeOf[DatasetSource] =>
                 Future.apply(Success(DatasetSource(agentHttpRequest.agent, None, None, Some(ExecutionState.EXECUTING)).asInstanceOf[T]))
               case t if t =:= typeOf[DataPreparationResult] =>

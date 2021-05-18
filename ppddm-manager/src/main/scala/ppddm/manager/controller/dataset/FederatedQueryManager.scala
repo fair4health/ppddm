@@ -1,10 +1,7 @@
 package ppddm.manager.controller.dataset
 
 import akka.Done
-import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Accept, Authorization}
-import akka.http.scaladsl.unmarshalling.Unmarshal
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model._
 import ppddm.manager.client.AgentClient
@@ -16,7 +13,6 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
 /* Import the ActorSystem */
-import ppddm.manager.config.ManagerExecutionContext._
 
 /**
  * This object handles the interaction with the Agents/Datasources so that the fedarated data preparation queries can be

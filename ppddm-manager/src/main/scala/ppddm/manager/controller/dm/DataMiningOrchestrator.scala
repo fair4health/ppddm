@@ -3,16 +3,12 @@ package ppddm.manager.controller.dm
 import akka.Done
 import akka.actor.Cancellable
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{BoostedModel, DataMiningModel, DataMiningState, ProjectType}
+import ppddm.core.rest.model.{DataMiningModel, ProjectType}
+import ppddm.manager.controller.project.ProjectController
 import ppddm.manager.exception.DataIntegrityException
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-import java.util.concurrent.TimeUnit
-
-import ppddm.core.ai.{Aggregator, StatisticsCalculator}
-import ppddm.manager.controller.project.ProjectController
+import scala.concurrent.Future
 
 /**
  * Handles the orchestration of Distributed Data Mining between the Agents.
