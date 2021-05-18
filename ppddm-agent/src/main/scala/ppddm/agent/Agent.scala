@@ -23,6 +23,8 @@ object Agent {
     dataMiningEngine = DataMiningEngine(AgentConfig.appName, AgentConfig.sparkMaster)
 
     AgentHttpServer.start(AgentConfig.serverHost, AgentConfig.serverPort, AgentConfig.baseUri)
+
+    logger.info(s"PPDDM Agent for ${AgentConfig.agentID} is ready at ${AgentConfig.agentDeploymentEndpoint}")
   }
 
 }

@@ -19,6 +19,9 @@ fi
 if [ ! -z "$AGENT_ID" ]; then
     JAVA_CMD+="-Dagent.id=$AGENT_ID "
 fi
+if [ ! -z "$AGENT_ENDPOINT" ]; then
+    JAVA_CMD+="-Dagent.endpoint=$AGENT_ENDPOINT "
+fi
 if [ ! -z "$AGENT_BATCHSIZE" ]; then
     JAVA_CMD+="-Dagent.batch-size=$AGENT_BATCHSIZE "
 fi

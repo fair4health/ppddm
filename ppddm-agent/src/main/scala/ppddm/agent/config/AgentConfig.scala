@@ -20,6 +20,7 @@ object AgentConfig extends AppConfig {
 
   /** PPDDM-Agent config */
   lazy val agentID: String = Try(config.getString("agent.id")).getOrElse("agent-1")
+  lazy val agentDeploymentEndpoint: String = Try(config.getString("agent.endpoint")).getOrElse(s"${serverHost}:${serverPort}/${baseUri}")
   lazy val agentBatchSize: Int = Try(config.getInt("agent.batch-size")).getOrElse(10)
 
 }
