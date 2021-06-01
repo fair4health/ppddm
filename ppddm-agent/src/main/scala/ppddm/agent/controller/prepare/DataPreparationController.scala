@@ -182,6 +182,7 @@ object DataPreparationController {
             case e: Exception =>
               val msg = s"An unexpected error occurred while preparing data"
               logger.error(msg)
+              logger.error(msg, e)
 
               // Save DataPreparationResult with Exception
               val dataPreparationException = DataPreparationException(msg, e)
