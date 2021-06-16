@@ -766,7 +766,8 @@ object DataPreparationController {
           } else if (variable.fhir_query.startsWith("/Observation") || variable.fhir_query.startsWith("/MedicationStatement")) {
             dateParameter = "effectiveDateTime"
           }
-          (resource \ referenceParameter \ "reference").asInstanceOf[JString].values -> (value, Option((resource \ dateParameter).asInstanceOf[JString].values))
+          val date: Option[String] = Try((resource \ dateParameter).asInstanceOf[JString].values).toOption
+          (resource \ referenceParameter \ "reference").asInstanceOf[JString].values -> (value, date)
         }
       }
       .groupBy(_._1) // Group by the resource reference
