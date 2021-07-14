@@ -139,8 +139,8 @@ object AssociationMiningProcessor {
 
         // Combine item frequencies and total record count
         val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
-          // Find the threshold value if it is provided in the GUI. Otherwise use the default value which is 0.5
-          var threshold = 0.5
+          // Find the threshold value if it is provided in the GUI. Otherwise use the default value which is 0.3
+          var threshold = 0.3
           val minSupport = boostedModel.algorithm.parameters.filter(p => p.name == AlgorithmParameterName.MIN_SUPPORT)
           if (!minSupport.isEmpty) {
             threshold = minSupport.head.value.toDouble
