@@ -23,7 +23,9 @@ object QueryHandler {
     if (fhir_query.startsWith("/Patient")) {
       FHIRQueryWithQueryString(s"${queryString}_id=${patientURIs.map(_.substring(8)).mkString(",")}", fhir_path)
     } else {
-      FHIRQueryWithQueryString(s"${queryString}subject=${patientURIs.mkString(",")}", fhir_path)
+      val targetReferences = patientURIs.mkString(",")
+      if (targetReferences != "") FHIRQueryWithQueryString(s"${queryString}subject=${targetReferences}", fhir_path)
+      else FHIRQueryWithQueryString(queryString.dropRight(1), fhir_path)
     }
   }
 
@@ -38,13 +40,20 @@ object QueryHandler {
       FHIRQueryWithQueryString(s"${queryString}_id=${encounterURIs.map(_.substring(10)).mkString(",")}", fhir_path)
     } else if (fhir_path.isDefined && fhir_path.get.contains(":exists")) {
       // If the fhir_path expression is an "existence" expression, search by subject
-      FHIRQueryWithQueryString(s"${queryString}subject=${encounterMap.values.map(_.subject).mkString(",")}", fhir_path)
+      val targetReferences = encounterMap.values.map(_.subject).mkString(",")
+      if (targetReferences != "") FHIRQueryWithQueryString(s"${queryString}subject=${targetReferences}", fhir_path)
+      else FHIRQueryWithQueryString(queryString.dropRight(1), fhir_path)
     } else {
+      val targetReferences = encounterMap.keySet.mkString(",")
       // If the fhir_path expression is a "get value" expression, search by encounter
-      if (fhir_query.startsWith("/MedicationStatement")) {
-        FHIRQueryWithQueryString(s"${queryString}context=${encounterMap.keySet.mkString(",")}", fhir_path)
+      if (targetReferences != "") {
+        if (fhir_query.startsWith("/MedicationStatement")) {
+          FHIRQueryWithQueryString(s"${queryString}context=${targetReferences}", fhir_path)
+        } else {
+          FHIRQueryWithQueryString(s"${queryString}encounter=${targetReferences}", fhir_path)
+        }
       } else {
-        FHIRQueryWithQueryString(s"${queryString}encounter=${encounterMap.keySet.mkString(",")}", fhir_path)
+        FHIRQueryWithQueryString(queryString.dropRight(1), fhir_path)
       }
     }
   }
