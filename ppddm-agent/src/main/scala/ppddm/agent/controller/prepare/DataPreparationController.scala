@@ -100,7 +100,7 @@ object DataPreparationController {
                         Seq.empty[Row]
                       }
                     } else {
-                      // Check if the featureset variables include an encounter type independent variable
+                      // Check if the featureset variables include an encounter type variable
                       if (hasEncounterTypeVariable(dataPreparationRequest.featureset)) {
                         findEligibleEncounters(fhirClientPartition, eligiblePatientURIs)
                           .flatMap { encounterMap: Map[String, EncounterBasedItem] =>
@@ -507,7 +507,7 @@ object DataPreparationController {
         evaluateReadmissionValue(encounterMap.get, variable)
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION'
-        evaluateHospitalizationValue(resources, variable)
+        evaluateHospitalizationValue(encounterMap.get, resources, variable)
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE'
         evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, resourceURIs, variable, encounterMap)
@@ -520,14 +520,13 @@ object DataPreparationController {
   }
 
   /**
-   * Returns True if there is an independent variable with Encounter resource type
+   * Returns True if there is a variable with Encounter resource type
    *
    * @param featureset
    * @return
    */
   private def hasEncounterTypeVariable(featureset: Featureset): Boolean = {
-    featureset.variables.exists(variable =>
-      variable.variable_type == VariableType.INDEPENDENT && variable.fhir_query.startsWith("/Encounter"))
+    featureset.variables.exists(variable => variable.fhir_query.startsWith("/Encounter"))
   }
 
   /**
@@ -575,44 +574,50 @@ object DataPreparationController {
    * @return returns a map
    *         Map(hospitalization_12_months -> Map(Encounter/e1 -> 3.0, Encounter/e2 -> 1.0, Encounter/e3 -> 0.0, ...))
    */
-  def evaluateHospitalizationValue(encounters: Seq[JObject], variable: Variable): Map[String, Map[String, Any]] = {
-    var encounterMap: Map[String, EncounterBasedItem] = Map.empty
-    // For each encounter, fill the encounter based items.
-    // e.g. Map(Encounter/e1 -> EncounterBasedItem(encounterSubject, encounterStart, encounterEnd)).
-    encounters.foreach(encounter => {
-      try {
-        val encounterID = (encounter \ "id").extract[String]
-        encounterMap += (s"Encounter/$encounterID" -> extractEncounterBasedItem(encounter))
-      } catch {
-        case e: Exception =>
-          logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
-      }
-    })
-    // Get the month information from the fhir_path expression
-    val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
-    val xMonthsBefore = ZonedDateTime.now().minusMonths(month)
-    val extractedMap = encounterMap.map { encounter =>
-      // Filter the encounters by subject
-      val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
-      if (currentSubjectEncounters.nonEmpty) {
-        // Start date of the current encounter
-        val currEncounterStartDate = ZonedDateTime.parse(encounter._2.periodStart)
-        // If there is an encounter between these dates
-        val hospitalizationNum = currentSubjectEncounters.filter {e =>
-          val prevEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
-          val prevEncounterEndDate = ZonedDateTime.parse(e._2.periodEnd)
-          (!prevEncounterStartDate.isEqual(prevEncounterEndDate)) &&
-            (prevEncounterEndDate.isEqual(currEncounterStartDate) || prevEncounterEndDate.isBefore(currEncounterStartDate)) &&
-            (prevEncounterStartDate.isEqual(xMonthsBefore) || prevEncounterStartDate.isAfter(xMonthsBefore))
+  def evaluateHospitalizationValue(encounterMap: Map[String, EncounterBasedItem], encounters: Seq[JObject], variable: Variable): Map[String, Map[String, Any]] = {
+    val initialValuesForAllResources: Map[String, Any] = encounterMap.keySet.map((_ -> 0.toDouble)).toMap
+
+    if (encounters.nonEmpty) {
+      var encounterMap: Map[String, EncounterBasedItem] = Map.empty
+      // For each encounter, fill the encounter based items.
+      // e.g. Map(Encounter/e1 -> EncounterBasedItem(encounterSubject, encounterStart, encounterEnd)).
+      encounters.foreach(encounter => {
+        try {
+          val encounterID = (encounter \ "id").extract[String]
+          encounterMap += (s"Encounter/$encounterID" -> extractEncounterBasedItem(encounter))
+        } catch {
+          case e: Exception =>
+            logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
         }
-        if (hospitalizationNum.nonEmpty) encounter._1 -> hospitalizationNum.size.toDouble
-        else encounter._1 -> 0.toDouble
-      } else {
-        // If no encounter is found for the subject, fill it with 0.
-        encounter._1 -> 0.toDouble
+      })
+      // Get the month information from the fhir_path expression
+      val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
+      val xMonthsBefore = ZonedDateTime.now().minusMonths(month)
+      val extractedMap = encounterMap.map { encounter =>
+        // Filter the encounters by subject
+        val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
+        if (currentSubjectEncounters.nonEmpty) {
+          // Start date of the current encounter
+          val currEncounterStartDate = ZonedDateTime.parse(encounter._2.periodStart)
+          // If there is an encounter between these dates
+          val hospitalizationNum = currentSubjectEncounters.filter {e =>
+            val prevEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
+            val prevEncounterEndDate = ZonedDateTime.parse(e._2.periodEnd)
+            (!prevEncounterStartDate.isEqual(prevEncounterEndDate)) &&
+              (prevEncounterEndDate.isEqual(currEncounterStartDate) || prevEncounterEndDate.isBefore(currEncounterStartDate)) &&
+              (prevEncounterStartDate.isEqual(xMonthsBefore) || prevEncounterStartDate.isAfter(xMonthsBefore))
+          }
+          if (hospitalizationNum.nonEmpty) encounter._1 -> hospitalizationNum.size.toDouble
+          else encounter._1 -> 0.toDouble
+        } else {
+          // If no encounter is found for the subject, fill it with 0.
+          encounter._1 -> 0.toDouble
+        }
       }
+      Map(variable.name -> (initialValuesForAllResources ++ extractedMap))
+    } else {
+      Map(variable.name -> initialValuesForAllResources)
     }
-    Map(variable.name -> extractedMap)
   }
 
   /**
