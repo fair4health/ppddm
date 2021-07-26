@@ -28,11 +28,13 @@ object AlgorithmController {
     val impurity = Parameter(AlgorithmParameterName.IMPURITY, DataType.STRING, "gini")
     val num_trees = Parameter(AlgorithmParameterName.NUM_TREES, DataType.INTEGER, "5")
     val feature_subset_strategy = Parameter(AlgorithmParameterName.FEATURE_SUBSET_STRATEGY, DataType.STRING, "auto")
+    val min_support = Parameter(AlgorithmParameterName.MIN_SUPPORT, DataType.DOUBLE, "0.5")
+    val min_confidence = Parameter(AlgorithmParameterName.MIN_CONFIDENCE, DataType.DOUBLE, "0.5")
 
     val parametersForAllAlgorithms = Seq(num_folds, max_parallelism, metric)
 
     Seq(
-      Algorithm(AlgorithmName.ARL_FPGROWTH, Some("FP Growth"), parametersForAllAlgorithms),
+      Algorithm(AlgorithmName.ARL_FPGROWTH, Some("FP Growth"), parametersForAllAlgorithms ++ Seq(min_support, min_confidence)),
       Algorithm(AlgorithmName.CLASSIFICATION_SVM, Some("Support Vector Machine (SVM)"), parametersForAllAlgorithms ++ Seq(max_iter, handle_invalid)),
       Algorithm(AlgorithmName.CLASSIFICATION_LOGISTIC_REGRESSION, Some("Logistic Regression"), parametersForAllAlgorithms ++ Seq(threshold, max_iter, reg_param, elasticnet_param, handle_invalid)),
       Algorithm(AlgorithmName.CLASSIFICATION_DECISION_TREE, Some("Decision Trees"), parametersForAllAlgorithms ++ Seq(max_depth, min_info_gain, impurity, handle_invalid)),
