@@ -119,7 +119,7 @@ object FederatedQueryManager {
           .map(_.get) // Get rid of the Option since we eliminated the None elements above
       } map { datasetSourcesWithResult: Seq[DatasetSource] => // DatasetSources which finished data preparation
         logger.debug("Finished DataPreparationResults have been retrieved from {} data sources (Agents) of the dataset. " +
-          "These are the following Agents:", datasetSourcesWithResult.size, datasetSourcesWithResult.map(_.agent.agent_id).mkString(","))
+          "These are the following Agents: {}", datasetSourcesWithResult.size, datasetSourcesWithResult.map(_.agent.agent_id).mkString(","))
         val updatedDatasetSources = dataset.dataset_sources.get map { existingDatasetSource => // Iterate over the existing DatasetSources of the dataset
           // decide whether there is a data preparation result for the existingDatasetSource
           val finishedDatasetSource = datasetSourcesWithResult.find(_.agent.agent_id == existingDatasetSource.agent.agent_id)
