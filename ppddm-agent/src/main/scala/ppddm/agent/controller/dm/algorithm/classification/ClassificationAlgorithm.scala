@@ -35,7 +35,7 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
 
     // Prepare the data for execution of the data mining algorithms,
     // i.e. perform the exploratory data analysis which include categorical variable handling, null values handling etc.
-    DataAnalysisManager.performDataAnalysis(dataset_id, dataFrame) map { pipelineStages =>
+    DataAnalysisManager.performDataAnalysis(dataset_id, dataFrame, algorithm) map { pipelineStages =>
 
       // TODO we can also perform Train-Validation Split here if we parameters as array from the client.
 

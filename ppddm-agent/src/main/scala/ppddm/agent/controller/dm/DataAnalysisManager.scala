@@ -5,9 +5,9 @@ import org.apache.spark.ml.PipelineStage
 import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.StringType
-import ppddm.core.ai.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
 import ppddm.agent.controller.prepare.DataPreparationController
-import ppddm.core.rest.model.{DataMiningException, VariableDataType, VariableType}
+import ppddm.core.ai.transformer.{AgeTransformer, MultipleColumnOneHotEncoder}
+import ppddm.core.rest.model.{Algorithm, AlgorithmParameterName, DataMiningException, VariableDataType, VariableType}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -24,9 +24,10 @@ object DataAnalysisManager {
    *
    * @param dataset_id The id of the Dataset prepared and stored in the data store previously
    * @param dataFrame The original DataFrame retrieved from DataStore
+   * @param algorithm The algorithm
    * @return Array of "PipelineStage"s of several Feature Transformers like StringIndexer, OneHotEncoder, Vector Assembler which create "features" and "label" columns for machine learning algorithms
    */
-  def performDataAnalysis(dataset_id: String, dataFrame: DataFrame): Future[Array[PipelineStage]] = {
+  def performDataAnalysis(dataset_id: String, dataFrame: DataFrame, algorithm: Algorithm): Future[Array[PipelineStage]] = {
     Future {
       logger.debug("Performing data analysis...")
 
@@ -51,6 +52,9 @@ object DataAnalysisManager {
 
       // TODO consider dropping columns in which all the records have the same value
 
+      // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
+      val handleInvalid = algorithm.parameters.find(_.name == AlgorithmParameterName.HANDLE_INVALID).map(_.value).getOrElse("keep")
+
       /**
        * Handle categorical variables
        */
@@ -67,7 +71,7 @@ object DataAnalysisManager {
           .setInputCol(v.variable.getMLValidName)
           .setOutputCol(s"${v.variable.getMLValidName}_INDEX")
           .setStringOrderType("alphabetAsc") // options are "frequencyDesc", "frequencyAsc", "alphabetDesc", "alphabetAsc"
-          .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
+          .setHandleInvalid(handleInvalid)
       })
       stringIndexerSeq.foreach(i => pipelineStages += i) // Now, DataFrame contains new columns with "_INDEX" at the end of column name
 
@@ -94,6 +98,7 @@ object DataAnalysisManager {
       val vectorAssembler = new VectorAssembler()
         .setInputCols(independentVariables.map(iv => if (categoricalColumns.contains(iv.variable.getMLValidName)) s"${iv.variable.getMLValidName}_VEC" else iv.variable.getMLValidName).toArray) // columns that need to added to feature column
         .setOutputCol("nonScaledFeatures")
+        .setHandleInvalid(handleInvalid)
       pipelineStages += vectorAssembler
 
       // Introduce the dependent variable
@@ -101,7 +106,7 @@ object DataAnalysisManager {
         val labelStringIndexer = new StringIndexer()
           .setInputCol(dependentVariableOption.get.variable.getMLValidName)
           .setOutputCol("label")
-          .setHandleInvalid("keep") // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
+          .setHandleInvalid(handleInvalid)
         pipelineStages += labelStringIndexer
       }
 
