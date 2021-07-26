@@ -123,6 +123,8 @@ object AlgorithmParameterName extends Enumeration {
   val NUMBER_OF_FOLDS = "num_folds" // Value of k in k-fold Cross validation
   val MAX_PARALLELISM = "max_parallelism" // The maximum level of parallelism to evaluate models in parallel. 1 means serial evaluation
   val METRIC = "metric" // Metric to use on Cross validation
+  val HANDLE_INVALID = "keep" // Options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels.
+                              // "error" throws an error when there is a null value. "skip" removes the row directly.
 
   val THRESHOLD = "threshold" // Threshold (Double) [Logistic Regression]
   val MAX_ITER = "max_iter" // Maximum number of iterations (Integer) [Logistic Regression, GBT, SVM]
