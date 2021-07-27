@@ -1,0 +1,40 @@
+{
+  "model_id": "model1",
+  "dataset_id": "dataset1",
+  "agent": {
+    "agent_id": "test",
+    "name": "test",
+    "endpoint": "http://localhost:8000/agent"
+  },
+  "algorithm_set": [
+    {
+      "algorithm": {
+        "id": "arl_fpgrowth",
+        "name": "arl_fpgrowth",
+        "parameters": [
+          {
+            "name": "min_support",
+            "data_type": "double",
+            "value": "0.5"
+          },
+          {
+            "name": "min_confidence",
+            "data_type": "double",
+            "value": "0.85"
+          }
+        ]
+      },
+      "items": [
+        "what-is-this-1",
+        "what-is-this-2",
+        "insulin",
+        "gender_female",
+        "gender_male",
+        "age_60-70",
+        "age_70-80",
+        "age_80+"
+      ]
+    }
+  ],
+  "submitted_by": "1903"
+}
