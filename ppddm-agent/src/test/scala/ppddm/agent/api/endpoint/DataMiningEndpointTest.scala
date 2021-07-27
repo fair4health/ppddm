@@ -35,6 +35,9 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
   lazy val arlExecutionRequest: ARLExecutionRequest =
     Source.fromInputStream(getClass.getResourceAsStream("/arl-execution-requests/arl-execution-request.json")).mkString
       .extract[ARLExecutionRequest]
+  lazy val arlExecutionRequestWithUnknownItems: ARLExecutionRequest =
+    Source.fromInputStream(getClass.getResourceAsStream("/arl-execution-requests/arl-execution-request-with-unknown-item.json")).mkString
+      .extract[ARLExecutionRequest]
 
   var modelTrainingResult: ModelTrainingResult = _
   var modelTestRequest: ModelTestRequest = _
@@ -319,14 +322,49 @@ class DataMiningEndpointTest extends PPDDMAgentEndpointTest {
       askForARLExecutionResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
     }
 
-    "delete the ARL frequency calculation result" in {
-      Delete("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+    "delete the ARL execution result" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }
 
-    "delete the ARL execution result" in {
+    "start ARL execution with unknown items" in {
+      Post("/" + AgentConfig.baseUri + "/dm/arl/execute", arlExecutionRequestWithUnknownItems) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "ask for the ARL execution result who had unknown items" in {
+      val askForARLExecutionResultPromise: Promise[Done] = Promise[Done]
+      var askForARLExecutionResultScheduler: Option[Cancellable] = None
+
+      // Set a scheduler to ask if dataset and statistics are ready
+      askForARLExecutionResultScheduler = Some(actorSystem.scheduler.scheduleWithFixedDelay(
+        time.Duration.ZERO,
+        time.Duration.ofSeconds(2),
+        () => {
+          Get("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+            if (status == OK) {
+              // Complete promise and cancel the scheduler
+              askForARLExecutionResultPromise.success(Done)
+              askForARLExecutionResultScheduler.get.cancel()
+            }
+          }
+        },
+        actorSystem.dispatcher
+      ))
+      // Try 10 times at 2-second intervals
+      askForARLExecutionResultPromise.isCompleted must be_==(true).eventually(10, Duration(4, TimeUnit.SECONDS))
+    }
+
+    "delete the ARL execution result who had unknown items" in {
       Delete("/" + AgentConfig.baseUri + "/dm/arl/execute/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
+        status shouldEqual OK
+      }
+    }
+
+    "delete the ARL frequency calculation result" in {
+      Delete("/" + AgentConfig.baseUri + "/dm/arl/frequency/" + modelTestRequest.model_id) ~> Authorization(basicHttpCredentials) ~> routes ~> check {
         status shouldEqual OK
       }
     }

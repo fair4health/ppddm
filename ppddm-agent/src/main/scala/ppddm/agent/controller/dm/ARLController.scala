@@ -114,8 +114,12 @@ object ARLController extends DataMiningController {
 
     // Execute algorithms on the frequentItemDataFrame
     val executionFutures = arlExecutionRequest.algorithm_set map { algorithmItemPair =>
+      // First eliminate items that do not exist in the data frame
+      val filteredItems = algorithmItemPair.items.filter(dataFrame.schema.fieldNames.contains(_))
+
       // Keep only the frequent items sent in the request in the data frame
-      val frequentItemDataFrame = dataFrame.select(algorithmItemPair.items.head, algorithmItemPair.items.tail: _*)
+      val frequentItemDataFrame = dataFrame.select(filteredItems.head, filteredItems.tail: _*)
+
       ARLAlgorithm(arlExecutionRequest.agent, algorithmItemPair.algorithm).execute(frequentItemDataFrame)
     }
 
