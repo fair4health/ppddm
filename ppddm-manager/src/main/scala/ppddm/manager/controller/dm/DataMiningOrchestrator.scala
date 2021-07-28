@@ -26,7 +26,7 @@ object DataMiningOrchestrator {
   private var scheduledProcesses = Map.empty[String, Cancellable]
 
   def stopOrchestration(model_id: String): Unit = {
-    logger.debug(s"Stopping the orchestration for this DataMiningModel:${model_id} since it is in FINAL state.")
+    logger.debug(s"Stopping the orchestration for this DataMiningModel:${model_id} peacefully.")
     val scheduledProcess = scheduledProcesses.get(model_id)
     if (scheduledProcess.isEmpty) {
       logger.error(s"There is no Scheduled Process to stop for this DataMiningModel:${model_id}")
