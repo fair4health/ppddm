@@ -1,7 +1,7 @@
 package ppddm.core.ai
 
 import com.typesafe.scalalogging.Logger
-import ppddm.core.rest.model.{AlgorithmStatisticsName, DataMiningModel}
+import ppddm.core.rest.model.{AgentAlgorithmStatistics, AlgorithmStatisticsName, DataMiningModel}
 
 /**
  * This object handles the calculation of training statistics and weights of weak models for a boosted model
@@ -25,7 +25,7 @@ object Aggregator {
       logger.debug("In a boosted model, calculating calculated_training_statistics for each weak model...")
       val weakModelsWithCalculatedStatistics = boostedModel.weak_models map { weakModel =>
         // We call .get on these Option's (validation_statistics and training_statistics because they MUST exist if this function is called
-        val calculatedStatistics = StatisticsCalculator.combineClassificationStatistics(weakModel.validation_statistics.get :+ weakModel.training_statistics.get) // Combine training_statistics in WeakModel
+        val calculatedStatistics = StatisticsCalculator.combineClassificationStatistics(weakModel.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics]) :+ weakModel.training_statistics.get) // Combine training_statistics in WeakModel
         val weight = StatisticsCalculator.getStatisticsValue(calculatedStatistics, AlgorithmStatisticsName.F_MEASURE).toDouble // TODO read this from config file and find a better way to calculate this
         weightSum += weight // We need sum of all weights in a BoostedModel so that we can normalize the weights
         weakModel.withCalculatedStatistics(calculatedStatistics).withWeight(weight)

@@ -139,22 +139,52 @@ object PredictionMiningProcessor {
         newDataMiningModel = dataMiningModel.withBoostedModels(newBoostedModels)
 
         if (DataMiningModelController.getAgentsWaitedForTrainingResults(newDataMiningModel).isEmpty) {
-          // If there are no remaining Agents to wait for the training results,
-          // then we can call the model validation endpoints of the Agents and advance to the VALIDATING state
-          logger.debug("There are no remaining Agents being waited for training results. So, I will invoke the validation endpoints of the Agents and " +
-            s"update the state to VALIDATING for this DataMiningModel:${dataMiningModel.model_id.get}")
-          val f = DistributedDataMiningManager.invokeAgentsModelValidation(newDataMiningModel)
-          try { // Wait for the validate invocations finish for all Agents
-            Await.result(f, Duration(30, TimeUnit.SECONDS))
-          } catch {
-            case e: java.util.concurrent.TimeoutException =>
-              logger.error("Invoking the model validation endpoints of {} Agents have not finished within 30 seconds " +
-                "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
-          }
+          // If there are no remaining Agents to wait for the training results, then,
+            // if there is only a single selected Agent, we can call the testing endpoints of that Agent and advance to TESTING state
+            // if there are more than 1 selected Agents,we can call the model validation endpoints of the Agents and advance to the VALIDATING state
 
-          logger.debug(s"Model validation endpoints of the Agents have been invoked and the state for this DataMiningModel:${dataMiningModel.model_id.get} will be advanced to VALIDATING.")
-          // Advance the state to VALIDATING because the Agents started validating the WeakModels
-          newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.VALIDATING)
+          logger.debug("There are no remaining Agents being waited for training results.")
+
+          // Get the (Agents, Seq[WeakModel) pairs for validation
+          val agentValidationPairs = DataMiningModelController.getAgentValidationModelPairs(newDataMiningModel)
+          if(agentValidationPairs.nonEmpty) {
+            // We have more than one selected Agents and Validation should be run
+            logger.debug(s"I will invoke the validation endpoints of the Agents and update the state to VALIDATING for this DataMiningModel:${dataMiningModel.model_id.get}.")
+            val f = DistributedDataMiningManager.invokeAgentsModelValidation(newDataMiningModel)
+            try { // Wait for the validate invocations finish for all Agents
+              Await.result(f, Duration(30, TimeUnit.SECONDS)).size
+            } catch {
+              case e: java.util.concurrent.TimeoutException =>
+                logger.error("Invoking the model validation endpoints of {} Agents have not finished within 30 seconds " +
+                  "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).length, dataMiningModel.model_id.get, e)
+            }
+            logger.debug(s"Model validation endpoints of the Agents have been invoked and the state for this DataMiningModel:${dataMiningModel.model_id.get} will be advanced to VALIDATING.")
+            // Advance the state to VALIDATING because the Agents started validating the WeakModels
+            newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.VALIDATING)
+          } else {
+            // There is a single selected Agent, hence we should skip Validation and proceed to Testing
+            logger.debug(s"I will invoke the testing endpoint of the single Agent and update the state to TESTING for this DataMiningModel:${dataMiningModel.model_id.get}.")
+            try {
+              // Calculate the calculated_training_statistics and weights of all WeakModels of all BoostedModels within this DataMiningModel
+              // TODO ?? Weight of the weak model should be 1
+              newDataMiningModel = Aggregator.aggregate(newDataMiningModel)
+            } catch {
+              case e: Exception => logger.error(s"It seems there is a data integrity issues with the DataMiningModel:${newDataMiningModel.model_id.get} " +
+                s"Since this is a Prediction model, training_statistics and validation_statistics MUST exist at this point.", e)
+            }
+
+            val f = DistributedDataMiningManager.invokeAgentsModelTesting(newDataMiningModel)
+            try { // Wait for the testing invocations finish for the single Agent
+              Await.result(f, Duration(30, TimeUnit.SECONDS))
+            } catch {
+              case e: java.util.concurrent.TimeoutException =>
+                logger.error("Invoking the model testing endpoint of the single selected Agent:{} have not finished within 30 seconds " +
+                  "for DataMiningModel with model_id: {}.", DataMiningModelController.getSelectedAgents(dataMiningModel).head.agent_id, dataMiningModel.model_id.get, e)
+            }
+
+            // Advance the state to TESTING because the Agents started testing the BoostedModels
+            newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.TESTING)
+          }
         } else {
           logger.debug(s"There are still remaining Agents being waited for training results for this DataMiningModel:${dataMiningModel.model_id.get}")
         }

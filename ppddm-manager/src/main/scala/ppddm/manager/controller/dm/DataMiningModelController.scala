@@ -100,12 +100,15 @@ object DataMiningModelController {
     }
 
     // Get the Agents from whom WeakModels should already have been received.
-    getSelectedAgents(dataMiningModel).map { agent => // For each Agent
+    val agentValidationPairs = getSelectedAgents(dataMiningModel).map { agent => // For each Agent
       val weakModelsToBeValidatedOnAgent = dataMiningModel.boosted_models.get.flatMap { boostedModel => // Loop through the BoostedModels of this DataMiningModel
         boostedModel.weak_models.filterNot(_.agent.agent_id == agent.agent_id) // Find the WeakModels within each BoostedModel whose Agent is not the agent we are looping over
       }
-      agent -> weakModelsToBeValidatedOnAgent
+      agent -> weakModelsToBeValidatedOnAgent // weakModelsToBeValidatedOnAgent can be an empty list (i.e. if there is only one selected Agent)
     }
+
+    // Only keep the pairs whose weakModelsToBeValidatedOnAgent are non empty (see the comment above)
+    agentValidationPairs.filter(_._2.nonEmpty)
   }
 
   /**
@@ -131,7 +134,7 @@ object DataMiningModelController {
 
     val agentsWhoseValidationResultsAlreadyReceieved = dataMiningModel.boosted_models.get.head // Use the first BoostedModel since all will have the results from the same Agents at any instant in time
       .weak_models.flatMap { weakModel => // for each WeakModel of this BoostedModel
-      weakModel.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics])
+      weakModel.validation_statistics.getOrElse(Seq.empty[AgentAlgorithmStatistics]) // TODO: validation_statistics can be empty
         .filter(s => s.agent_model.agent_id != s.agent_statistics.agent_id)
         .map(_.agent_statistics) // Collect the Agents from whom statistics are received
         .toSet // Convert to a Set

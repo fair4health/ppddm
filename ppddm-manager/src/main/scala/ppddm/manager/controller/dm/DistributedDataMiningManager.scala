@@ -178,12 +178,19 @@ object DistributedDataMiningManager {
    * @param dataMiningModel
    * @return
    */
-  def invokeAgentsModelValidation(dataMiningModel: DataMiningModel): Future[Done] = {
+  def invokeAgentsModelValidation(dataMiningModel: DataMiningModel): Future[Seq[Done]] = {
     // Get the (Agents, Seq[WeakModel) pairs for validation
     val agentValidationPairs = DataMiningModelController.getAgentValidationModelPairs(dataMiningModel)
 
-    logger.debug(s"I will invoke the model validation endpoints of ${agentValidationPairs.length} agents with the following details:")
-    agentValidationPairs.foreach(pair => logger.debug(s"Agent:${pair._1.name} will validate the WeakModels for ${pair._2.map(_.algorithm.name).mkString(",")}"))
+    if (agentValidationPairs.isEmpty) {
+      val msg = s"There is a single Agent in this DataMiningModel, Model Validation cannot be invoked!!. model_id:${dataMiningModel.model_id.get} - " +
+        s"project_id:${dataMiningModel.project_id}."
+      logger.error(msg)
+      throw DataIntegrityException(msg)
+    } else {
+      logger.debug(s"I will invoke the model validation endpoints of ${agentValidationPairs.length} agents with the following details:")
+      agentValidationPairs.foreach(pair => logger.debug(s"Agent:${pair._1.name} will validate the WeakModels for ${pair._2.map(_.algorithm.name).mkString(",")}"))
+    }
 
     Future.sequence(agentValidationPairs.map(pair => invokeModelValidation(pair._1, pair._2, dataMiningModel))) map { responses =>
       val failedAgents = responses.collect { case Failure(x) => x }
@@ -192,8 +199,7 @@ object DistributedDataMiningManager {
         logger.error(msg)
         throw AgentCommunicationException(reason = msg)
       }
-
-      Done
+      responses.collect { case Success(x) => x }
     }
   }
 
@@ -553,108 +559,108 @@ object DistributedDataMiningManager {
   }
 
 
-    /**
-     * This function invokes the ARL execution endpoint of each Agent corresponding to the selected
-     * Agents (DatasetSources) of the Dataset.
-     *
-     * The call on the Agents are in parallel for the given dataMiningModel.
-     *
-     * @param dataMiningModel
-     * @return
-     */
-    def invokeAgentsARLExecution(dataMiningModel: DataMiningModel): Future[Done] = {
-      // Get all Agents of this DataMiningModel to which ARL execution requests will be POSTed
-      val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+  /**
+   * This function invokes the ARL execution endpoint of each Agent corresponding to the selected
+   * Agents (DatasetSources) of the Dataset.
+   *
+   * The call on the Agents are in parallel for the given dataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def invokeAgentsARLExecution(dataMiningModel: DataMiningModel): Future[Done] = {
+    // Get all Agents of this DataMiningModel to which ARL execution requests will be POSTed
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
 
-      logger.debug("I will invoke the ARL execution endpoints of {} agents with agent-ids: {} for {} number of BoostedModels " +
-        "where the Algorithms are {}",
-        agents.length, agents.map(_.agent_id).mkString(","), dataMiningModel.boosted_models.get.length, dataMiningModel.boosted_models.get.map(_.algorithm.name).mkString(","))
+    logger.debug("I will invoke the ARL execution endpoints of {} agents with agent-ids: {} for {} number of BoostedModels " +
+      "where the Algorithms are {}",
+      agents.length, agents.map(_.agent_id).mkString(","), dataMiningModel.boosted_models.get.length, dataMiningModel.boosted_models.get.map(_.algorithm.name).mkString(","))
 
-      Future.sequence(agents.map(invokeARLExecution(_, dataMiningModel))) map { responses =>
-        val failedAgents = responses.collect { case Failure(x) => x }
-        if (failedAgents.nonEmpty) {
-          val msg = s"There are ${failedAgents.size} Agents out of ${responses.size} which returned error on ARL execution request."
-          logger.error(msg)
-          throw AgentCommunicationException(reason = msg)
-        }
-
-        Done
+    Future.sequence(agents.map(invokeARLExecution(_, dataMiningModel))) map { responses =>
+      val failedAgents = responses.collect { case Failure(x) => x }
+      if (failedAgents.nonEmpty) {
+        val msg = s"There are ${failedAgents.size} Agents out of ${responses.size} which returned error on ARL execution request."
+        logger.error(msg)
+        throw AgentCommunicationException(reason = msg)
       }
+
+      Done
     }
+  }
 
-    /**
-     * Asks the ARLExecutionResults from the given Agent for the given dataMiningModel.
-     *
-     * @param agent
-     * @param dataMiningModel
-     * @return An Option[ARLExecutionResults]. If the result is None, that means the ARL execution has not completed yet.
-     */
-    private def getARLExecutionResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ARLExecutionResult]] = {
-      val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getARLExecutionURI(dataMiningModel.model_id))
+  /**
+   * Asks the ARLExecutionResults from the given Agent for the given dataMiningModel.
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return An Option[ARLExecutionResults]. If the result is None, that means the ARL execution has not completed yet.
+   */
+  private def getARLExecutionResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[ARLExecutionResult]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getARLExecutionURI(dataMiningModel.model_id))
 
-      logger.debug("Asking the ARLExecutionResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
-        agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
+    logger.debug("Asking the ARLExecutionResult to the Agent with id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
-      AgentClient.invokeHttpRequest[ARLExecutionResult](agentRequest).map(_.toOption)
+    AgentClient.invokeHttpRequest[ARLExecutionResult](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Asks the ARL execution results of the DataMiningModel to the Agents. These Agents were previously POSTed to
+   * start executing ARL algorithms on their datasets.
+   * And only the Agents whose results were not received yet are POSTed.
+   *
+   * @param dataMiningModel
+   * @return Returns a sequence of ARLExecutionResult. Only the results of Agents which finished their ARL execution will be returned by this function.
+   */
+  def askAgentsARLExecutionResults(dataMiningModel: DataMiningModel): Future[Seq[ARLExecutionResult]] = {
+    // Get the Agents whose ARLExecutionResult have not been received yet
+    val agents = DataMiningModelController.getAgentsWaitedForARLExecutionResults(dataMiningModel)
+
+    logger.debug("I will ask the ARL execution results to {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(getARLExecutionResultFromAgent(_, dataMiningModel))) map { responses =>
+      responses
+        .filter(_.isDefined) // keep if it is ready
+        .map(_.get) // get rid of Option
     }
+  }
 
-    /**
-     * Asks the ARL execution results of the DataMiningModel to the Agents. These Agents were previously POSTed to
-     * start executing ARL algorithms on their datasets.
-     * And only the Agents whose results were not received yet are POSTed.
-     *
-     * @param dataMiningModel
-     * @return Returns a sequence of ARLExecutionResult. Only the results of Agents which finished their ARL execution will be returned by this function.
-     */
-    def askAgentsARLExecutionResults(dataMiningModel: DataMiningModel): Future[Seq[ARLExecutionResult]] = {
-      // Get the Agents whose ARLExecutionResult have not been received yet
-      val agents = DataMiningModelController.getAgentsWaitedForARLExecutionResults(dataMiningModel)
+  /**
+   * Deletes the ARLExecutionResult of the DataMiningModel indicated by the model_id on the given Agent
+   *
+   * @param agent
+   * @param dataMiningModel
+   * @return
+   */
+  private def deleteARLExecutionResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getARLExecutionURI(dataMiningModel.model_id))
 
-      logger.debug("I will ask the ARL execution results to {} agents with agent-ids: {}",
-        agents.length, agents.map(_.agent_id).mkString(","))
+    logger.debug("Deleting the ARLExecutionResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
+      agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
 
-      Future.sequence(agents.map(getARLExecutionResultFromAgent(_, dataMiningModel))) map { responses =>
-        responses
-          .filter(_.isDefined) // keep if it is ready
-          .map(_.get) // get rid of Option
+    AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
+  }
+
+  /**
+   * Sends DELETE requests for the ARL executions to all selected Agents of the given DataMiningModel.
+   *
+   * @param dataMiningModel
+   * @return
+   */
+  def deleteAgentsARLExecutionResults(dataMiningModel: DataMiningModel): Future[Done] = {
+    val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
+
+    logger.debug("I will invoke the DELETE ARL execution endpoints of {} agents with agent-ids: {}",
+      agents.length, agents.map(_.agent_id).mkString(","))
+
+    Future.sequence(agents.map(deleteARLExecutionResultFromAgent(_, dataMiningModel))) map { responses =>
+      if (responses.exists(_.isEmpty)) {
+        logger.warn("We are trying to delete the ARL execution results on Agents, however; there is an Agent whose results were not there!")
       }
+      Done
     }
-
-    /**
-     * Deletes the ARLExecutionResult of the DataMiningModel indicated by the model_id on the given Agent
-     *
-     * @param agent
-     * @param dataMiningModel
-     * @return
-     */
-    private def deleteARLExecutionResultFromAgent(agent: Agent, dataMiningModel: DataMiningModel): Future[Option[Done]] = {
-      val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.DELETE, agent.getARLExecutionURI(dataMiningModel.model_id))
-
-      logger.debug("Deleting the ARLExecutionResult on the Agent with agent_id:{} on URI:{} for model_id: {} & model_name: {}",
-        agent.agent_id, agentRequest.httpRequest.getUri(), dataMiningModel.model_id.get, dataMiningModel.name)
-
-      AgentClient.invokeHttpRequest[Done](agentRequest).map(_.toOption)
-    }
-
-    /**
-     * Sends DELETE requests for the ARL executions to all selected Agents of the given DataMiningModel.
-     *
-     * @param dataMiningModel
-     * @return
-     */
-    def deleteAgentsARLExecutionResults(dataMiningModel: DataMiningModel): Future[Done] = {
-      val agents = DataMiningModelController.getSelectedAgents(dataMiningModel)
-
-      logger.debug("I will invoke the DELETE ARL execution endpoints of {} agents with agent-ids: {}",
-        agents.length, agents.map(_.agent_id).mkString(","))
-
-      Future.sequence(agents.map(deleteARLExecutionResultFromAgent(_, dataMiningModel))) map { responses =>
-        if(responses.exists(_.isEmpty)) {
-          logger.warn("We are trying to delete the ARL execution results on Agents, however; there is an Agent whose results were not there!")
-        }
-        Done
-      }
-    }
+  }
 
   // ******* DELETE UTIL *******
 

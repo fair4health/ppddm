@@ -4,6 +4,7 @@ import akka.Done
 import akka.actor.Cancellable
 import com.typesafe.scalalogging.Logger
 import ppddm.core.rest.model.{DataMiningModel, ProjectType}
+import ppddm.manager.config.ManagerConfig
 import ppddm.manager.controller.project.ProjectController
 import ppddm.manager.exception.DataIntegrityException
 
@@ -21,13 +22,11 @@ object DataMiningOrchestrator {
 
   private val logger: Logger = Logger(this.getClass)
 
-  private val SCHEDULE_INTERVAL_SECONDS = 120L
-
   // Keep the record of scheduled processes
   private var scheduledProcesses = Map.empty[String, Cancellable]
 
   def stopOrchestration(model_id: String): Unit = {
-    logger.debug(s"Stopping the orchestration for this DataMiningModel:${model_id} since it is in FINAL state.")
+    logger.debug(s"Stopping the orchestration for this DataMiningModel:${model_id} peacefully.")
     val scheduledProcess = scheduledProcesses.get(model_id)
     if (scheduledProcess.isEmpty) {
       logger.error(s"There is no Scheduled Process to stop for this DataMiningModel:${model_id}")
@@ -49,7 +48,7 @@ object DataMiningOrchestrator {
 
     val newScheduledProcess = actorSystem.scheduler.scheduleWithFixedDelay(
       Duration.ZERO,
-      Duration.ofSeconds(SCHEDULE_INTERVAL_SECONDS),
+      Duration.ofSeconds(ManagerConfig.orchestratorScheduleInterval.longValue()),
       () => {
         logger.debug("Scheduled processing STARTED for DataMiningModel with model_id:{} and model_name:{}", dataMiningModel.model_id.get, dataMiningModel.name)
         try {
@@ -60,7 +59,7 @@ object DataMiningOrchestrator {
                 throw e
             }
         } catch {
-          case e: Exception => // Do nothing, it is already logged
+          case _: Exception => // Do nothing, it is already logged
         }
       },
       actorSystem.dispatcher)
