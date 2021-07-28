@@ -49,6 +49,9 @@ if [ ! -z "$AGENTS_DEFINITION" ]; then
     JAVA_CMD+="-Dagents.definition-path=$AGENTS_DEFINITION "
 fi
 
+if [ ! -z "$ORCHESTRATOR_SCHEDULE_INTERVAL" ]; then
+    JAVA_CMD+="-Ddm.orchestrator.schedule.interval=$ORCHESTRATOR_SCHEDULE_INTERVAL "
+fi
 
 if [ ! -z "$MONGO_EMBEDDED" ]; then
     JAVA_CMD+="-Dmongodb.embedded=$MONGO_EMBEDDED "
