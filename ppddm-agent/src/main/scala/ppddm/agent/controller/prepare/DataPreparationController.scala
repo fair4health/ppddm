@@ -652,6 +652,8 @@ object DataPreparationController {
 
     if (encounters.nonEmpty) {
       var encounterMap: Map[String, EncounterBasedItem] = Map.empty
+      // Get the month information from the fhir_path expression
+      val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
       // For each encounter, fill the encounter based items.
       // e.g. Map(Encounter/e1 -> EncounterBasedItem(encounterSubject, encounterStart, encounterEnd)).
       encounters.foreach(encounter => {
@@ -663,15 +665,14 @@ object DataPreparationController {
             logger.error(s"Error occurred while parsing the Encounter resource: $encounter. $e")
         }
       })
-      // Get the month information from the fhir_path expression
-      val month = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_HOSPITALIZATION.length).toInt
-      val xMonthsBefore = ZonedDateTime.now().minusMonths(month)
+
       val extractedMap = encounterMap.map { encounter =>
         // Filter the encounters by subject
         val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
         if (currentSubjectEncounters.nonEmpty) {
           // Start date of the current encounter
           val currEncounterStartDate = ZonedDateTime.parse(encounter._2.periodStart)
+          val xMonthsBefore = currEncounterStartDate.minusMonths(month)
           // If there is an encounter between these dates
           val hospitalizationNum = currentSubjectEncounters.filter {e =>
             val prevEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
