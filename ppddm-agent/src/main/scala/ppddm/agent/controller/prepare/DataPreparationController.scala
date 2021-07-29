@@ -579,7 +579,8 @@ object DataPreparationController {
    * @return
    */
   private def hasEncounterTypeVariable(featureset: Featureset): Boolean = {
-    featureset.variables.exists(variable => variable.fhir_path.contains("hospitalization") || variable.fhir_path.contains("readmission"))
+    featureset.variables.exists(variable => variable.fhir_path.contains("hospitalization") ||
+      variable.fhir_path.contains("readmission") || variable.fhir_query.startsWith("/Encounter"))
   }
 
   /**
