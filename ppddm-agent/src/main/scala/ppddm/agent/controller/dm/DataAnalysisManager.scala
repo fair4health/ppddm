@@ -2,7 +2,7 @@ package ppddm.agent.controller.dm
 
 import com.typesafe.scalalogging.Logger
 import org.apache.spark.ml.PipelineStage
-import org.apache.spark.ml.feature.{MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
+import org.apache.spark.ml.feature.{Imputer, MinMaxScaler, OneHotEncoder, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types.StringType
 import ppddm.agent.controller.prepare.DataPreparationController
@@ -46,19 +46,39 @@ object DataAnalysisManager {
       // TODO if you don't want to do this, arrange threshold in classification
       // TODO however, this cannot be the case always. For example, in cancer case, if %98 is not cancer, %2 is cancer, synthetic or removing would not be meaningful
 
-      // TODO handle null values
+      /**
+       * Handle null values
+       */
+      logger.debug("Handling null values...")
+
       // TODO consider dropping columns with large number of missing values
       // TODO consider removing rows with a null value for an important variable
 
       // TODO consider dropping columns in which all the records have the same value
 
-      // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
-      val handleInvalid = algorithm.parameters.find(_.name == AlgorithmParameterName.HANDLE_INVALID).map(_.value).getOrElse("keep")
+      // options are "mean" and "median".
+      val imputationStrategy = algorithm.parameters.find(_.name == AlgorithmParameterName.IMPUTATION_STRATEGY).map(_.value).getOrElse("median")
+
+      // Find numeric variables and their column names
+      val numericVariables = dataPreparationResult.agent_data_statistics.variable_statistics.filter( v =>
+        v.variable.variable_data_type == VariableDataType.NUMERIC)
+      val numericColumns = numericVariables.map(cv => cv.variable.getMLValidName)
+
+      //
+      val imputer = new Imputer()
+        .setInputCols(numericColumns.toArray)
+        .setOutputCols(numericColumns.toArray)
+        .setStrategy(imputationStrategy)
+
+      pipelineStages += imputer
 
       /**
        * Handle categorical variables
        */
       logger.debug("Handling categorical variables...")
+
+      // options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels
+      val handleInvalid = algorithm.parameters.find(_.name == AlgorithmParameterName.HANDLE_INVALID).map(_.value).getOrElse("keep")
 
       // Find categorical variables and their column names
       val categoricalVariables = dataPreparationResult.agent_data_statistics.variable_statistics.filter( v =>

@@ -25,4 +25,7 @@ object ManagerConfig extends AppConfig {
     /** Which Agents are defined to be connected */
     lazy val agentsDefinitionPath: String = Try(config.getString("agents.definition-path")).getOrElse("agents.json")
 
+    /** What is the duration to wait before asking the results to the Agents at each cycle (for the asynchronous operations such as data-mining-model training, validation and testing) */
+    lazy val orchestratorScheduleInterval: Long  = Try(config.getLong("dm.orchestrator.schedule.interval")).getOrElse(120L)
+
 }
