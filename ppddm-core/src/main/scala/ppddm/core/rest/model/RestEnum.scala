@@ -125,6 +125,7 @@ object AlgorithmParameterName extends Enumeration {
   val METRIC = "metric" // Metric to use on Cross validation
   val HANDLE_INVALID = "handle_invalid" // Options are "keep", "error" or "skip". "keep" puts unseen labels in a special additional bucket, at index numLabels.
                               // "error" throws an error when there is a null value. "skip" removes the row directly.
+  val IMPUTATION_STRATEGY = "imputation_strategy" // options are "mean" and "median".
 
   val THRESHOLD = "threshold" // Threshold (Double) [Logistic Regression]
   val MAX_ITER = "max_iter" // Maximum number of iterations (Integer) [Logistic Regression, GBT, SVM]
