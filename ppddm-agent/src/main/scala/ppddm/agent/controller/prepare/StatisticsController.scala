@@ -1,9 +1,9 @@
 package ppddm.agent.controller.prepare
 
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, StringType}
-import ppddm.core.rest.model.{AgentDataStatistics, Variable, VariableStatistics}
+import ppddm.core.rest.model.{AgentDataStatistics, DataType, Parameter, ValueCount, Variable, VariableStatistics}
 
 import scala.util.Try
 
@@ -32,8 +32,10 @@ object StatisticsController {
           case field if field.dataType == StringType => // String type
             // Calculate the percentage of null values
             val nullPercentage: Option[Double] = calculateNullPercentage(dataFrame, field.name, numberOfRecords)
+            // Calculate number of occurrences in each column
+            val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesCategorical(dataFrame, field.name)
             // Create VariableStatistics obj
-            val variableStatistics: VariableStatistics = VariableStatistics(variable, None, None, nullPercentage)
+            val variableStatistics: VariableStatistics = VariableStatistics(variable, None, None, nullPercentage, valueDistribution)
             // Append to the statistics list
             variableStatisticsList = variableStatisticsList :+ variableStatistics
           case field if field.dataType == DoubleType => // Double type
@@ -41,8 +43,10 @@ object StatisticsController {
             val min_max: (Option[Double], Option[Double]) = getMinMax(dataFrame, field.name)
             // Calculate the percentage of null values
             val nullPercentage: Option[Double] = calculateNullPercentage(dataFrame, field.name, numberOfRecords)
+            // Calculate number of occurrences in each column
+            val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesNumeric(dataFrame, field.name)
             // Append to the statistics list
-            val variableStatistics: VariableStatistics = VariableStatistics(variable, min_max._1, min_max._2, nullPercentage)
+            val variableStatistics: VariableStatistics = VariableStatistics(variable, min_max._1, min_max._2, nullPercentage, valueDistribution)
             variableStatisticsList = variableStatisticsList :+ variableStatistics
           case _ => None
         }
@@ -79,6 +83,32 @@ object StatisticsController {
   private def calculateNullPercentage(dataFrame: DataFrame, fieldName: String, numberOfRecords: Double): Option[Double] = {
     Try(
       (dataFrame.filter(fieldName + " is null").count() / numberOfRecords) * 100
+    ).toOption
+  }
+
+  /**
+   * Calculates the number of records for each distinct value in a numeric column
+   * @param dataFrame
+   * @param fieldName
+   * @return
+   */
+  private def calculateDistinctValuesNumeric(dataFrame: DataFrame, fieldName: String): Option[Seq[ValueCount]] = {
+    Try(
+      dataFrame.select(fieldName).groupBy(fieldName).count().collect().map(x =>
+        ValueCount(x.getDouble(0).toString, x.getLong(1).toInt)).toSeq
+    ).toOption
+  }
+
+  /**
+   * Calculates the number of records for each distinct value in a categorical column
+   * @param dataFrame
+   * @param fieldName
+   * @return
+   */
+  private def calculateDistinctValuesCategorical(dataFrame: DataFrame, fieldName: String): Option[Seq[ValueCount]] = {
+    Try(
+      dataFrame.select(fieldName).groupBy(fieldName).count().collect().map(x =>
+        ValueCount(x.getString(0), x.getLong(1).toInt)).toSeq
     ).toOption
   }
 }

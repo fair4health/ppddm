@@ -208,7 +208,11 @@ final case class AgentDataStatistics(number_of_records: Long,
 final case class VariableStatistics(variable: Variable,
                                     min_value: Option[Double],
                                     max_value: Option[Double],
-                                    null_percentage: Option[Double]) extends ModelClass
+                                    null_percentage: Option[Double],
+                                    value_distribution: Option[Seq[ValueCount]]) extends ModelClass
+
+final case class ValueCount(value: String,
+                            count: Integer) extends ModelClass
 
 final case class DataPreparationRequest(dataset_id: String,
                                         agent: Agent,
