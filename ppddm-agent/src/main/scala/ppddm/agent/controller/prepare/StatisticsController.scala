@@ -33,7 +33,7 @@ object StatisticsController {
             // Calculate the percentage of null values
             val nullPercentage: Option[Double] = calculateNullPercentage(dataFrame, field.name, numberOfRecords)
             // Calculate number of occurrences in each column
-            val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesCategorical(dataFrame, field.name)
+            val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesCategorical(dataFrame, field.name, numberOfRecords)
             // Create VariableStatistics obj
             val variableStatistics: VariableStatistics = VariableStatistics(variable, None, None, nullPercentage, valueDistribution)
             // Append to the statistics list
@@ -44,7 +44,7 @@ object StatisticsController {
             // Calculate the percentage of null values
             val nullPercentage: Option[Double] = calculateNullPercentage(dataFrame, field.name, numberOfRecords)
             // Calculate number of occurrences in each column
-            val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesNumeric(dataFrame, field.name)
+            val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesNumeric(dataFrame, field.name, numberOfRecords)
             // Append to the statistics list
             val variableStatistics: VariableStatistics = VariableStatistics(variable, min_max._1, min_max._2, nullPercentage, valueDistribution)
             variableStatisticsList = variableStatisticsList :+ variableStatistics
@@ -80,9 +80,9 @@ object StatisticsController {
    * @param numberOfRecords
    * @return
    */
-  private def calculateNullPercentage(dataFrame: DataFrame, fieldName: String, numberOfRecords: Double): Option[Double] = {
+  private def calculateNullPercentage(dataFrame: DataFrame, fieldName: String, numberOfRecords: Long): Option[Double] = {
     Try(
-      (dataFrame.filter(fieldName + " is null").count() / numberOfRecords) * 100
+      (dataFrame.filter(fieldName + " is null").count() / numberOfRecords.toDouble) * 100
     ).toOption
   }
 
@@ -92,11 +92,12 @@ object StatisticsController {
    * @param fieldName
    * @return
    */
-  private def calculateDistinctValuesNumeric(dataFrame: DataFrame, fieldName: String): Option[Seq[ValueCount]] = {
-    Try(
-      dataFrame.select(fieldName).groupBy(fieldName).count().collect().map(x =>
-        ValueCount(x.getDouble(0).toString, x.getLong(1).toInt)).toSeq
-    ).toOption
+  private def calculateDistinctValuesNumeric(dataFrame: DataFrame, fieldName: String, numberOfRecords: Long): Option[Seq[ValueCount]] = {
+    Try {
+      val output = dataFrame.select(fieldName).groupBy(fieldName).count().collect().toSeq.map(x =>
+        ValueCount(x.getDouble(0).toString, x.getLong(1), (x.getLong(1) / numberOfRecords.toDouble) * 100))
+      reduceValueCountStatistics(output, numberOfRecords)
+    }.toOption
   }
 
   /**
@@ -105,10 +106,32 @@ object StatisticsController {
    * @param fieldName
    * @return
    */
-  private def calculateDistinctValuesCategorical(dataFrame: DataFrame, fieldName: String): Option[Seq[ValueCount]] = {
-    Try(
-      dataFrame.select(fieldName).groupBy(fieldName).count().collect().map(x =>
-        ValueCount(x.getString(0), x.getLong(1).toInt)).toSeq
-    ).toOption
+  private def calculateDistinctValuesCategorical(dataFrame: DataFrame, fieldName: String, numberOfRecords: Long): Option[Seq[ValueCount]] = {
+    Try {
+      val output = dataFrame.select(fieldName).groupBy(fieldName).count().collect().toSeq.map(x =>
+        ValueCount(x.getString(0), x.getLong(1), (x.getLong(1) / numberOfRecords.toDouble) * 100))
+      reduceValueCountStatistics(output, numberOfRecords)
+    }.toOption
+  }
+
+  /**
+   * Reduces the total number statistics to 5 items if there are more than 4 items in the list
+   * @param statistics
+   * @param numberOfRecords
+   * @return
+   */
+  private def reduceValueCountStatistics(statistics: Seq[ValueCount], numberOfRecords: Long): Seq[ValueCount] = {
+    if (statistics.size > 4) {
+      // Sort the output in descending order and take the first 4 items
+      val head = statistics.sortWith((a, b) => a.count > b.count).take(4)
+      // Calculate the total count of first 4 items
+      val countOfHeadItems = head.map(_.count).reduceLeft(_ + _).toInt
+      // Calculate the total percentage of first 4 items
+      val percentageOfHeadItems = head.map(_.percentage).reduceLeft(_ + _)
+      // Add a 5th "others" item for the rest
+      head :+ ValueCount("Others", numberOfRecords - countOfHeadItems, 100 - percentageOfHeadItems)
+    } else {
+      statistics
+    }
   }
 }

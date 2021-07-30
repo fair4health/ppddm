@@ -212,7 +212,8 @@ final case class VariableStatistics(variable: Variable,
                                     value_distribution: Option[Seq[ValueCount]]) extends ModelClass
 
 final case class ValueCount(value: String,
-                            count: Integer) extends ModelClass
+                            count: Long,
+                            percentage: Double) extends ModelClass
 
 final case class DataPreparationRequest(dataset_id: String,
                                         agent: Agent,
