@@ -16,9 +16,9 @@ case class DecisionTreePPDDM(override val agent: Agent, override val algorithm: 
     val paramGridBuilder = new ParamGridBuilder()
     algorithm.parameters.foreach( p => {
       p.name match {
-        case AlgorithmParameterName.MAX_DEPTH => paramGridBuilder.addGrid(decisionTreeClassifier.maxDepth, p.getValueAsIntArray())
-        case AlgorithmParameterName.MIN_INFO_GAIN => paramGridBuilder.addGrid(decisionTreeClassifier.minInfoGain, p.getValueAsDoubleArray())
-        case AlgorithmParameterName.IMPURITY => paramGridBuilder.addGrid(decisionTreeClassifier.impurity, p.getValueAsStringArray())
+        case AlgorithmParameterName.MAX_DEPTH => paramGridBuilder.addGrid(decisionTreeClassifier.maxDepth, p.getValueAsIntArray)
+        case AlgorithmParameterName.MIN_INFO_GAIN => paramGridBuilder.addGrid(decisionTreeClassifier.minInfoGain, p.getValueAsDoubleArray)
+        case AlgorithmParameterName.IMPURITY => paramGridBuilder.addGrid(decisionTreeClassifier.impurity, p.getValueAsStringArray)
         case _ => None
         // Add others here
       }

@@ -28,7 +28,7 @@ case class FPGrowthPPDDM(override val agent: Agent, override val algorithm: Algo
       algorithm.parameters.foreach( p => {
         p.name match {
           // case AlgorithmParameterName.MIN_SUPPORT => See the comment above
-          case AlgorithmParameterName.MIN_CONFIDENCE => minConfidence = p.getValueAsDoubleArray().head
+          case AlgorithmParameterName.MIN_CONFIDENCE => minConfidence = p.getValueAsDoubleArray.head
           case _ => None
           // Add others here
         }

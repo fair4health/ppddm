@@ -36,7 +36,7 @@ object ARLController extends DataMiningController {
       logger.debug(s"Calculating item frequencies...")
       val itemFrequencies = dataFrame.schema.tail map { s =>
         val count = dataFrame.filter(dataFrame(s.name) =!= "0.0").count()
-        Parameter(s.name, DataType.INTEGER, count.toString)
+        Parameter(s.name, DataType.INTEGER, count)
       }
 
       val frequencyCalculationResult = ARLFrequencyCalculationResult(frequencyCalculationRequest.model_id,

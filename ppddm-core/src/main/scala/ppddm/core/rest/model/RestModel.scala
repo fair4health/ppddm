@@ -227,9 +227,14 @@ final case class DataPreparationResult(dataset_id: String,
 
 final case class Parameter(name: String,
                            data_type: DataType,
-                           value: String) extends ModelClass {
+                           value: String,
+                           display: Option[String] = None,
+                           description: Option[String] = None,
+                           possible_values_description: Option[String] = None,
+                           comma_separated_multiple_values: Option[Boolean] = None,
+                           possible_values: Option[Seq[String]] = None) extends ModelClass {
 
-  def getValueAsDoubleArray(): Array[Double] = {
+  def getValueAsDoubleArray: Array[Double] = {
     if (value.contains(",")) { // It is provided as Array
       value.split(",").map(_.toDouble)
     } else {
@@ -237,7 +242,7 @@ final case class Parameter(name: String,
     }
   }
 
-  def getValueAsIntArray(): Array[Int] = {
+  def getValueAsIntArray: Array[Int] = {
     if (value.contains(",")) { // It is provided as Array
       value.split(",").map(_.toInt)
     } else {
@@ -245,7 +250,7 @@ final case class Parameter(name: String,
     }
   }
 
-  def getValueAsStringArray(): Array[String] = {
+  def getValueAsStringArray: Array[String] = {
     if (value.contains(",")) { // It is provided as Array
       value.split(",")
     } else {
@@ -258,9 +263,20 @@ object Parameter {
   def apply(name: String, data_type: DataType, value: Double): Parameter = {
     Parameter(name, data_type, value.toString)
   }
-
   def apply(name: String, data_type: DataType, value: Int): Parameter = {
     Parameter(name, data_type, value.toString)
+  }
+
+  def apply(name: String, data_type: DataType, value: String, display: String, description: String, possible_values_description: String, comma_separated_multiple_values: Boolean, possible_values: Option[Seq[String]]): Parameter = {
+    Parameter(name, data_type, value, Some(display), Some(description), Some(possible_values_description), Some(comma_separated_multiple_values), possible_values)
+  }
+
+  def apply(name: String, data_type: DataType, value: Double, display: String, description: String, possible_values_description: String, comma_separated_multiple_values: Boolean, possible_values: Option[Seq[String]]): Parameter = {
+    Parameter(name, data_type, value.toString, Some(display), Some(description), Some(possible_values_description), Some(comma_separated_multiple_values), possible_values)
+  }
+
+  def apply(name: String, data_type: DataType, value: Int, display: String, description: String, possible_values_description: String, comma_separated_multiple_values: Boolean, possible_values: Option[Seq[String]]): Parameter = {
+    Parameter(name, data_type, value.toString, Some(display), Some(description), Some(possible_values_description), Some(comma_separated_multiple_values), possible_values)
   }
 }
 

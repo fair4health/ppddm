@@ -16,10 +16,10 @@ case class GradientBoostedTreePPDDM(override val agent: Agent, override val algo
     val paramGridBuilder = new ParamGridBuilder()
     algorithm.parameters.foreach( p => {
       p.name match {
-        case AlgorithmParameterName.MAX_DEPTH => paramGridBuilder.addGrid(gbtClassifier.maxDepth, p.getValueAsIntArray())
-        case AlgorithmParameterName.MIN_INFO_GAIN => paramGridBuilder.addGrid(gbtClassifier.minInfoGain, p.getValueAsDoubleArray())
-        case AlgorithmParameterName.FEATURE_SUBSET_STRATEGY => paramGridBuilder.addGrid(gbtClassifier.featureSubsetStrategy, p.getValueAsStringArray())
-        case AlgorithmParameterName.MAX_ITER => paramGridBuilder.addGrid(gbtClassifier.maxIter, p.getValueAsIntArray())
+        case AlgorithmParameterName.MAX_DEPTH => paramGridBuilder.addGrid(gbtClassifier.maxDepth, p.getValueAsIntArray)
+        case AlgorithmParameterName.MIN_INFO_GAIN => paramGridBuilder.addGrid(gbtClassifier.minInfoGain, p.getValueAsDoubleArray)
+        case AlgorithmParameterName.FEATURE_SUBSET_STRATEGY => paramGridBuilder.addGrid(gbtClassifier.featureSubsetStrategy, p.getValueAsStringArray)
+        case AlgorithmParameterName.MAX_ITER => paramGridBuilder.addGrid(gbtClassifier.maxIter, p.getValueAsIntArray)
         case _ => None
         // Add others here
       }
