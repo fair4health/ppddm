@@ -24,11 +24,11 @@ case class FPGrowthPPDDM(override val agent: Agent, override val algorithm: Algo
 
       logger.debug("Creating the FPGrowth object...")
       val minSupport = 0 // We don't use min support here. We use it in the PPDDM Manager for eliminating infrequent items globally. Hence set it to zero here
-      var minConfidence = 0.5 // Default value
+      var minConfidence = 0.8 // Default value
       algorithm.parameters.foreach( p => {
         p.name match {
           // case AlgorithmParameterName.MIN_SUPPORT => See the comment above
-          case AlgorithmParameterName.MIN_CONFIDENCE => minConfidence = p.getValueAsDoubleArray().head
+          case AlgorithmParameterName.MIN_CONFIDENCE => minConfidence = p.getValueAsDoubleArray.head
           case _ => None
           // Add others here
         }

@@ -16,8 +16,8 @@ case class SupportVectorMachinePPDDM(override val agent: Agent, override val alg
     val paramGridBuilder = new ParamGridBuilder()
     algorithm.parameters.foreach( p => {
       p.name match {
-        case AlgorithmParameterName.MAX_ITER => paramGridBuilder.addGrid(supportVectorClassifier.maxIter, p.getValueAsIntArray())
-        case AlgorithmParameterName.REG_PARAM => paramGridBuilder.addGrid(supportVectorClassifier.regParam, p.getValueAsDoubleArray())
+        case AlgorithmParameterName.MAX_ITER => paramGridBuilder.addGrid(supportVectorClassifier.maxIter, p.getValueAsIntArray)
+        case AlgorithmParameterName.REG_PARAM => paramGridBuilder.addGrid(supportVectorClassifier.regParam, p.getValueAsDoubleArray)
         case _ => None
         // Add others here
       }

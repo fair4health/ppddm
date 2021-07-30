@@ -208,7 +208,11 @@ final case class AgentDataStatistics(number_of_records: Long,
 final case class VariableStatistics(variable: Variable,
                                     min_value: Option[Double],
                                     max_value: Option[Double],
-                                    null_percentage: Option[Double]) extends ModelClass
+                                    null_percentage: Option[Double],
+                                    value_distribution: Option[Seq[ValueCount]]) extends ModelClass
+
+final case class ValueCount(value: String,
+                            count: Integer) extends ModelClass
 
 final case class DataPreparationRequest(dataset_id: String,
                                         agent: Agent,
@@ -223,9 +227,14 @@ final case class DataPreparationResult(dataset_id: String,
 
 final case class Parameter(name: String,
                            data_type: DataType,
-                           value: String) extends ModelClass {
+                           value: String,
+                           display: Option[String],
+                           description: Option[String],
+                           possible_values_description: Option[String],
+                           comma_separated_multiple_values: Option[Boolean],
+                           possible_values: Option[Seq[String]]) extends ModelClass {
 
-  def getValueAsDoubleArray(): Array[Double] = {
+  def getValueAsDoubleArray: Array[Double] = {
     if (value.contains(",")) { // It is provided as Array
       value.split(",").map(_.toDouble)
     } else {
@@ -233,7 +242,7 @@ final case class Parameter(name: String,
     }
   }
 
-  def getValueAsIntArray(): Array[Int] = {
+  def getValueAsIntArray: Array[Int] = {
     if (value.contains(",")) { // It is provided as Array
       value.split(",").map(_.toInt)
     } else {
@@ -241,7 +250,7 @@ final case class Parameter(name: String,
     }
   }
 
-  def getValueAsStringArray(): Array[String] = {
+  def getValueAsStringArray: Array[String] = {
     if (value.contains(",")) { // It is provided as Array
       value.split(",")
     } else {
@@ -251,12 +260,14 @@ final case class Parameter(name: String,
 }
 
 object Parameter {
-  def apply(name: String, data_type: DataType, value: Double): Parameter = {
-    Parameter(name, data_type, value.toString)
+  def apply(name: String, data_type: DataType, value: String): Parameter = {
+    Parameter(name, data_type, value, None, None, None, None, None)
   }
-
+  def apply(name: String, data_type: DataType, value: Double): Parameter = {
+    Parameter(name, data_type, value.toString, None, None, None, None, None)
+  }
   def apply(name: String, data_type: DataType, value: Int): Parameter = {
-    Parameter(name, data_type, value.toString)
+    Parameter(name, data_type, value.toString, None, None, None, None, None)
   }
 }
 
