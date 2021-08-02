@@ -25,6 +25,9 @@ fi
 if [ ! -z "$AGENT_BATCHSIZE" ]; then
     JAVA_CMD+="-Dagent.batch-size=$AGENT_BATCHSIZE "
 fi
+if [ ! -z "$DATA_PREPARATION_TIMEOUT" ]; then
+    JAVA_CMD+="-Dagent.data-preparation-timeout=$DATA_PREPARATION_TIMEOUT "
+fi
 
 if [ ! -z "$SPARK_MASTER" ]; then
     JAVA_CMD+="-Dspark.master=$SPARK_MASTER "

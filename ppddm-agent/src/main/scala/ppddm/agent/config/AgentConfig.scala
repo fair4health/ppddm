@@ -2,6 +2,8 @@ package ppddm.agent.config
 
 import ppddm.core.config.AppConfig
 
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.Duration
 import scala.util.Try
 
 object AgentConfig extends AppConfig {
@@ -22,5 +24,6 @@ object AgentConfig extends AppConfig {
   lazy val agentID: String = Try(config.getString("agent.id")).getOrElse("agent-1")
   lazy val agentDeploymentEndpoint: String = Try(config.getString("agent.endpoint")).getOrElse(s"${serverHost}:${serverPort}/${baseUri}")
   lazy val agentBatchSize: Int = Try(config.getInt("agent.batch-size")).getOrElse(10)
+  lazy val dataPreparationTimeout: Duration = Try(Duration.fromNanos(config.getDuration("agent.data-preparation-timeout").toNanos)).getOrElse(Duration.create(1, TimeUnit.HOURS))
 
 }

@@ -121,10 +121,10 @@ object DataPreparationController {
                 }
 
                 try { // Wait for the whole execution to be completed on a worker node
-                  Await.result(theFuture, Duration(60, TimeUnit.MINUTES))
+                  Await.result(theFuture, AgentConfig.dataPreparationTimeout)
                 } catch {
                   case e: TimeoutException =>
-                    val msg = s"The data preparation cannot be completed on a worker node with pageIndex:${pageIndex} within 60 minutes."
+                    val msg = s"The data preparation cannot be completed on a worker node with pageIndex:${pageIndex} within ${AgentConfig.dataPreparationTimeout.toHours} hours."
                     logger.error(msg, e)
                     throw DataPreparationException(msg, e)
                 }

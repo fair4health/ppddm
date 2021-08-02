@@ -40,7 +40,7 @@ object AgentHealthChecker {
     logger.info("******** Agents Health Check ********")
 
     val agentsHealthStatus: Seq[(Agent, Boolean)] = AgentRegistry.agents.map { agent =>
-      val response = Try(Await.result(checkAgentHealth(agent), Duration(2, TimeUnit.SECONDS))).toOption
+      val response = Try(Await.result(checkAgentHealth(agent), Duration(5, TimeUnit.SECONDS))).toOption
       if(response.isEmpty) {
         logger.error(s"There is a non-responsive/unhealthy agent. ${agent.toJson}")
         (agent, false)
