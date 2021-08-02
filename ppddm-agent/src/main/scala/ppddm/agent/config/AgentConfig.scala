@@ -25,5 +25,6 @@ object AgentConfig extends AppConfig {
   lazy val agentDeploymentEndpoint: String = Try(config.getString("agent.endpoint")).getOrElse(s"${serverHost}:${serverPort}/${baseUri}")
   lazy val agentBatchSize: Int = Try(config.getInt("agent.batch-size")).getOrElse(10)
   lazy val dataPreparationTimeout: Duration = Try(Duration.fromNanos(config.getDuration("agent.data-preparation-timeout").toNanos)).getOrElse(Duration.create(1, TimeUnit.HOURS))
+  lazy val associationMaxItemCount: Int  = Try(config.getInt("agent.dm.association.max-item-count")).getOrElse(4)
 
 }

@@ -28,6 +28,9 @@ fi
 if [ ! -z "$DATA_PREPARATION_TIMEOUT" ]; then
     JAVA_CMD+="-Dagent.data-preparation-timeout=$DATA_PREPARATION_TIMEOUT "
 fi
+if [ ! -z "$ASSOCIATION_MAX_ITEM_COUNT" ]; then
+    JAVA_CMD+="-Dagent.dm.association.max-item-count=$ASSOCIATION_MAX_ITEM_COUNT "
+fi
 
 if [ ! -z "$SPARK_MASTER" ]; then
     JAVA_CMD+="-Dspark.master=$SPARK_MASTER "

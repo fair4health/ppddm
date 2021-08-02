@@ -3,6 +3,7 @@ package ppddm.agent.controller.prepare
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, StringType}
+import ppddm.agent.config.AgentConfig
 import ppddm.core.rest.model.{AgentDataStatistics, DataType, Parameter, ValueCount, Variable, VariableStatistics}
 
 import scala.util.Try
@@ -115,21 +116,21 @@ object StatisticsController {
   }
 
   /**
-   * Reduces the total number statistics to 5 items if there are more than 4 items in the list
+   * Reduces the total number statistics to "AgentConfig.associationMaxItemCount + 1"  items if there are more than AgentConfig.associationMaxItemCount items in the list
    * @param statistics
    * @param numberOfRecords
    * @return
    */
   private def reduceValueCountStatistics(statistics: Seq[ValueCount], numberOfRecords: Long): Seq[ValueCount] = {
-    if (statistics.size > 4) {
-      // Sort the output in descending order and take the first 4 items
-      val head = statistics.sortWith((a, b) => a.count > b.count).take(4)
-      // Calculate the total count of first 4 items
-      val countOfHeadItems = head.map(_.count).reduceLeft(_ + _).toInt
-      // Calculate the total percentage of first 4 items
-      val percentageOfHeadItems = head.map(_.percentage).reduceLeft(_ + _)
-      // Add a 5th "others" item for the rest
-      head :+ ValueCount("Others", numberOfRecords - countOfHeadItems, 100 - percentageOfHeadItems)
+    if (statistics.size > AgentConfig.associationMaxItemCount) {
+      // Sort the output in descending order and take the first AgentConfig.associationMaxItemCount items
+      val headItems = statistics.sortWith((a, b) => a.count > b.count).take(AgentConfig.associationMaxItemCount)
+      // Calculate the total count of first AgentConfig.associationMaxItemCount items
+      val countOfHeadItems = headItems.map(_.count).sum.toInt
+      // Calculate the total percentage of first AgentConfig.associationMaxItemCount items
+      val percentageOfHeadItems = headItems.map(_.percentage).sum
+      // Add a (AgentConfig.associationMaxItemCount+1)th "others" item for the rest
+      headItems :+ ValueCount("Others", numberOfRecords - countOfHeadItems, 100 - percentageOfHeadItems)
     } else {
       statistics
     }
