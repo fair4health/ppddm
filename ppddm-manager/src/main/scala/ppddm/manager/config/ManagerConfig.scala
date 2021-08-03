@@ -2,6 +2,9 @@ package ppddm.manager.config
 
 import ppddm.core.config.AppConfig
 
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.Duration
+import ppddm.core.util.DurationConverters._
 import scala.util.Try
 
 object ManagerConfig extends AppConfig {
@@ -19,13 +22,13 @@ object ManagerConfig extends AppConfig {
     lazy val loginPath: String = Try(config.getString("auth.server.login.path")).getOrElse("default-path")
     lazy val introspectionPath: String = Try(config.getString("auth.server.introspection.path")).getOrElse("default-path")
 
-    /** MogoDB Configuration */
+    /** MongoDB Configuration */
     override lazy val mongoDbName: String = Try(config.getString("mongodb.db")).getOrElse("ppddm-manager")
 
     /** Which Agents are defined to be connected */
     lazy val agentsDefinitionPath: String = Try(config.getString("agents.definition-path")).getOrElse("agents.json")
 
     /** What is the duration to wait before asking the results to the Agents at each cycle (for the asynchronous operations such as data-mining-model training, validation and testing) */
-    lazy val orchestratorScheduleInterval: Long  = Try(config.getLong("dm.orchestrator.schedule.interval")).getOrElse(120L)
+    lazy val orchestratorScheduleInterval: Duration  = Try(config.getDuration("dm.orchestrator.schedule.interval").asScala).getOrElse(Duration.create(120, TimeUnit.SECONDS))
 
 }

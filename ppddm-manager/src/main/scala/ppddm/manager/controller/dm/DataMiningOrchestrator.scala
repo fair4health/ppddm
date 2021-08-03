@@ -46,9 +46,11 @@ object DataMiningOrchestrator {
 
     import java.time.Duration
 
+    import ppddm.core.util.DurationConverters._
+
     val newScheduledProcess = actorSystem.scheduler.scheduleWithFixedDelay(
       Duration.ZERO,
-      Duration.ofSeconds(ManagerConfig.orchestratorScheduleInterval.longValue()),
+      ManagerConfig.orchestratorScheduleInterval.asJava,
       () => {
         logger.debug("Scheduled processing STARTED for DataMiningModel with model_id:{} and model_name:{}", dataMiningModel.model_id.get, dataMiningModel.name)
         try {
