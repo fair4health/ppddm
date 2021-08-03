@@ -91,6 +91,7 @@ abstract class FHIRQuery(fhirPath: Option[String]) extends Serializable {
     client.searchByUrl(queryString).recover {
       case e: Exception =>
         val msg = s"Error while executing the FHIR Query: ${queryString}"
+        logger.error(msg, e)
         throw e
     }
   }

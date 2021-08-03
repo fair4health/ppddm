@@ -65,7 +65,7 @@ class FHIRClient(host: String,
         Unmarshal(resp.entity).to[JObject]
       case errUnk =>
         errUnk.entity.toStrict(FiniteDuration(1000, MILLISECONDS)).map(_.data.utf8String).map { entity =>
-          throw FHIRClientException(entity)
+          throw FHIRClientException(s"ERROR while connecting to FHIR Repository at URI:${httpRequest.uri}. Status Code:${errUnk.status}. The body is:$entity")
         }
     }
   }
