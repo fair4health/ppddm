@@ -18,7 +18,9 @@ trait DataStoreManager {
    * @return
    */
   def saveDataFrame(path: String, df: DataFrame): Unit = {
-    df.sparkSession.catalog.refreshByPath(path)
+    //df.sparkSession.catalog.refreshByPath(path)
+    // A workaround from https://forums.databricks.com/questions/21830/spark-how-to-simultaneously-read-from-and-write-to.html
+    df.cache().show(1)
     df.write.format("parquet").mode(SaveMode.Overwrite).save(path)
   }
 
