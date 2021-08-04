@@ -18,7 +18,7 @@ object AuthenticationController {
   private def checkIDSecret(p: Credentials.Provided): Boolean = {
     if(!AgentConfig.authEnabled) {
       // If the authentication is not enabled, return true for all given id-secrets
-      logger.debug("Authentication is not enabled, so I am authenticating the user with whatever is provided as id and secret.")
+      //logger.debug("Authentication is not enabled, so I am authenticating the user with whatever is provided as id and secret.")
       return true
     }
 

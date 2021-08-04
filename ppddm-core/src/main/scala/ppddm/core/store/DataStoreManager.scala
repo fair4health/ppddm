@@ -1,8 +1,7 @@
 package ppddm.core.store
 
 import java.io.File
-
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.reflect.io.Directory
 import scala.util.Try
@@ -19,7 +18,8 @@ trait DataStoreManager {
    * @return
    */
   def saveDataFrame(path: String, df: DataFrame): Unit = {
-    df.write.parquet(path)
+    df.sparkSession.catalog.refreshByPath(path)
+    df.write.format("parquet").mode(SaveMode.Overwrite).save(path)
   }
 
   /**
