@@ -52,7 +52,7 @@ object ARLController extends DataMiningController {
       } catch {
         case e: Exception =>
           val msg = s"Cannot save the ARLFrequencyCalculationResult of the model with model_id: ${frequencyCalculationRequest.model_id}."
-          logger.error(msg)
+          logger.error(msg, e)
           throw DataMiningException(msg, e)
       }
 
@@ -138,7 +138,7 @@ object ARLController extends DataMiningController {
       } catch {
         case e: Exception =>
           val msg = s"Cannot save the ARLExecutionResult of the model with model_id: ${arlExecutionRequest.model_id}."
-          logger.error(msg)
+          logger.error(msg, e)
           throw DataMiningException(msg, e)
       }
     }

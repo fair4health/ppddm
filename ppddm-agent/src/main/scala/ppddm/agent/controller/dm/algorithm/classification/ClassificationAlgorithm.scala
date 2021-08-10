@@ -112,11 +112,14 @@ trait ClassificationAlgorithm extends DataMiningAlgorithm {
    */
   def validate(weakModel: WeakModel, dataFrame: DataFrame): Future[AgentAlgorithmStatistics] = {
     Future {
+      logger.debug(s"Validation of a WeakModel for Algorithm:${weakModel.algorithm.name} is started.")
       val pipelineModel = fromString(weakModel.fitted_model.get)
       val testPredictionDF = pipelineModel.transform(dataFrame)
 
       // Calculate statistics
       val statistics = StatisticsCalculator.calculateBinaryClassificationStatistics(testPredictionDF)
+
+      logger.debug(s"Validation of a WeakModel for Algorithm:${weakModel.algorithm.name} is successfully completed.")
 
       AgentAlgorithmStatistics(weakModel.agent, agent, algorithm, statistics)
     }

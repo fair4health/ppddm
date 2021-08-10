@@ -1,8 +1,10 @@
 package ppddm.core.store
 
-import java.io.File
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
+import java.io.File
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.reflect.io.Directory
 import scala.util.Try
 
@@ -20,8 +22,9 @@ trait DataStoreManager {
   def saveDataFrame(path: String, df: DataFrame): Unit = {
     //df.sparkSession.catalog.refreshByPath(path)
     // A workaround from https://forums.databricks.com/questions/21830/spark-how-to-simultaneously-read-from-and-write-to.html
-    df.cache().show(1)
-    df.write.format("parquet").mode(SaveMode.Overwrite).save(path)
+    // df.cache().show(1)
+    // df.write.format("parquet").mode(SaveMode.Overwrite).save(path)
+    df.write.parquet(path)
   }
 
   /**
@@ -41,6 +44,19 @@ trait DataStoreManager {
    */
   def deleteDirectory(path: String): Boolean = {
     new Directory(new File(path)).deleteRecursively()
+  }
+
+  /**
+   *
+   *
+   * @param path
+   * @return
+   */
+  def deleteDirectoryAsync(path: String, sleep: Long = 1000): Future[Boolean] = {
+    Future {
+      Thread.sleep(sleep)
+      deleteDirectory(path)
+    }
   }
 
 }
