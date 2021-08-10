@@ -28,7 +28,7 @@ object PipelineModelEncoderDecoder {
       stream.close()
       val modelString = Base64.getEncoder.encodeToString(bytes)
 
-      DataStoreManager.deleteDirectory(path)
+      DataStoreManager.deleteDirectoryAsync(path)
 
       modelString
     } catch {
@@ -53,7 +53,7 @@ object PipelineModelEncoderDecoder {
       val pipelineModel = PipelineModel.load(path)
       stream.close()
 
-      DataStoreManager.deleteDirectory(path)
+      DataStoreManager.deleteDirectoryAsync(path)
 
       pipelineModel
     } catch {

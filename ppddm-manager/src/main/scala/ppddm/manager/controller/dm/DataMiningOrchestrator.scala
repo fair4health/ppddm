@@ -56,9 +56,12 @@ object DataMiningOrchestrator {
         try {
           processDataMiningModel(dataMiningModel.model_id.get)
             .recover {
+              case e: DataIntegrityException =>
+                logger.error("DataIntegrityException while processing the DataMiningModel", e)
+                stopOrchestration(dataMiningModel.model_id.get)
               case e: Exception =>
-                logger.error(e.getMessage, e)
-                throw e
+                logger.error("Unknown Exception while processing the DataMiningModel", e)
+                stopOrchestration(dataMiningModel.model_id.get) // Shall we stop?
             }
         } catch {
           case _: Exception => // Do nothing, it is already logged

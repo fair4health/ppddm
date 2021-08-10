@@ -39,7 +39,6 @@ case class FPGrowthPPDDM(override val agent: Agent, override val algorithm: Algo
       val pipeline = new Pipeline().setStages(Array(fpGrowth))
       val model = pipeline.fit(itemsDataFrame)
 
-
       val freqItemsetsDF = model.stages.last.asInstanceOf[FPGrowthModel].freqItemsets
       freqItemsetsDF.show() // Display frequent itemsets.
 

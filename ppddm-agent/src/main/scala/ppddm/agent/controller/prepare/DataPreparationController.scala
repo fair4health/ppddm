@@ -182,7 +182,6 @@ object DataPreparationController {
               throw d
             case e: Exception =>
               val msg = s"An unexpected error occurred while preparing data"
-              logger.error(msg)
               logger.error(msg, e)
 
               // Save DataPreparationResult with Exception
@@ -224,8 +223,7 @@ object DataPreparationController {
         catch {
           case e: Exception =>
             val msg = s"Cannot save the Dataframe of the prepared data with id: ${dataset_id} due to following error:"
-            logger.error(msg)
-            logger.error(e.getMessage)
+            logger.error(msg, e)
             throw DataPreparationException(msg, e)
         }
     }
@@ -248,8 +246,7 @@ object DataPreparationController {
         } catch {
           case e: Exception =>
             val msg = s"Cannot save DataPreparationResult with id: ${dataPreparationResult.dataset_id} due to following error:"
-            logger.error(msg)
-            logger.error(e.getMessage)
+            logger.error(msg, e)
             throw DataPreparationException(msg, e)
         }
     }

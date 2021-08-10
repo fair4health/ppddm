@@ -55,8 +55,7 @@ object ClassificationController extends DataMiningController {
       } recover {
         case e: Exception =>
           val msg = s"The following unexpected error occurred while training model:"
-          logger.error(msg)
-          logger.error(e.getMessage, e)
+          logger.error(msg, e)
 
           // Save ModelTrainingResult with DataMiningException
           val dataMiningException = DataMiningException(e.getMessage, e)
@@ -74,7 +73,7 @@ object ClassificationController extends DataMiningController {
         throw d
       case e: Exception =>
         val msg = s"An unexpected error occurred while training model"
-        logger.error(msg)
+        logger.error(msg, e)
 
         // Save ModelTrainingResult with DataMiningException
         val dataMiningException = DataMiningException(msg, e)
@@ -140,6 +139,8 @@ object ClassificationController extends DataMiningController {
       // Split the data into training and test. Only trainingData will be used.
       val Array(trainingData, testData) = dataFrame.randomSplit(Array(TRAINING_SIZE, TEST_SIZE), seed = SEED)
 
+      logger.debug("The DataFrame was split into training/test datasets...")
+
       // Train each weak model on dataFrame, and calculate statistics for each
       val validationFutures = modelValidationRequest.weak_models.map { weakModel =>
         ClassificationAlgorithm(modelValidationRequest.agent, weakModel.algorithm).validate(weakModel, trainingData)
@@ -157,8 +158,7 @@ object ClassificationController extends DataMiningController {
       } recover {
         case e: Exception =>
           val msg = s"The following unexpected error occurred while validating model:"
-          logger.error(msg)
-          logger.error(e.getMessage, e)
+          logger.error(msg, e)
 
           // Save ModelValidationResult with DataMiningException
           val dataMiningException = DataMiningException(e.getMessage, e)
@@ -169,15 +169,17 @@ object ClassificationController extends DataMiningController {
       }
     } catch {
       case d: DataMiningException =>
+        val msg = s"A DataMiningException occurred while validating model"
+        logger.error(msg, d)
+
         // Save ModelValidationResult with DataMiningException
         val modelValidationResult = ModelValidationResult(modelValidationRequest.model_id, modelValidationRequest.dataset_id,
           modelValidationRequest.agent, Seq.empty, Some(d.getMessage))
         saveResult(modelValidationResult.model_id, DataMiningRequestType.VALIDATE, modelValidationResult.toJson)
         throw d
       case e: Exception =>
-        val msg = s"An unexpected error occurred while validating model"
-        logger.error(msg)
-        logger.error(e.getMessage, e)
+        val msg = s"An unknown error occurred while validating model"
+        logger.error(msg, e)
 
         // Save ModelValidationResult with Exception
         val dataMiningException = DataMiningException(msg, e)
@@ -259,8 +261,7 @@ object ClassificationController extends DataMiningController {
       } recover {
         case e: Exception =>
           val msg = s"The following unexpected error occurred while testing model:"
-          logger.error(msg)
-          logger.error(e.getMessage, e)
+          logger.error(msg, e)
 
           // Save ModelTestResult with DataMiningException
           val dataMiningException = DataMiningException(msg, e)
@@ -278,8 +279,7 @@ object ClassificationController extends DataMiningController {
         throw d
       case e: Exception =>
         val msg = s"An unexpected error occurred while testing model"
-        logger.error(msg)
-        logger.error(e.getMessage, e)
+        logger.error(msg, e)
 
         // Save ModelTestResult with Exception
         val dataMiningException = DataMiningException(msg, e)
@@ -334,6 +334,7 @@ object ClassificationController extends DataMiningController {
     } catch {
       case e: Exception =>
         try {
+          logger.debug(s"Exception occured while saving the DataFrame for model:${model_id}. I will try again...")
           // Try saving once more
           AgentDataStoreManager.saveDataFrame(
             AgentDataStoreManager.getModelPath(model_id, dataMiningRequestType), Seq(result).toDF())
@@ -342,8 +343,7 @@ object ClassificationController extends DataMiningController {
         } catch {
           case e: Exception =>
             val msg = s"Cannot save the Model ${dataMiningRequestType} result of the model with model_id: ${model_id} due to following error:"
-            logger.error(msg)
-            logger.error(e.getMessage)
+            logger.error(msg, e)
             throw DataMiningException(msg, e)
         }
     }

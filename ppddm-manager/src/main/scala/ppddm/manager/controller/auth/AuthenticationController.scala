@@ -25,7 +25,7 @@ object AuthenticationController {
   private def checkAccessToken(accessToken: String): Boolean = {
     if(!ManagerConfig.authEnabled) {
       // If the authentication is not enabled, return true for all given accessTokens, do not interact with the auth server.
-      logger.debug("Authentication is not enabled, so I am authenticating the user by default.")
+      //logger.debug("Authentication is not enabled, so I am authenticating the user by default.")
       return true
     }
 
