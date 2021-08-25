@@ -606,12 +606,20 @@ final case class ARLModel(algorithm: Algorithm,
                           association_rules: Seq[AssociationRule]) extends ModelClass
 
 final case class FrequentItemset(items: Seq[String],
-                                 freq: Long) extends ModelClass
+                                 freq: Long) extends ModelClass {
+  def sorted(): FrequentItemset = {
+    this.copy(items = items.sorted)
+  }
+}
 
 final case class AssociationRule(antecedent: Seq[String],
                                  consequent: Seq[String],
                                  confidence: Double,
-                                 lift: Double) extends ModelClass
+                                 lift: Double) extends ModelClass {
+  def sorted(): AssociationRule = {
+    this.copy(antecedent = antecedent.sorted, consequent = consequent.sorted)
+  }
+}
 
 final case class EncounterBasedItem(subject: String,
                                     periodStart: String,

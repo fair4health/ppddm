@@ -239,7 +239,7 @@ object AssociationMiningProcessor {
               throw DataIntegrityException(s"The agent of the ARLModel is different than the agent of the WeakModel it is being assigned to! This means " +
                 s"the agent of the ARLModel is also different than the agent of the encapsulating ARLExecutionResult. This cannot happen!!!")
             }
-            weakModel.withFreqItemsetAndAssociationRules(arlModel.frequent_itemsets, arlModel.association_rules)
+            weakModel.withFreqItemsetAndAssociationRules(arlModel.frequent_itemsets.map(_.sorted()), arlModel.association_rules.map(_.sorted()))
           } else {
             // The Agent of this WeakModel has not finished the ARL execution yet
             weakModel
