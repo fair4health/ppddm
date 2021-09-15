@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-JAVA_CMD="java -jar "
+JAVA_CMD="java -Xms2g -Xmx8g -jar "
 
 if [ ! -z "$APP_NAME" ]; then
     JAVA_CMD+="-Dapp.name=$APP_NAME "
