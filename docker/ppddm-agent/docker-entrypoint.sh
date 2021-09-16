@@ -69,6 +69,13 @@ if [ ! -z "$AUTH_CLIENT_SECRET" ]; then
     JAVA_CMD+="-Dauth.client.secret=$AUTH_CLIENT_SECRET "
 fi
 
+if [ ! -z "$AKKA_HTTP_REQUEST_TIMEOUT" ]; then
+    JAVA_CMD+="-Dakka.http.server.request-timeout=$AKKA_HTTP_REQUEST_TIMEOUT "
+fi
+if [ ! -z "$AKKA_HTTP_PARSING_MAXCONTENTLENGTH" ]; then
+    JAVA_CMD+="-Dakka.http.server.parsing.max-content-length=$AKKA_HTTP_PARSING_MAXCONTENTLENGTH "
+fi
+
 # Delay the execution for this amount of seconds
 if [ ! -z "$DELAY_EXECUTION" ]; then
     sleep $DELAY_EXECUTION

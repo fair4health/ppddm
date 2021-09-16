@@ -24,6 +24,7 @@ object AssociationMiningProcessor {
   private val logger: Logger = Logger(this.getClass)
 
   protected implicit val sparkSession: SparkSession = Manager.dataMiningEngine.sparkSession
+
   import sparkSession.implicits._
 
   /**
@@ -157,8 +158,8 @@ object AssociationMiningProcessor {
           // This is the way of extracting values from Raw datatype. The columns are: items(Seq[String]), freq(Double) respectively.
           val aboveThresholdItemFrequencies = combinedItemFrequencies.filter(i => (i.getLong(1).toDouble / combinedTotalRecordCount.toDouble) >= threshold)
           // Update the boosted model
-          boostedModel.withCombinedFrequentItems(aboveThresholdItemFrequencies.map( i => Parameter(i.getString(0), DataType.INTEGER, i.getLong(1).toString)))
-                      .withCombinedTotalRecordCount(combinedTotalRecordCount)
+          boostedModel.withCombinedFrequentItems(aboveThresholdItemFrequencies.map(i => Parameter(i.getString(0), DataType.INTEGER, i.getLong(1).toString)))
+            .withCombinedTotalRecordCount(combinedTotalRecordCount)
         }
 
         // Update the data mining model
@@ -204,116 +205,121 @@ object AssociationMiningProcessor {
       // ARLExecutionResults of the Agents whose ARL execution is completed.
       // Others have not finished yet.
 
-      logger.debug(s"ARLExecutionResults of the DataMiningModel${dataMiningModel.model_id.get} were received from ${arlExecutionResults.size} agents. " +
-        s"These are the following agents:${arlExecutionResults.map(_.agent.agent_id).mkString(",")}")
-
-      // An ARLExecutionResults includes a sequence of ARLModels (one for each Algorithm)
-
-      val updatedBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel (we know that there will only be 1 algorithms, but to be compliant with the PredictionMiningProcessor loop over it
-
-        // Let's do some integrity checks
-        if (dataMiningModel.boosted_models.isEmpty) {
-          throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
-            s"I am trying to the process handleExecutingARLState and there must have been a BoostedModel for each Algorithm.")
-        }
-
-        val boostedModelOption = dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name)
-        if (boostedModelOption.isEmpty) {
-          throw DataIntegrityException(s"Sweet Jesus! I am processing the handleExecutingARLState of this DataMiningModel:${dataMiningModel.model_id.get}, " +
-            s"however there is no corresponding BoostedModel for this Algorithm:${algorithm.name}")
-        }
-
-        val boostedModel = boostedModelOption.get
-
-        val updatedWeakModels = boostedModel.weak_models.map { weakModel =>
-          val arlExecutionResultOption = arlExecutionResults.find(_.agent.agent_id == weakModel.agent.agent_id)
-          if(arlExecutionResultOption.isDefined) {
-            val arlExecutionResult = arlExecutionResultOption.get
-            // The Agent of this WeakModel returned the ARL execution result
-            val arlModelOption = arlExecutionResult.arl_models.find(_.algorithm.name == algorithm.name)
-
-            if (arlModelOption.isEmpty) {
-              // If there is a result from an Agent, it must contain an ARLModel for each Algorithm of this DataMiningModel, because we submitted it previously for ARL execution
-              throw DataIntegrityException(s"The Algorithm with name ${algorithm.name} could not be found in the ARLExecutionResult " +
-                s" of ${arlExecutionResult.agent} for the DataMiningModel with model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name}")
-            }
-            val arlModel = arlModelOption.get
-            if(arlModel.agent.agent_id != weakModel.agent.agent_id) {
-              throw DataIntegrityException(s"The agent of the ARLModel is different than the agent of the WeakModel it is being assigned to! This means " +
-                s"the agent of the ARLModel is also different than the agent of the encapsulating ARLExecutionResult. This cannot happen!!!")
-            }
-            weakModel.withFreqItemsetAndAssociationRules(arlModel.frequent_itemsets.map(_.sorted()), arlModel.association_rules.map(_.sorted()))
-          } else {
-            // The Agent of this WeakModel has not finished the ARL execution yet
-            weakModel
-          }
-        }
-        boostedModel.replaceWeakModels(updatedWeakModels)
-      }
-
-      var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
-
-      logger.debug(s"ARLExecutionResults have been processed to update the DataMiningModel:${dataMiningModel.model_id.get} with updated boosted models.")
-
-      if (DataMiningModelController.getAgentsWaitedForARLExecutionResults(newDataMiningModel).isEmpty) {
-        logger.debug("There are no remaining Agents being waited for ARL execution results. So, I will calculate the " +
-          s"association rules (statistics) for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
-
-        val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
-          // Extract the association rules and frequent itemsets from the WeakModels
-          val associationRulesDFSeq = boostedModel.weak_models map { wm =>
-            wm.association_rules.get.toDF()
-          }
-          val freqItemsetsDFSeq = boostedModel.weak_models map { wm =>
-            wm.frequent_itemsets.get.toDF()
-          }
-
-          var combinedAssociationRulesDF = associationRulesDFSeq.head // If there is only one agent, we will use its association rules directly
-          if (associationRulesDFSeq.length > 1) { // Of there are more than one agents, we will combine their results
-            // Union all the rules and eliminate the duplicates. We will calculate their confidence and lift manually below.
-            val unionedAssociationRules = associationRulesDFSeq.map(_.select("antecedent", "consequent")).reduceLeft((a, b) => a.union(b).distinct())
-            // Union all itemsets by summing their frequencies. We will use these while calculating confidence and lift manually below.
-            val unionedFreqItems = freqItemsetsDFSeq.reduceLeft((a, b) => a.union(b)).groupBy("items").sum("freq").collect()
-
-            // Calculate confidence and lift
-            val arlConfidenceLiftTransformer = new ARLConfidenceLiftTransformer()
-              .setFreqItems(unionedFreqItems)
-              .setTotalRecordCount(boostedModel.combined_total_record_count.get)
-            combinedAssociationRulesDF = arlConfidenceLiftTransformer.transform(unionedAssociationRules)
-          }
-          combinedAssociationRulesDF.show()
-
-          // In below code, row.getSeq[String](0) corresponds to getting the value of 0th column, which is "antecedent" in Seq[String] format.
-          // The same applies for the others. The columns are: antecedent(Seq[String]), consequent(Seq[String]), confidence(Double), lift(Double) respectively.
-          // From Row datatype, this is the way to extract values.
-          val combinedAssociationRules = combinedAssociationRulesDF.collect().map(ar =>
-            AssociationRule(ar.getSeq[String](0), ar.getSeq[String](1), ar.getDouble(2), ar.getDouble(3)))
-
-          // Update the BoostedModel with this final combined statistics
-          boostedModel.withCombinedAssociationRules(combinedAssociationRules)
-        }
-        newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
-
-        // Advance the state to READY and finish the scheduled processing
-        newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
+      if (arlExecutionResults.isEmpty) {
+        logger.debug(s"No agents have responded to the ARLExecutionResult query for the DataMiningModel:${dataMiningModel.model_id.get}")
+        Future.apply(Done)
       } else {
-        logger.debug(s"There are still remaining Agents being waited for ARL execution results of this DataMiningModel:${dataMiningModel.model_id.get}")
-      }
+        logger.debug(s"ARLExecutionResults of the DataMiningModel:${dataMiningModel.model_id.get} were received from ${arlExecutionResults.size} agents. " +
+          s"These are the following agents:${arlExecutionResults.map(_.agent.agent_id).mkString(",")}")
 
-      DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
-        if (res.isEmpty) {
-          throw DataIntegrityException(s"data_mining_state of the DataMiningModel cannot be updated after the model test results are received from the Agents. " +
-            s"model_id:${newDataMiningModel.model_id.get}")
+        // An ARLExecutionResults includes a sequence of ARLModels (one for each Algorithm)
+
+        val updatedBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel (we know that there will only be 1 algorithms, but to be compliant with the PredictionMiningProcessor loop over it
+
+          // Let's do some integrity checks
+          if (dataMiningModel.boosted_models.isEmpty) {
+            throw DataIntegrityException(s"There are no BoostedModels for this DataMiningModel:${dataMiningModel.model_id.get}." +
+              s"I am trying to the process handleExecutingARLState and there must have been a BoostedModel for each Algorithm.")
+          }
+
+          val boostedModelOption = dataMiningModel.boosted_models.get.find(_.algorithm.name == algorithm.name)
+          if (boostedModelOption.isEmpty) {
+            throw DataIntegrityException(s"Sweet Jesus! I am processing the handleExecutingARLState of this DataMiningModel:${dataMiningModel.model_id.get}, " +
+              s"however there is no corresponding BoostedModel for this Algorithm:${algorithm.name}")
+          }
+
+          val boostedModel = boostedModelOption.get
+
+          val updatedWeakModels = boostedModel.weak_models.map { weakModel =>
+            val arlExecutionResultOption = arlExecutionResults.find(_.agent.agent_id == weakModel.agent.agent_id)
+            if (arlExecutionResultOption.isDefined) {
+              val arlExecutionResult = arlExecutionResultOption.get
+              // The Agent of this WeakModel returned the ARL execution result
+              val arlModelOption = arlExecutionResult.arl_models.find(_.algorithm.name == algorithm.name)
+
+              if (arlModelOption.isEmpty) {
+                // If there is a result from an Agent, it must contain an ARLModel for each Algorithm of this DataMiningModel, because we submitted it previously for ARL execution
+                throw DataIntegrityException(s"The Algorithm with name ${algorithm.name} could not be found in the ARLExecutionResult " +
+                  s" of ${arlExecutionResult.agent} for the DataMiningModel with model_id:${dataMiningModel.model_id} and name:${dataMiningModel.name}")
+              }
+              val arlModel = arlModelOption.get
+              if (arlModel.agent.agent_id != weakModel.agent.agent_id) {
+                throw DataIntegrityException(s"The agent of the ARLModel is different than the agent of the WeakModel it is being assigned to! This means " +
+                  s"the agent of the ARLModel is also different than the agent of the encapsulating ARLExecutionResult. This cannot happen!!!")
+              }
+              weakModel.withFreqItemsetAndAssociationRules(arlModel.frequent_itemsets.map(_.sorted()), arlModel.association_rules.map(_.sorted()))
+            } else {
+              // The Agent of this WeakModel has not finished the ARL execution yet
+              weakModel
+            }
+          }
+          boostedModel.replaceWeakModels(updatedWeakModels)
         }
 
-        if (newDataMiningModel.data_mining_state.get == DataMiningState.READY) {
-          // Stop the orchestration for this DataMiningModel is a separate thread, only if its state is READY
-          Future.apply(DataMiningOrchestrator.stopOrchestration(newDataMiningModel.model_id.get))
+        var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
+
+        logger.debug(s"ARLExecutionResults have been processed to update the DataMiningModel:${dataMiningModel.model_id.get} with updated boosted models.")
+
+        if (DataMiningModelController.getAgentsWaitedForARLExecutionResults(newDataMiningModel).isEmpty) {
+          logger.debug("There are no remaining Agents being waited for ARL execution results. So, I will calculate the " +
+            s"association rules (statistics) for the BoostedModels of this DataMiningModel:${dataMiningModel.model_id.get}")
+
+          val updatedBoostedModels = newDataMiningModel.boosted_models.get map { boostedModel =>
+            // Extract the association rules and frequent itemsets from the WeakModels
+            val associationRulesDFSeq = boostedModel.weak_models map { wm =>
+              wm.association_rules.get.toDF()
+            }
+            val freqItemsetsDFSeq = boostedModel.weak_models map { wm =>
+              wm.frequent_itemsets.get.toDF()
+            }
+
+            var combinedAssociationRulesDF = associationRulesDFSeq.head // If there is only one agent, we will use its association rules directly
+            if (associationRulesDFSeq.length > 1) { // Of there are more than one agents, we will combine their results
+              // Union all the rules and eliminate the duplicates. We will calculate their confidence and lift manually below.
+              val unionedAssociationRules = associationRulesDFSeq.map(_.select("antecedent", "consequent")).reduceLeft((a, b) => a.union(b).distinct())
+              // Union all itemsets by summing their frequencies. We will use these while calculating confidence and lift manually below.
+              val unionedFreqItems = freqItemsetsDFSeq.reduceLeft((a, b) => a.union(b)).groupBy("items").sum("freq").collect()
+
+              // Calculate confidence and lift
+              val arlConfidenceLiftTransformer = new ARLConfidenceLiftTransformer()
+                .setFreqItems(unionedFreqItems)
+                .setTotalRecordCount(boostedModel.combined_total_record_count.get)
+              combinedAssociationRulesDF = arlConfidenceLiftTransformer.transform(unionedAssociationRules)
+            }
+            combinedAssociationRulesDF.show()
+
+            // In below code, row.getSeq[String](0) corresponds to getting the value of 0th column, which is "antecedent" in Seq[String] format.
+            // The same applies for the others. The columns are: antecedent(Seq[String]), consequent(Seq[String]), confidence(Double), lift(Double) respectively.
+            // From Row datatype, this is the way to extract values.
+            val combinedAssociationRules = combinedAssociationRulesDF.collect().map(ar =>
+              AssociationRule(ar.getSeq[String](0), ar.getSeq[String](1), ar.getDouble(2), ar.getDouble(3)))
+
+            // Update the BoostedModel with this final combined statistics
+            boostedModel.withCombinedAssociationRules(combinedAssociationRules)
+          }
+          newDataMiningModel = newDataMiningModel.withBoostedModels(updatedBoostedModels)
+
+          // Advance the state to READY and finish the scheduled processing
+          newDataMiningModel = newDataMiningModel.withDataMiningState(DataMiningState.READY)
+        } else {
+          logger.debug(s"There are still remaining Agents being waited for ARL execution results of this DataMiningModel:${dataMiningModel.model_id.get}")
         }
 
-        logger.debug(s"handleExecutingARLState finished for this DataMiningModel:${dataMiningModel.model_id.get} Its state is ${newDataMiningModel.data_mining_state.get}.")
+        DataMiningModelController.updateDataMiningModel(newDataMiningModel) map { res =>
+          if (res.isEmpty) {
+            throw DataIntegrityException(s"data_mining_state of the DataMiningModel cannot be updated after the model test results are received from the Agents. " +
+              s"model_id:${newDataMiningModel.model_id.get}")
+          }
 
-        Done
+          if (newDataMiningModel.data_mining_state.get == DataMiningState.READY) {
+            // Stop the orchestration for this DataMiningModel is a separate thread, only if its state is READY
+            Future.apply(DataMiningOrchestrator.stopOrchestration(newDataMiningModel.model_id.get))
+          }
+
+          logger.debug(s"handleExecutingARLState finished for this DataMiningModel:${dataMiningModel.model_id.get} Its state is ${newDataMiningModel.data_mining_state.get}.")
+
+          Done
+        }
       }
     }
   }
