@@ -204,6 +204,9 @@ object AssociationMiningProcessor {
       // ARLExecutionResults of the Agents whose ARL execution is completed.
       // Others have not finished yet.
 
+      logger.debug(s"ARLExecutionResults of the DataMiningModel${dataMiningModel.model_id.get} were received from ${arlExecutionResults.size} agents. " +
+        s"These are the following agents:${arlExecutionResults.map(_.agent.agent_id).mkString(",")}")
+
       // An ARLExecutionResults includes a sequence of ARLModels (one for each Algorithm)
 
       val updatedBoostedModels = dataMiningModel.algorithms.map { algorithm => // For each algorithm of this dataMiningModel (we know that there will only be 1 algorithms, but to be compliant with the PredictionMiningProcessor loop over it
@@ -249,6 +252,8 @@ object AssociationMiningProcessor {
       }
 
       var newDataMiningModel = dataMiningModel.withBoostedModels(updatedBoostedModels)
+
+      logger.debug(s"ARLExecutionResults have been processed to update the DataMiningModel:${dataMiningModel.model_id.get} with updated boosted models.")
 
       if (DataMiningModelController.getAgentsWaitedForARLExecutionResults(newDataMiningModel).isEmpty) {
         logger.debug("There are no remaining Agents being waited for ARL execution results. So, I will calculate the " +

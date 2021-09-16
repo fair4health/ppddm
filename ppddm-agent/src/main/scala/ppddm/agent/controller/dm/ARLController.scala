@@ -154,6 +154,7 @@ object ARLController extends DataMiningController {
     logger.debug("getExecutionResult received on for model:{}", model_id)
     Try(
       AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.ARL)) map { df =>
+        logger.debug(s"The DataFrame of the model${model_id} retrieved from the file system for getExecutionResult")
         df // Dataframe consisting of a column named "value" that holds Json inside
           .head() // Get the Array[Row]
           .getString(0) // Get Json String
