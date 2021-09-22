@@ -20,7 +20,7 @@ object AgentHealthChecker {
 
   /**
    * Check the health status of the given Agent. If the Option inside the Future is defined,
-   * then the Agent is healthy.
+   * then the Agent is \healthy.
    *
    * @param agent
    * @return
@@ -41,8 +41,9 @@ object AgentHealthChecker {
 
     val agentsHealthStatus: Seq[(Agent, Boolean)] = AgentRegistry.agents.map { agent =>
       val response = Try(Await.result(checkAgentHealth(agent), Duration(5, TimeUnit.SECONDS))).toOption
-      if(response.isEmpty) {
-        logger.error(s"There is a non-responsive/unhealthy agent. ${agent.toJson}")
+      if(response.isEmpty || response.get.isEmpty) {
+        logger.error(s"There is a non-responsive/unhealthy agent: ${agent.toJson}")
+        logger.error("The response is " + response.flatten)
         (agent, false)
       } else {
         (agent, true)
