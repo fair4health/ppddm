@@ -40,7 +40,12 @@ object FederatedQueryManager {
       val failedAgents = responses.collect { case Failure(x) => x }
       if (failedAgents.nonEmpty) {
         val msg = s"There are ${failedAgents.size} agents (data sources) out of ${responses.size} which returned error on data preparation request."
-        throw AgentCommunicationException(reason = msg)
+        logger.error(msg)
+        val agentCommunicationExceptions = failedAgents.map(_.asInstanceOf[AgentCommunicationException])
+        throw AgentCommunicationException(
+          name = Some(agentCommunicationExceptions.map(_.name.getOrElse("Unknown name")).mkString(",")),
+          url = Some(agentCommunicationExceptions.map(_.url.getOrElse("Unknown url")).mkString(",")),
+          reason = s"$msg\n${agentCommunicationExceptions.map(_.reason).mkString(",")}")
       }
 
       val successfulAgents = responses.collect { case Success(x) => x }
