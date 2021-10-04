@@ -154,6 +154,7 @@ object AlgorithmStatisticsName extends Enumeration {
   val ACCURACY = "accuracy"
   val PRECISION = "precision"
   val RECALL = "recall"
+  val SPECIFICITY = "specificity"
   val FPR = "false_positive_rate"
   val TPR = "true_positive_rate"
   val F_MEASURE = "f_measure"

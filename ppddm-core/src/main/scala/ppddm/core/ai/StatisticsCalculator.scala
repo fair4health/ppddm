@@ -90,6 +90,7 @@ object StatisticsCalculator {
     statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsCalculator.calculateAccuracy(statistics))
     statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, StatisticsCalculator.calculatePrecision(statistics))
     statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, StatisticsCalculator.calculateRecall(statistics))
+    statistics += Parameter(AlgorithmStatisticsName.SPECIFICITY, DataType.DOUBLE, StatisticsCalculator.calculateSpecificity(statistics))
     statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, StatisticsCalculator.calculateFMeasure(statistics))
     // TODO How to calculate AUROC
     // TODO How to calculate AUPR
@@ -222,6 +223,28 @@ object StatisticsCalculator {
     val result = tp / (tp + fn)
 
     if (result.isNaN) 1.0 else result // If result is NaN, it means that TP + FN is zero. Your data is not good.
+  }
+
+  /**
+   * Calculate specificity
+   * @param statistics
+   * @return
+   */
+  private def calculateSpecificity(statistics: ListBuffer[Parameter]): Double = {
+    var tn = 0.0
+    var fp = 0.0
+
+    statistics.foreach(s => {
+      if (s.name == AlgorithmStatisticsName.TRUE_NEGATIVE) {
+        tn = s.value.toDouble
+      } else if (s.name == AlgorithmStatisticsName.FALSE_POSITIVE) {
+        fp = s.value.toDouble
+      }
+    })
+
+    val result = tn / (tn + fp)
+
+    if (result.isNaN) 1.0 else result // If result is NaN, it means that TN + FP is zero. Your data is not good.
   }
 
   /**
