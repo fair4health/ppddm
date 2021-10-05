@@ -2221,7 +2221,9 @@
           "value": "1"
         }
       ],
-      "prediction": 0.0
+      "prediction": 0.0,
+      "probability": 75.12,
+      "created_on": "2020-10-23T11:16:46.679"
     },
     {
       "data_mining_model_id": "d4aa952d-06c7-4bf6-a83b-1e5ac8af403f",
@@ -2368,7 +2370,9 @@
           "value": "1"
         }
       ],
-      "prediction": 0.0
+      "prediction": 0.0,
+      "probability": 65.0,
+      "created_on": "2020-10-23T11:16:46.679"
     },
     {
       "data_mining_model_id": "d4aa952d-06c7-4bf6-a83b-1e5ac8af403f",
@@ -2515,7 +2519,9 @@
           "value": "1"
         }
       ],
-      "prediction": 0.0
+      "prediction": 0.0,
+      "probability": 91.2,
+      "created_on": "2020-10-23T11:16:46.679"
     }
   ],
   "created_by": "1903"

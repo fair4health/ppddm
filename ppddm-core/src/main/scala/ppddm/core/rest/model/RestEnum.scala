@@ -161,3 +161,21 @@ object AlgorithmStatisticsName extends Enumeration {
   val AUROC = "area_under_roc"
   val AUPR = "area_under_pr"
 }
+
+object AlgorithmStatisticsDescription extends Enumeration {
+  type AlgorithmStatisticsDescription = String
+  val TRUE_POSITIVE = "True positive"
+  val TRUE_NEGATIVE = "True negative"
+  val FALSE_POSITIVE = "False positive"
+  val FALSE_NEGATIVE = "False negative"
+  val TOTAL = "Total"
+  val ACCURACY = "Accuracy"
+  val PRECISION = "Precision"
+  val RECALL = "Recall (Sensitivity)"
+  val SPECIFICITY = "Specificity"
+  val FPR = "False positive rate"
+  val TPR = "True positive rate"
+  val F_MEASURE = "F Measure"
+  val AUROC = "Area under ROC"
+  val AUPR = "Area under PR"
+}

@@ -94,10 +94,16 @@ object ClassificationController extends DataMiningController {
     logger.debug("getTrainingResult received on for model:{}", model_id)
     Try(
       AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.TRAIN)) map { df =>
-        df // Dataframe consisting of a column named "value" that holds Json inside
-          .head() // Get the Array[Row]
-          .getString(0) // Get Json String
-          .extract[ModelTrainingResult]
+        try {
+          df // Dataframe consisting of a column named "value" that holds Json inside
+            .head() // Get the Array[Row]
+            .getString(0) // Get Json String
+            .extract[ModelTrainingResult]
+        } catch {
+          case e: Exception =>
+            logger.error(s"Error while extracting the ModelTrainingResult from the retrieved DataFrame for model:${model_id}", e)
+            throw e
+        }
       }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 
@@ -200,10 +206,16 @@ object ClassificationController extends DataMiningController {
     logger.debug("getValidationResult received on for model:{}", model_id)
     Try(
       AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.VALIDATE)) map { df =>
-        df // Dataframe consisting of a column named "value" that holds Json inside
-          .head() // Get the Array[Row]
-          .getString(0) // Get Json String
-          .extract[ModelValidationResult]
+        try {
+          df // Dataframe consisting of a column named "value" that holds Json inside
+            .head() // Get the Array[Row]
+            .getString(0) // Get Json String
+            .extract[ModelValidationResult]
+        } catch {
+          case e: Exception =>
+            logger.error(s"Error while extracting the ModelValidationResult from the retrieved DataFrame for model:${model_id}", e)
+            throw e
+        }
       }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 
@@ -300,10 +312,16 @@ object ClassificationController extends DataMiningController {
     logger.debug("getTestResult received on for model:{}", model_id)
     Try(
       AgentDataStoreManager.getDataFrame(AgentDataStoreManager.getModelPath(model_id, DataMiningRequestType.TEST)) map { df =>
-        df // Dataframe consisting of a column named "value" that holds Json inside
-          .head() // Get the Array[Row]
-          .getString(0) // Get Json String
-          .extract[ModelTestResult]
+        try {
+          df // Dataframe consisting of a column named "value" that holds Json inside
+            .head() // Get the Array[Row]
+            .getString(0) // Get Json String
+            .extract[ModelTestResult]
+        } catch {
+          case e: Exception =>
+            logger.error(s"Error while extracting the ModelTestResult from the retrieved DataFrame for model:${model_id}", e)
+            throw e
+        }
       }).getOrElse(None) // Returns None if an error occurs within the Try block
   }
 

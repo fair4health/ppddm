@@ -229,11 +229,11 @@ final case class DataPreparationResult(dataset_id: String,
 final case class Parameter(name: String,
                            data_type: DataType,
                            value: String,
-                           display: Option[String],
-                           description: Option[String],
-                           possible_values_description: Option[String],
-                           comma_separated_multiple_values: Option[Boolean],
-                           possible_values: Option[Seq[String]]) extends ModelClass {
+                           display: Option[String] = None,
+                           description: Option[String] = None,
+                           possible_values_description: Option[String] = None,
+                           comma_separated_multiple_values: Option[Boolean] = None,
+                           possible_values: Option[Seq[String]] = None) extends ModelClass {
 
   def getValueAsDoubleArray: Array[Double] = {
     if (value.contains(",")) { // It is provided as Array
@@ -257,18 +257,6 @@ final case class Parameter(name: String,
     } else {
       Array(value)
     }
-  }
-}
-
-object Parameter {
-  def apply(name: String, data_type: DataType, value: String): Parameter = {
-    Parameter(name, data_type, value, None, None, None, None, None)
-  }
-  def apply(name: String, data_type: DataType, value: Double): Parameter = {
-    Parameter(name, data_type, value.toString, None, None, None, None, None)
-  }
-  def apply(name: String, data_type: DataType, value: Int): Parameter = {
-    Parameter(name, data_type, value.toString, None, None, None, None, None)
   }
 }
 
@@ -573,7 +561,8 @@ final case class PredictionRequest(data_mining_model: DataMiningModel,
 final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],
                                   prediction: Double,
-                                  probability: Option[Double]) extends ModelClass
+                                  probability: Double,
+                                  created_on: LocalDateTime) extends ModelClass
 
 final case class ARLFrequencyCalculationRequest(model_id: String,
                                                 dataset_id: String,

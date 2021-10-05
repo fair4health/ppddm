@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.Logger
 import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.DataFrame
-import ppddm.core.rest.model.{AgentAlgorithmStatistics, AlgorithmStatisticsName, DataType, Parameter}
+import ppddm.core.rest.model.{AgentAlgorithmStatistics, AlgorithmStatisticsDescription, AlgorithmStatisticsName, DataType, Parameter}
 
 import scala.collection.mutable.ListBuffer
 
@@ -27,12 +27,12 @@ object StatisticsCalculator {
 
     // Calculate statistics
     val metrics = new BinaryClassificationMetrics(testPredictionLabelsRDD)
-    statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsCalculator.calculateAccuracy(statistics))
-    statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.precisionByThreshold().collect().head._2)
-    statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.recallByThreshold().collect().head._2)
-    statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.fMeasureByThreshold().collect().head._2)
-    statistics += Parameter(AlgorithmStatisticsName.AUROC, DataType.DOUBLE, metrics.areaUnderROC)
-    statistics += Parameter(AlgorithmStatisticsName.AUPR, DataType.DOUBLE, metrics.areaUnderPR)
+    statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsCalculator.calculateAccuracy(statistics).toString, Some(AlgorithmStatisticsDescription.ACCURACY))
+    statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.precisionByThreshold().collect().head._2.toString, Some(AlgorithmStatisticsDescription.PRECISION))
+    statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.recallByThreshold().collect().head._2.toString, Some(AlgorithmStatisticsDescription.RECALL))
+    statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.fMeasureByThreshold().collect().head._2.toString, Some(AlgorithmStatisticsDescription.F_MEASURE))
+    statistics += Parameter(AlgorithmStatisticsName.AUROC, DataType.DOUBLE, metrics.areaUnderROC.toString, Some(AlgorithmStatisticsDescription.AUROC))
+    statistics += Parameter(AlgorithmStatisticsName.AUPR, DataType.DOUBLE, metrics.areaUnderPR.toString, Some(AlgorithmStatisticsDescription.AUPR))
 
     logger.debug("Statistics: ")
     statistics.foreach(parameter => logger.debug(s"--- ${parameter.name}: ${parameter.value}"))
@@ -53,12 +53,12 @@ object StatisticsCalculator {
 
     // Calculate statistics
     val metrics = new MulticlassMetrics(testPredictionLabelsRDD)
-    statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, metrics.accuracy)
-    statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.weightedPrecision)
-    statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.weightedRecall)
-    statistics += Parameter(AlgorithmStatisticsName.FPR, DataType.DOUBLE, metrics.weightedFalsePositiveRate)
-    statistics += Parameter(AlgorithmStatisticsName.TPR, DataType.DOUBLE, metrics.weightedTruePositiveRate)
-    statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.weightedFMeasure)
+    statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, metrics.accuracy.toString, Some(AlgorithmStatisticsDescription.ACCURACY))
+    statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, metrics.weightedPrecision.toString, Some(AlgorithmStatisticsDescription.PRECISION))
+    statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, metrics.weightedRecall.toString, Some(AlgorithmStatisticsDescription.RECALL))
+    statistics += Parameter(AlgorithmStatisticsName.FPR, DataType.DOUBLE, metrics.weightedFalsePositiveRate.toString, Some(AlgorithmStatisticsDescription.FPR))
+    statistics += Parameter(AlgorithmStatisticsName.TPR, DataType.DOUBLE, metrics.weightedTruePositiveRate.toString, Some(AlgorithmStatisticsDescription.TPR))
+    statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, metrics.weightedFMeasure.toString, Some(AlgorithmStatisticsDescription.F_MEASURE))
 
     logger.debug("Statistics: ")
     statistics.foreach(parameter => logger.debug(s"--- ${parameter.name}: ${parameter.value}"))
@@ -82,16 +82,16 @@ object StatisticsCalculator {
     val fn = agentAlgorithmStatistics.map(s => getStatisticsValue(s.statistics, AlgorithmStatisticsName.FALSE_NEGATIVE).toInt).sum
 
     var statistics = new ListBuffer[Parameter]
-    statistics += Parameter(AlgorithmStatisticsName.TOTAL, DataType.INTEGER, total)
-    statistics += Parameter(AlgorithmStatisticsName.TRUE_POSITIVE, DataType.INTEGER, tp)
-    statistics += Parameter(AlgorithmStatisticsName.TRUE_NEGATIVE, DataType.INTEGER, tn)
-    statistics += Parameter(AlgorithmStatisticsName.FALSE_POSITIVE, DataType.INTEGER, fp)
-    statistics += Parameter(AlgorithmStatisticsName.FALSE_NEGATIVE, DataType.INTEGER, fn)
-    statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsCalculator.calculateAccuracy(statistics))
-    statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, StatisticsCalculator.calculatePrecision(statistics))
-    statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, StatisticsCalculator.calculateRecall(statistics))
-    statistics += Parameter(AlgorithmStatisticsName.SPECIFICITY, DataType.DOUBLE, StatisticsCalculator.calculateSpecificity(statistics))
-    statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, StatisticsCalculator.calculateFMeasure(statistics))
+    statistics += Parameter(AlgorithmStatisticsName.TOTAL, DataType.INTEGER, total.toString, Some(AlgorithmStatisticsDescription.TOTAL))
+    statistics += Parameter(AlgorithmStatisticsName.TRUE_POSITIVE, DataType.INTEGER, tp.toString, Some(AlgorithmStatisticsDescription.TRUE_POSITIVE))
+    statistics += Parameter(AlgorithmStatisticsName.TRUE_NEGATIVE, DataType.INTEGER, tn.toString, Some(AlgorithmStatisticsDescription.TRUE_NEGATIVE))
+    statistics += Parameter(AlgorithmStatisticsName.FALSE_POSITIVE, DataType.INTEGER, fp.toString, Some(AlgorithmStatisticsDescription.FALSE_POSITIVE))
+    statistics += Parameter(AlgorithmStatisticsName.FALSE_NEGATIVE, DataType.INTEGER, fn.toString, Some(AlgorithmStatisticsDescription.FALSE_NEGATIVE))
+    statistics += Parameter(AlgorithmStatisticsName.ACCURACY, DataType.DOUBLE, StatisticsCalculator.calculateAccuracy(statistics).toString, Some(AlgorithmStatisticsDescription.ACCURACY))
+    statistics += Parameter(AlgorithmStatisticsName.PRECISION, DataType.DOUBLE, StatisticsCalculator.calculatePrecision(statistics).toString, Some(AlgorithmStatisticsDescription.PRECISION))
+    statistics += Parameter(AlgorithmStatisticsName.RECALL, DataType.DOUBLE, StatisticsCalculator.calculateRecall(statistics).toString, Some(AlgorithmStatisticsDescription.RECALL))
+    statistics += Parameter(AlgorithmStatisticsName.SPECIFICITY, DataType.DOUBLE, StatisticsCalculator.calculateSpecificity(statistics).toString, Some(AlgorithmStatisticsDescription.SPECIFICITY))
+    statistics += Parameter(AlgorithmStatisticsName.F_MEASURE, DataType.DOUBLE, StatisticsCalculator.calculateFMeasure(statistics).toString, Some(AlgorithmStatisticsDescription.F_MEASURE))
     // TODO How to calculate AUROC
     // TODO How to calculate AUPR
 
@@ -148,12 +148,12 @@ object StatisticsCalculator {
       }
     })
 
-    var statistics = new ListBuffer[Parameter]
-    statistics += Parameter(AlgorithmStatisticsName.TRUE_POSITIVE, DataType.INTEGER, tp)
-    statistics += Parameter(AlgorithmStatisticsName.TRUE_NEGATIVE, DataType.INTEGER, tn)
-    statistics += Parameter(AlgorithmStatisticsName.FALSE_POSITIVE, DataType.INTEGER, fp)
-    statistics += Parameter(AlgorithmStatisticsName.FALSE_NEGATIVE, DataType.INTEGER, fn)
-    statistics += Parameter(AlgorithmStatisticsName.TOTAL, DataType.INTEGER, tp + tn + fp + fn)
+    val statistics = new ListBuffer[Parameter]
+    statistics += Parameter(AlgorithmStatisticsName.TRUE_POSITIVE, DataType.INTEGER, tp.toString, Some(AlgorithmStatisticsDescription.TRUE_POSITIVE))
+    statistics += Parameter(AlgorithmStatisticsName.TRUE_NEGATIVE, DataType.INTEGER, tn.toString, Some(AlgorithmStatisticsDescription.TRUE_NEGATIVE))
+    statistics += Parameter(AlgorithmStatisticsName.FALSE_POSITIVE, DataType.INTEGER, fp.toString, Some(AlgorithmStatisticsDescription.FALSE_POSITIVE))
+    statistics += Parameter(AlgorithmStatisticsName.FALSE_NEGATIVE, DataType.INTEGER, fn.toString, Some(AlgorithmStatisticsDescription.FALSE_NEGATIVE))
+    statistics += Parameter(AlgorithmStatisticsName.TOTAL, DataType.INTEGER, (tp + tn + fp + fn).toString, Some(AlgorithmStatisticsDescription.TOTAL))
 
     statistics
   }

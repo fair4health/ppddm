@@ -11,6 +11,7 @@ import ppddm.core.util.DataPreparationUtil
 import ppddm.manager.Manager
 import ppddm.manager.store.ManagerDataStoreManager
 
+import java.time.LocalDateTime
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -193,7 +194,7 @@ object ProspectiveStudyController {
       val pArray = testPredictionDF.select("prediction", "positiveProbability").rdd.map(r => (r.getDouble(0), r.getDouble(1))).collect()
 
       logger.debug(s"PredictionResult is ready for patient id: ${predictionRequest.identifier} and data_mining_model_id: ${predictionRequest.data_mining_model.model_id}")
-      PredictionResult(predictionRequest.identifier, predictionRequest.variables, pArray.head._1, Some(pArray.head._2))
+      PredictionResult(predictionRequest.identifier, predictionRequest.variables, pArray.head._1, pArray.head._2, LocalDateTime.now())
     }
   }
 }
