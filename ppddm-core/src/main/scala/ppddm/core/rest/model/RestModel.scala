@@ -562,7 +562,7 @@ final case class PredictionResult(identifier: String,
                                   variables: Seq[Parameter],
                                   prediction: Double,
                                   probability: Double,
-                                  created_on: LocalDateTime) extends ModelClass
+                                  created_on: Option[LocalDateTime]) extends ModelClass
 
 final case class ARLFrequencyCalculationRequest(model_id: String,
                                                 dataset_id: String,
