@@ -1,8 +1,5 @@
 package ppddm.agent.controller.prepare
 
-import java.util.concurrent.TimeUnit
-import java.time.ZonedDateTime
-
 import akka.Done
 import com.typesafe.scalalogging.Logger
 import io.onfhir.path._
@@ -19,8 +16,8 @@ import ppddm.core.rest.model._
 import ppddm.core.util.DataPreparationUtil
 import ppddm.core.util.JsonFormatter._
 
+import java.time.ZonedDateTime
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
 import scala.util.{Failure, Try}
 
@@ -416,25 +413,21 @@ object DataPreparationController {
       if (encounterCriterion.fhir_path.nonEmpty) {
         val fhirPathExpression = encounterCriterion.fhir_path.get
         if (fhirPathExpression.startsWith(FHIRPathExpressionPrefix.VALUE_READMISSION)) {
-          val day = fhirPathExpression.substring(FHIRPathExpressionPrefix.VALUE_READMISSION.length).toInt
+          val typeAndDay = fhirPathExpression.substring(FHIRPathExpressionPrefix.VALUE_READMISSION.length).split(':')
+          // Parse the readmission type
+          var readmissionType = if (typeAndDay.length == 1) 2 else typeAndDay(0).toInt // Default type is 2
+          if (readmissionType != 1 && readmissionType != 2) readmissionType = 2
+          // Parse the day
+          val day = if (typeAndDay.length == 1) typeAndDay(0).toInt else typeAndDay(1).toInt
 
           var extractedMap = Map[String, EncounterBasedItem]()
           encounterMap.foreach { encounter =>
             // Filter the encounters by subject
             val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
             if (currentSubjectEncounters.nonEmpty) {
-              // End date of the current encounter
-              val currEncounterEndDate = ZonedDateTime.parse(encounter._2.periodEnd)
-              // Calculate X days after from the end date of the current encounter
-              val currEncounterEndDateXDaysAfter = ZonedDateTime.parse(encounter._2.periodEnd).plusDays(day)
               // If there exists an encounter between these dates, then has readmission will have value
-              val hasReadmission = currentSubjectEncounters.filter {e =>
-                val nextEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
-                nextEncounterStartDate.isAfter(currEncounterEndDate) && nextEncounterStartDate.isBefore(currEncounterEndDateXDaysAfter) &&
-                  encounter._2.encounterType.nonEmpty && encounter._2.encounterType.get == "unplanned" &&
-                  e._2.encounterType.nonEmpty && e._2.encounterType.get == "planned"
-              }
-              if (hasReadmission.isEmpty) extractedMap += (encounter._1 -> encounter._2)
+              val hasReadmission = this.hasReadmission(readmissionType, currentSubjectEncounters, encounter, day)
+              if (hasReadmission) extractedMap += (encounter._1 -> encounter._2)
             } else {
               extractedMap += (encounter._1 -> encounter._2)
             }
@@ -591,8 +584,14 @@ object DataPreparationController {
    */
   def evaluateReadmissionValue(encounterMap: Map[String, EncounterBasedItem], encounters: Seq[JObject], variable: Variable): Map[String, Map[String, Any]] = {
     val initialValuesForAllResources: Map[String, Any] = encounterMap.keySet.map((_ -> 0.toDouble)).toMap
-    // Get the day information from the fhir_path expression
-    val day = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_READMISSION.length).toInt
+    // Get the readmission type and day information from the fhir_path expression
+    // Either readmission:30 or readmission:1/2:30
+    val typeAndDay = variable.fhir_path.substring(FHIRPathExpressionPrefix.VALUE_READMISSION.length).split(':')
+    // Parse the readmission type
+    var readmissionType = if (typeAndDay.length == 1) 2 else typeAndDay(0).toInt // Default type is 2
+    if (readmissionType != 1 && readmissionType != 2) readmissionType = 2
+    // Parse the day
+    val day = if (typeAndDay.length == 1) typeAndDay(0).toInt else typeAndDay(1).toInt
 
     if (encounters.nonEmpty) {
       var encounterMap: Map[String, EncounterBasedItem] = Map.empty
@@ -611,18 +610,9 @@ object DataPreparationController {
         // Filter the encounters by subject
         val currentSubjectEncounters = encounterMap.filter(_._2.subject == encounter._2.subject)
         if (currentSubjectEncounters.nonEmpty) {
-          // End date of the current encounter
-          val currEncounterEndDate = ZonedDateTime.parse(encounter._2.periodEnd)
-          // Calculate X days after from the end date of the current encounter
-          val currEncounterEndDateXDaysAfter = ZonedDateTime.parse(encounter._2.periodEnd).plusDays(day)
           // If there exists an encounter between these dates, then has readmission will have value
-          val hasReadmission = currentSubjectEncounters.filter {e =>
-            val nextEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
-            nextEncounterStartDate.isAfter(currEncounterEndDate) &&
-              nextEncounterStartDate.isBefore(currEncounterEndDateXDaysAfter) &&
-              e._2.encounterType.nonEmpty && e._2.encounterType.get == "unplanned"
-          }
-          if (hasReadmission.nonEmpty) encounter._1 -> 1.toDouble
+          val hasReadmission = this.hasReadmission(readmissionType, currentSubjectEncounters, encounter, day)
+          if (hasReadmission) encounter._1 -> 1.toDouble
           else encounter._1 -> 0.toDouble
         } else {
           // If no encounter is found for the subject, fill it with 0.
@@ -632,6 +622,48 @@ object DataPreparationController {
       Map(variable.name -> (initialValuesForAllResources ++ extractedMap))
     } else {
       Map(variable.name -> initialValuesForAllResources)
+    }
+  }
+
+  /**
+   * If readmission type is 1:
+   *          Checks whether there are any encounter with type 'unplanned' after the current encounter and assigns
+   *          the value 1 to the current encounter.
+   * If readmission type is 2:
+   *          Checks whether there are any encounter before the current unplanned encounter and assigns the value 1
+   *          to the current encounter.
+   *
+   * @param readmissionType     Readmission evaluation type - 1/2
+   * @param encounterMap        Encounter map
+   * @param currentEncounter    Current encounter
+   * @param day                 Readmissions that happen within X days
+   * @return
+   */
+  private def hasReadmission(readmissionType: Int, encounterMap: Map[String, EncounterBasedItem], currentEncounter: (String, EncounterBasedItem), day: Int): Boolean = {
+    if (readmissionType == 1) {
+      // End date of the current encounter
+      val currEncounterEndDate = ZonedDateTime.parse(currentEncounter._2.periodEnd)
+      // Calculate X days after from the end date of the current encounter
+      val currEncounterStartDateXDaysAfter = ZonedDateTime.parse(currentEncounter._2.periodEnd).plusDays(day)
+      // If there exists an encounter between these dates, then has readmission will have value
+      encounterMap.exists {e =>
+        val nextEncounterStartDate = ZonedDateTime.parse(e._2.periodStart)
+        nextEncounterStartDate.isAfter(currEncounterEndDate) && nextEncounterStartDate.isBefore(currEncounterStartDateXDaysAfter) &&
+          e._2.encounterType.nonEmpty && e._2.encounterType.get == "unplanned"
+      }
+    } else if (readmissionType == 2) {
+      // Start date of the current encounter
+      val currEncounterStartDate = ZonedDateTime.parse(currentEncounter._2.periodStart)
+      // Calculate X days before from the start date of the current encounter
+      val currEncounterStartDateXDaysBefore = ZonedDateTime.parse(currentEncounter._2.periodStart).minusDays(day)
+      // If there exists an encounter between these dates, then has readmission will have value
+      encounterMap.exists {e =>
+        val prevEncounterEndDate = ZonedDateTime.parse(e._2.periodEnd)
+        prevEncounterEndDate.isBefore(currEncounterStartDate) && prevEncounterEndDate.isAfter(currEncounterStartDateXDaysBefore) &&
+          currentEncounter._2.encounterType.nonEmpty && currentEncounter._2.encounterType.get == "unplanned"
+      }
+    } else {
+      false
     }
   }
 
