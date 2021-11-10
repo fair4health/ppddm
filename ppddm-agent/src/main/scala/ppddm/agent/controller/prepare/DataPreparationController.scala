@@ -558,7 +558,7 @@ object DataPreparationController {
         val observationResources = resources.filter { resource =>
           (resource \ "resourceType").extract[String] == "Observation"
         }
-        evaluateMortalityValue(fhirClient, observationResources, variable)
+        evaluateMortalityValue(fhirClient, observationResources, resourceURIs, variable)
       } else if (variable.fhir_path.startsWith(FHIRPathExpressionPrefix.VALUE)) {
         // If FHIRPath expression starts with 'FHIRPathExpressionPrefix.VALUE'
         evaluateValuePath4FeatureSet(fhirPathEvaluator, resources, resourceURIs, variable, encounterMap)
@@ -732,7 +732,9 @@ object DataPreparationController {
     }
   }
 
-  def evaluateMortalityValue(fhirClient: FHIRClient, resources: Seq[JObject], variable: Variable): Map[String, Map[String, Any]] = {
+  def evaluateMortalityValue(fhirClient: FHIRClient, resources: Seq[JObject], resourceURIs: Set[String], variable: Variable): Map[String, Map[String, Any]] = {
+    val initialValuesForAllResources: Map[String, Any] = resourceURIs.map((_ -> 0.toDouble)).toMap
+
     val months = try {
       variable.fhir_path.trim.substring(FHIRPathExpressionPrefix.VALUE_MORTALITY.length).toLong
     } catch {
@@ -752,7 +754,7 @@ object DataPreparationController {
 
     val f = Future.sequence(
       patientID_ObservationDate.map { case (patientID, observationDate) => // For each patient
-        // Construct the FHIR query string to ask for the last Encounter within 6 months earlier than end date of this Observattion
+        // Construct the FHIR query string to ask for the last Encounter within 6 months earlier than end date of this Observation
         val fhirQueryString = s"/Encounter?_sort=-date&_count=1&date=gt${observationDate.minusMonths(months).format(JavaDateTimeSerializers.dateTimeFormatter)}"
         val fhirQueryForTheLastEncounter = QueryHandler.getResourcesOfPatientsQuery(Set(patientID), fhirQueryString, None) // Ask for the last Encounter (by date) within 6 months
         fhirQueryForTheLastEncounter.getResources(fhirClient) map { encounters =>
@@ -777,7 +779,7 @@ object DataPreparationController {
           throw DataPreparationException(msg, e)
       }
 
-    Map(variable.name -> extractedMap)
+    Map(variable.name -> (initialValuesForAllResources ++ extractedMap))
   }
 
   /**
