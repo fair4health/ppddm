@@ -774,7 +774,7 @@ object DataPreparationController {
         case e: java.util.concurrent.TimeoutException =>
           val msg = s"Encounter invocations of ${patientID_ObservationDate.size} patients did not finish in 120 seconds."
           logger.error(msg, e)
-          throw DataPreparationException("", e)
+          throw DataPreparationException(msg, e)
       }
 
     Map(variable.name -> extractedMap)
