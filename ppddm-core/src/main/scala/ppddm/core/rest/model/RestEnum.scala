@@ -93,6 +93,7 @@ object FHIRPathExpressionPrefix extends Enumeration {
   val SATISFY = "satisfy:"
   val VALUE_READMISSION = "value:readmission:"
   val VALUE_HOSPITALIZATION = "value:hospitalization:"
+  val VALUE_MORTALITY = "value:mortality:"
 }
 
 object DataType extends Enumeration {
