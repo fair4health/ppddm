@@ -735,21 +735,20 @@ object DataPreparationController {
   def evaluateMortalityValue(fhirClient: FHIRClient, resources: Seq[JObject], resourceURIs: Set[String], variable: Variable): Map[String, Map[String, Any]] = {
     val initialValuesForAllResources: Map[String, Any] = resourceURIs.map((_ -> 0.toDouble)).toMap
 
-    val months = try {
+    val months = try { // Assign 6 if the month value cannot be parsed from the FHIRPath expression.
       variable.fhir_path.trim.substring(FHIRPathExpressionPrefix.VALUE_MORTALITY.length).toLong
     } catch {
-      case e: Exception => throw DataPreparationException(s"Cannot parse the mortality FHIR Path script:${variable.fhir_path} while getting the number of months.")
+      case e: Exception =>
+        logger.warn(s"Cannot parse the mortality FHIR Path script:${variable.fhir_path} while getting the number of months. I will use 6 months by default...")
+        6L
     }
 
     // Collect patientIDs and the date of the observation from the Observation resources as a tuple of string values: (patientID, effectiveDateTime)
     val patientID_ObservationDate = resources.map { r =>
-      try {
-        (r \ "subject" \ "reference").asInstanceOf[JString].values -> ZonedDateTime.parse((r \ "effectiveDateTime").asInstanceOf[JString].values)
-      } catch {
-        case e: Exception =>
-          import org.json4s.jackson.JsonMethods._
-          throw DataPreparationException(s"Cannot parse the Observation resource. Probably, there is no effectiveDateTime for this Observation:${compact(render(r))}", e)
-      }
+      Try((r \ "subject" \ "reference").asInstanceOf[JString].values).getOrElse("NA") -> // If the subject/reference cannot be accessed, put "NA" in this value
+        Try((r \ "effectiveDateTime").asInstanceOf[JString].values).getOrElse("NA") // If the effectiveDateTime cannot be accessed, put "NA" in this value
+    }.collect { // Filter out the tuples if any of the values is "NA" or the observationDate cannot be parsed
+      case (pid, od) if pid != "NA" && Try(ZonedDateTime.parse(od)).isSuccess => pid -> ZonedDateTime.parse(od)
     }
 
     val f = Future.sequence(
