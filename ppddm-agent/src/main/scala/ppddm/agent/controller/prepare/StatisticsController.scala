@@ -36,7 +36,7 @@ object StatisticsController {
             // Calculate number of occurrences in each column
             val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesCategorical(dataFrame, field.name, numberOfRecords)
             // Create VariableStatistics obj
-            val variableStatistics: VariableStatistics = VariableStatistics(variable, None, None, nullPercentage, valueDistribution)
+            val variableStatistics: VariableStatistics = VariableStatistics(variable, None, None, nullPercentage, valueDistribution, None)
             // Append to the statistics list
             variableStatisticsList = variableStatisticsList :+ variableStatistics
           case field if field.dataType == DoubleType => // Double type
@@ -46,8 +46,10 @@ object StatisticsController {
             val nullPercentage: Option[Double] = calculateNullPercentage(dataFrame, field.name, numberOfRecords)
             // Calculate number of occurrences in each column
             val valueDistribution: Option[Seq[ValueCount]] = calculateDistinctValuesNumeric(dataFrame, field.name, numberOfRecords)
+            // Calculate mean
+            val mean: Option[Double] = calculateMean(dataFrame, field.name)
             // Append to the statistics list
-            val variableStatistics: VariableStatistics = VariableStatistics(variable, min_max._1, min_max._2, nullPercentage, valueDistribution)
+            val variableStatistics: VariableStatistics = VariableStatistics(variable, min_max._1, min_max._2, nullPercentage, valueDistribution, mean)
             variableStatisticsList = variableStatisticsList :+ variableStatistics
           case _ => None
         }
@@ -134,5 +136,9 @@ object StatisticsController {
     } else {
       statistics
     }
+  }
+
+  private def calculateMean(dataFrame: DataFrame, fieldName: String): Option[Double] = {
+    Try(dataFrame.select(mean(fieldName)).collect().head.getDouble(0)).toOption
   }
 }

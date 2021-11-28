@@ -209,7 +209,8 @@ final case class VariableStatistics(variable: Variable,
                                     min_value: Option[Double],
                                     max_value: Option[Double],
                                     null_percentage: Option[Double],
-                                    value_distribution: Option[Seq[ValueCount]]) extends ModelClass
+                                    value_distribution: Option[Seq[ValueCount]],
+                                    mean: Option[Double]) extends ModelClass
 
 final case class ValueCount(value: String,
                             count: Long,
