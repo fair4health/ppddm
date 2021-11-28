@@ -87,7 +87,7 @@ class FHIRClient(host: String,
     processRequest(request)
   }
 
-  def postBundle(bundle: String) = {
+  def postBundle(bundle: String): Future[JObject] = {
     // Prepare http request
     val request = HttpRequest(
       uri = Uri(fhirServerBaseURI), // POST to base URI for batch Bundle transactions
