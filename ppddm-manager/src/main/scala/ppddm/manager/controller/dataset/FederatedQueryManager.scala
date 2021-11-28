@@ -3,7 +3,9 @@ package ppddm.manager.controller.dataset
 import akka.Done
 import akka.http.scaladsl.model._
 import com.typesafe.scalalogging.Logger
+import ppddm.core.ai.DatasetEncoderDecoder
 import ppddm.core.rest.model._
+import ppddm.core.store.DataStoreManager
 import ppddm.manager.client.AgentClient
 import ppddm.manager.exception.{AgentCommunicationException, DataIntegrityException}
 import ppddm.manager.registry.AgentRegistry
@@ -52,6 +54,26 @@ object FederatedQueryManager {
       dataset
         .withDatasetSources(successfulAgents) // create a new Dataset with the DatasetSources which are EXECUTING
     }
+  }
+
+  def invokeAgentsXDataset(dataset_id: Option[String]): Future[Boolean] = {
+    Future.sequence(
+      AgentRegistry.agents.map { agent =>
+        invokeXDataset(agent, dataset_id)
+      }
+    ) map { responses =>
+      responses.map { response =>
+        DatasetEncoderDecoder.fromString(response.get.xdataset.get, "ppddm-store/manager/" + response.get.agent_id + "/" + response.get.dataset_id)
+      }
+
+      true
+    }
+  }
+
+  private def invokeXDataset(agent: Agent, dataset_id: Option[String]): Future[Option[XDataset]] = {
+    val agentRequest = AgentClient.createHttpRequest(agent, HttpMethods.GET, agent.getXDatasetURI(dataset_id))
+    AgentClient.invokeHttpRequest[XDataset](agentRequest).map(_.toOption)
+
   }
 
   /**

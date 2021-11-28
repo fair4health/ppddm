@@ -4,7 +4,7 @@ import akka.Done
 import com.typesafe.scalalogging.Logger
 import io.onfhir.path._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SaveMode, SparkSession}
 import org.json4s.JsonAST.JObject
 import org.json4s.{JArray, JString}
 import ppddm.agent.Agent
@@ -15,9 +15,12 @@ import ppddm.core.fhir.{FHIRClient, FHIRQuery}
 import ppddm.core.rest.model._
 import ppddm.core.util.{DataPreparationUtil, JavaDateTimeSerializers}
 import ppddm.core.util.JsonFormatter._
-
 import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
+
+import ppddm.agent.controller.dm.ClassificationController.retrieveDataFrame
+import ppddm.core.ai.DatasetEncoderDecoder
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future, TimeoutException}
@@ -1008,4 +1011,18 @@ object DataPreparationController {
     }
   }
 
+  def getXDataset(dataset_id: String): Option[XDataset] = {
+    val ds = Some(DatasetEncoderDecoder.toString("ppddm-store/" + AgentConfig.agentID + "/datasets/" + dataset_id))
+    Some(XDataset(AgentConfig.agentID, dataset_id, ds))
+  }
+
+  def generateCSV(dataset_id: String): Option[Boolean] = {
+    val dataFrame = retrieveDataFrame(dataset_id)
+    dataFrame.write
+      .option("header","true")
+      .mode(SaveMode.Overwrite)
+      .csv("ppddm-store/" + AgentConfig.agentID + "/CSV/" + dataset_id + ".csv")
+
+    Some(true)
+  }
 }

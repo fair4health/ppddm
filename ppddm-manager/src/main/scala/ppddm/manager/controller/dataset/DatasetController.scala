@@ -201,5 +201,9 @@ object DatasetController {
       }
   }
 
+  def getXDataset(dataset_id: Option[String]): Future[Boolean] = {
+    FederatedQueryManager.invokeAgentsXDataset(dataset_id)
+  }
+
 }
 

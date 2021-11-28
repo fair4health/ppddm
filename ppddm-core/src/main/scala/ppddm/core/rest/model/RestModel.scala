@@ -181,6 +181,10 @@ final case class Agent(agent_id: String,
     getURI("prepare", dataset_id)
   }
 
+  def getXDatasetURI(dataset_id: Option[String] = None): String = {
+    getURI("xdataset", dataset_id)
+  }
+
   def getTrainingURI(model_id: Option[String] = None): String = {
     getURI("dm/classification/train", model_id)
   }
@@ -201,6 +205,10 @@ final case class Agent(agent_id: String,
     getURI("dm/arl/execute", model_id)
   }
 }
+
+final case class XDataset(agent_id: String,
+                          dataset_id: String,
+                          xdataset: Option[String]) extends ModelClass
 
 final case class AgentDataStatistics(number_of_records: Long,
                                      variable_statistics: Seq[VariableStatistics]) extends ModelClass

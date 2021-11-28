@@ -25,20 +25,38 @@ trait DataPreparationEndpoint {
         }
       }
     } ~
-    pathPrefix("prepare" / Segment) { dataset_id =>
-      pathEndOrSingleSlash {
-        get {
-          complete { // Get the prepared data source statistics. This returns 404 if it is not ready yet.
-            DataPreparationController.getDataSourceStatistics(dataset_id)
-          }
-        } ~
-          delete { // Delete the prepared data from this Agent
+      pathPrefix("prepare" / Segment) { dataset_id =>
+        pathEndOrSingleSlash {
+          get {
+            complete { // Get the prepared data source statistics. This returns 404 if it is not ready yet.
+              DataPreparationController.getDataSourceStatistics(dataset_id)
+            }
+          } ~
+            delete { // Delete the prepared data from this Agent
+              complete {
+                DataPreparationController.deleteData(dataset_id)
+              }
+            }
+        }
+      } ~
+      pathPrefix("xdataset" / Segment) { dataset_id =>
+        pathEndOrSingleSlash {
+          get {
             complete {
-              DataPreparationController.deleteData(dataset_id)
+              DataPreparationController.getXDataset(dataset_id)
             }
           }
+        }
+      } ~
+      pathPrefix("csv" / Segment) { dataset_id =>
+        pathEndOrSingleSlash {
+          get {
+            complete {
+              DataPreparationController.generateCSV(dataset_id)
+            }
+          }
+        }
       }
-    }
   }
 
 }

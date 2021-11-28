@@ -34,32 +34,41 @@ trait DatasetEndpoint {
           }
       }
     } ~
-      pathPrefix("dataset" / Segment) { dataset_id =>
-        pathEndOrSingleSlash {
-          get { // get data set
+    pathPrefix("dataset" / Segment) { dataset_id =>
+      pathEndOrSingleSlash {
+        get { // get data set
+          parameters("_test".?) { test =>
+            complete {
+              DatasetController.getDataset(dataset_id, test.isDefined)
+            }
+          }
+        } ~
+          put { // update data set
             parameters("_test".?) { test =>
-              complete {
-                DatasetController.getDataset(dataset_id, test.isDefined)
+              entity(as[Dataset]) { dataset =>
+                complete {
+                  DatasetController.updateDataset(dataset, test.isDefined)
+                }
               }
             }
           } ~
-            put { // update data set
-              parameters("_test".?) { test =>
-                entity(as[Dataset]) { dataset =>
-                  complete {
-                    DatasetController.updateDataset(dataset, test.isDefined)
-                  }
-                }
-              }
-            } ~
-            delete { // delete data set
-              parameters("_test".?) { test =>
-                complete {
-                  DatasetController.deleteDataset(dataset_id, test.isDefined)
-                }
+          delete { // delete data set
+            parameters("_test".?) { test =>
+              complete {
+                DatasetController.deleteDataset(dataset_id, test.isDefined)
               }
             }
+          }
+      }
+    } ~
+    pathPrefix("xdataset" / Segment) { dataset_id =>
+      pathEndOrSingleSlash {
+        get {
+          complete {
+            DatasetController.getXDataset(Some(dataset_id))
+          }
         }
       }
+    }
   }
 }
