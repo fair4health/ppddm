@@ -54,6 +54,11 @@ or machine learning libraries.
  * Tests of the ppddm-agent requires an HL7 FHIR Repository (prefereably an [onFHIR Repository](https://onfhir.io)) 
    to be running at the host and port configured in the application.conf of the Agent.
 
+## API Documentation
+
+The REST API of the PPDDM is available through a detailed spreadsheet containing example requests for the service calls. 
+The document is available under [api-docs](https://github.com/fair4health/ppddm/tree/master/api-docs). 
+
 # Deployment (Docker)
 
 ## PPDDM-Agent Deployment (Docker)
